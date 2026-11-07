@@ -4,8 +4,7 @@
 
 ## Status (v0.2.0)
 
-All 22 findings are fixed or covered; 23 is a note on two open pull
-requests. The audit below and its four
+All 23 findings are fixed or covered. The audit below and its four
 re-assessments are kept as the record, in order; this table is the
 current state.
 
@@ -33,7 +32,7 @@ current state.
 | 20 | Install instructions not pinned to a release | Low | fixed |
 | 21 | Only editable installs tested | Low | fixed (wheel job in CI) |
 | 22 | Stale opening summary | Info | fixed (this table) |
-| 23 | Dependabot PRs #1 and #2 predate the wheel job's pins | Info | open: rebase before merging |
+| 23 | Dependabot PRs #1 and #2 predate the wheel job's pins | Info | fixed (rebased, merged) |
 
 ## Summary
 
@@ -667,7 +666,10 @@ since widening them needs a snapshot comparison and calibration.
   the new `Detector` and once with the pre-refactor `detect()` loaded from
   git, gives identical findings and scores for all 14,842 files (Python
   site-packages, 17 C-family repos, the shell corpora, the Flutter
-  packages: 56,915 findings, cross-file duplication included).
+  packages: 56,915 findings, cross-file duplication included). The full
+  `scripts/snapshot.py` comparison agrees: 72,255 of 72,255 files
+  identical (1,055,921 functions, including the 60,314-file Dart package
+  cache), and all 4 clone lists identical, order included.
 
 | # | Finding | Severity |
 |---|---|---|
@@ -838,4 +840,10 @@ cross major versions, so the merge is the maintainer's call.
 
 Nothing else new turned up. The open items are the two PRs and the
 next language (M21).
+
+**23, resolved:** after `@dependabot rebase`, both PRs updated every
+occurrence of their pin (test jobs and the wheel job), and CI passed in
+all five jobs on each. #1 (`setup-python` v7.1.0) was merged. #2
+(`checkout` v7.0.1) then conflicted (its lines are next to #1's), so it
+was rebased once more, passed CI again and was merged.
 
