@@ -8,7 +8,8 @@ from pathlib import Path
 
 from aihealth import __version__
 from aihealth.config import ConfigError, load_config
-from aihealth.report import FORMATS, ReportOptions, render_delta, render_scan
+from aihealth.report import FORMATS, ReportOptions, render_delta, render_history, render_scan
+from aihealth.store.scans import default_db_path
 
 
 def _not_yet(milestone: str):
@@ -45,8 +46,44 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         return 2
     result = scan(root, config)
     print(render_scan(result, args.format, _report_options(args)))
+    if args.save:
+        _save(result, config, args.db or default_db_path(root))
     below = args.fail_under is not None and (result.score or 10.0) < args.fail_under
     return 1 if below else 0
+
+
+def _save(result, config, db: Path) -> None:
+    from aihealth.store import connect, save_scan
+
+    conn = connect(db)
+    try:
+        scan_id = save_scan(conn, result, config)
+    finally:
+        conn.close()
+    print(f"saved scan #{scan_id} to {db}", file=sys.stderr)
+
+
+# --- history ------------------------------------------------------------------
+
+
+def _cmd_history(args: argparse.Namespace) -> int:
+    from aihealth.store import SchemaTooNewError, connect, list_scans
+
+    db = Path(args.db) if args.db else default_db_path(args.path)
+    if not db.is_file():
+        print(f"no scan history at {db} (run: aihealth scan --save)", file=sys.stderr)
+        return 2
+    try:
+        conn = connect(db)
+    except SchemaTooNewError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    try:
+        scans = list(reversed(list_scans(conn, args.limit)))  # oldest first
+    finally:
+        conn.close()
+    print(render_history(scans, args.format, str(db)))
+    return 0
 
 
 # --- delta --------------------------------------------------------------------
@@ -106,7 +143,16 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument(
         "--fail-under", type=float, metavar="SCORE", help="exit 1 if project score is below"
     )
+    scan.add_argument("--save", action="store_true", help="store the scan in the history DB")
+    scan.add_argument("--db", help="history DB (default: <path>/.aihealth/health.db)")
     scan.set_defaults(func=_cmd_scan)
+
+    history = sub.add_parser("history", help="list saved scans with score changes")
+    history.add_argument("path", nargs="?", default=".")
+    history.add_argument("--db", help="history DB (default: <path>/.aihealth/health.db)")
+    history.add_argument("--limit", type=int, default=30)
+    history.add_argument("--format", choices=("text", "json"), default="text")
+    history.set_defaults(func=_cmd_history)
 
     delta = sub.add_parser(
         "delta",

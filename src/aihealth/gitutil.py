@@ -133,3 +133,17 @@ def read_file(root: Path, rev: str | None, path: str) -> bytes | None:
 
 def _split(out: bytes) -> list[str]:
     return [p for p in out.decode("utf-8", "replace").split("\0") if p]
+
+
+def head_commit(root: Path) -> str | None:
+    out = _git(root, "rev-parse", "--verify", "--quiet", "HEAD", check=False).decode().strip()
+    return out or None
+
+
+def current_branch(root: Path) -> str | None:
+    out = _git(root, "branch", "--show-current", check=False).decode().strip()
+    return out or None  # None when detached
+
+
+def is_dirty(root: Path) -> bool:
+    return bool(_git(root, "status", "--porcelain", check=False).strip())

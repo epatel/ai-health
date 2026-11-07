@@ -40,7 +40,7 @@ Status: `todo` / `wip` / `done`.
 | M5 | Delta mode | done | before/after scoring for working tree, staged, or `base..head`; per-function new/worsened/fixed smells; verdict + exit code |
 | M6 | Output formats | done | `text`, `json`, `markdown` (agent-oriented, concise with refactor hints) |
 | M7 | MCP server | done | stdio server exposing `review_changes`, `score_file`, `scan_project`, `explain_smell`; registered in `.mcp.json` and smoke-tested from Claude Code |
-| M8 | Storage + migrations | todo | SQLite at `<repo>/.aihealth/health.db`, `PRAGMA user_version` migration runner, scans persisted |
+| M8 | Storage + migrations | done | SQLite at `<repo>/.aihealth/health.db`, `PRAGMA user_version` migration runner, scans persisted |
 | M9 | Dashboard | todo | FastAPI + Jinja: project overview, treemap (size=LoC, colour=score), file view with smells per function, score trend |
 | M10 | Agent loop integration | todo | optional Claude Code hook / skill that runs delta after edits; dogfooded on this repo |
 | M11 | Calibration | todo | run on 2–3 open-source Python and Flutter repos, tune thresholds/weights so scores spread sensibly; record results in the scoring card |
@@ -55,7 +55,9 @@ Status: `todo` / `wip` / `done`.
 - **Delta gate default:** fail when a touched file's score drops (beyond
   `delta.tolerance`), or it gains/worsens a smell without a net score
   gain. New files fail if they have any smell.
-- **Storage:** SQLite, dependency-free migration runner (standing default).
+- **Storage:** SQLite per analysed repo at `<repo>/.aihealth/health.db`
+  (self-gitignored, `--db` to override), dependency-free migration runner
+  (standing default). Settled in M8, no central DB.
 - **Dashboard:** server-rendered (FastAPI + Jinja), charts via a pinned CDN
   library (ECharts) — no frontend build.
 - **MCP:** official `mcp` Python SDK 2.x (`MCPServer`, formerly FastMCP), stdio
@@ -104,9 +106,15 @@ M7 done: `mcp_server.py` (5 tools incl. `preview_change`), `aihealth mcp`,
 tests incl. a stdio round trip. mcp SDK 2.x is pinned: v2 renamed FastMCP
 to MCPServer, hides non-ToolError messages and uses snake_case result
 fields.
-Next agent: M8 storage + migrations. SQLite at `<repo>/.aihealth/health.db`
-with a `PRAGMA user_version` migration runner (standing-defaults card),
-persisting scans (scan, file_score, finding). Wire `aihealth scan --save`.
+M8 done: `store/` with 2 migrations (scan/file_score/finding, then
+function_metric), atomic runner, scan persistence with git and config
+metadata, `aihealth scan --save` and `aihealth history`. 127 tests,
+including rollback of a half-failed migration.
+Next agent: M9 dashboard. Add FastAPI + uvicorn + jinja2 (ask the user to
+run `! make setup`). `aihealth serve --repo PATH` reads `store` queries.
+Pages: overview (latest scan and trend), treemap (size = LoC, colour =
+score), file view (findings and function metrics), and a "scan now"
+button that runs a scan and saves it. Charts via pinned ECharts from CDN.
 Note: `pip install` may need user approval in this environment — ask the
 user to run `! make setup` rather than retrying.
 
@@ -121,6 +129,3 @@ user to run `! make setup` rather than retrying.
   Flutter packages 3.29). Calibrate in M11. Candidate fixes: cap the
   penalty per function, higher decay, or normalise file penalty by
   function count.
-- Should scan history live in the analysed repo (`.aihealth/`) or a central
-  per-user DB for the dashboard to compare repos? (Proposal: per repo, the
-  dashboard takes a path.)

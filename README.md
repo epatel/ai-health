@@ -31,6 +31,13 @@ aihealth scan path/to/repo --format markdown --max-findings 20
 aihealth scan . --fail-under 7      # CI gate on the project score
 ```
 
+## History
+
+```bash
+aihealth scan . --save     # store in .aihealth/health.db (self-gitignored)
+aihealth history           # score per saved scan, Δ, config changes
+```
+
 ## MCP server (Claude Code and other agents)
 
 Register it for a project (run inside that project; the server analyses its working directory):

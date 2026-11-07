@@ -21,6 +21,8 @@ parsing via tree-sitter, history in SQLite.
   (default: working tree incl. untracked vs HEAD; exit 1 = degraded)
 - Run `aihealth delta` on your own changes before committing. Fix new or worsened smells
   it reports in code you touched.
+- History: `.venv/bin/aihealth scan PATH --save` then `.venv/bin/aihealth history PATH`
+  (DB `PATH/.aihealth/health.db`; schema changes = append to `store/migrations.py`)
 - MCP: `.venv/bin/aihealth mcp` (stdio; registered in `.mcp.json`; usage in README.md)
 - Not yet implemented (exits 2): `aihealth serve --repo PATH` (M9)
 

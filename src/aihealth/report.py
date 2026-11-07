@@ -70,6 +70,50 @@ def render_file(fs: FileScore, fmt: str, opts: ReportOptions | None = None) -> s
     return "\n".join(out)
 
 
+def render_history(scans: list[dict], fmt: str, db: str = "") -> str:
+    """Saved scans, oldest first, with score change and config-change marks."""
+    if fmt == "json":
+        return json.dumps({"db": db, "scans": scans}, indent=2)
+    if not scans:
+        return f"no scans in {db}"
+    out = [
+        f"aihealth history ({db})",
+        "",
+        "    #  date              commit   score   Δ      files    LoC",
+    ]
+    prev = None
+    for s in scans:
+        out.append(_history_row(s, prev))
+        prev = s
+    return "\n".join(out)
+
+
+def _history_row(s: dict, prev: dict | None) -> str:
+    score = "  n/a" if s["score"] is None else f"{s['score']:5.2f}"
+    commit = (s.get("git_commit") or "-")[:7]
+    when = s["created_at"][:16].replace("T", " ")
+    notes = _history_notes(s, prev)
+    note = f"  ({', '.join(notes)})" if notes else ""
+    change = _score_change(s, prev)
+    return f"{s['id']:5}  {when}  {commit:7}  {score}  {change:6} {s['file_count']:6} {s['loc']:7}{note}"
+
+
+def _score_change(s: dict, prev: dict | None) -> str:
+    scores = [s["score"], prev["score"] if prev else None]
+    if None in scores:
+        return ""
+    return f"{scores[0] - scores[1]:+.2f}"
+
+
+def _history_notes(s: dict, prev: dict | None) -> list[str]:
+    notes = []
+    if s.get("git_dirty"):
+        notes.append("uncommitted changes")
+    if prev is not None and prev["config_hash"] != s["config_hash"]:
+        notes.append("config changed")
+    return notes
+
+
 # --- shared helpers -------------------------------------------------------------
 
 
