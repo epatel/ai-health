@@ -150,6 +150,8 @@ def explain_smell(smell: str) -> str:
     trigger = "" if threshold is None else f"Triggers when the value exceeds {threshold:g}. "
     if key == "brain_method":
         trigger = "Triggers when Large Method, Complex Method and Deep Nesting all apply. "
+    if key == "missing_phony":
+        trigger = "Triggers for any undeclared phony-looking target; severity grows per target. "
     if key == "code_duplication":
         dup = Config().section("duplication")
         trigger = (

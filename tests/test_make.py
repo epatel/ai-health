@@ -169,3 +169,87 @@ def test_scan_and_delta_include_makefiles_and_skip_generated(tmp_path):
     delta = run_delta(tmp_path, Config())
     assert delta.verdict == "degraded"
     assert any(c.finding.smell == "deep_nesting" for c in delta.files[0].changes)
+
+
+# --- missing .PHONY ---------------------------------------------------------------
+
+
+def phony_findings(src: str, config: Config | None = None):
+    found = score_source(src.encode(), "Makefile", config).findings
+    return [f for f in found if f.smell == "missing_phony"]
+
+
+UNDECLARED = (
+    "all: app\n"
+    "app: main.o\n\t$(CC) -o $@ $^\n"
+    "clean:\n\trm -f app\n"
+    "test: app\n\t./app --selftest\n"
+    "lint:\n\truff check .\n"
+)
+
+
+def test_missing_phony_lists_undeclared_targets():
+    [f] = phony_findings(UNDECLARED)
+    assert f.level == "file" and f.line == 1 and f.value == 4
+    assert f.message.endswith("not declared .PHONY: all, clean, test, lint")
+    assert f.severity == 3.0  # 1.0 for the first target, +1 per further, capped
+    assert ".PHONY" in f.hint
+    [one] = phony_findings("clean:\n\trm -f x\n")
+    assert one.severity == 1.0 and "1 target looks" in one.message
+
+
+def test_declared_targets_including_via_variables():
+    declared = ".PHONY: all clean\n.PHONY: test lint\n" + UNDECLARED
+    assert phony_findings(declared) == []
+    via_vars = "P := clean test\nP += lint\nALL := all $(P)\n.PHONY: $(ALL)\n" + UNDECLARED
+    assert phony_findings(via_vars) == []
+    inside_conditional = "ifeq ($(X),1)\n.PHONY: all clean test lint\nendif\n" + UNDECLARED
+    assert phony_findings(inside_conditional) == []
+
+
+def test_unexpandable_phony_variable_stays_silent():
+    # TARGETS comes from the included file: can't tell what's declared
+    assert phony_findings("include targets.mk\n.PHONY: $(TARGETS)\n" + UNDECLARED) == []
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        "build:\n\tmkdir -p build\n",  # creates a directory of its name
+        "report.txt:\n\techo hi > $@\n",  # extension, writes $@
+        "stamp:\n\ttouch $@\n",  # writes $@
+        "FORCE:\n",  # the empty force-target idiom
+        "out/%.o: %.c\n\tcc -c $<\n",  # pattern rule with a path
+        ".DEFAULT:\n\techo default\n",  # special target
+        "$(BIN): main.c\n\tcc -o $(BIN) main.c\n",  # variable target
+    ],
+)
+def test_file_and_special_targets_are_not_flagged(rule):
+    assert phony_findings(rule) == []
+
+
+@pytest.mark.parametrize("name", ["-Os", "-mcpu=cortex-m0plus", "#", "+=", "a=b", "x.o"])
+def test_flag_and_assignment_shaped_names_are_never_phony(name):
+    from aihealth.lang.make_phony import _looks_phony, _Target
+
+    assert not _looks_phony(name, _Target(line=1, empty=False))
+    assert _looks_phony("clean", _Target(line=1, empty=False))
+
+
+def test_missing_phony_configurable_and_in_delta():
+    cfg = Config()
+    cfg.data["weights"]["missing_phony"] = 0
+    assert phony_findings(UNDECLARED, cfg) == []
+
+    from aihealth.delta import delta_for_contents
+
+    fixed = ".PHONY: all clean test lint\n" + UNDECLARED
+    fd = delta_for_contents("Makefile", UNDECLARED.encode(), fixed.encode(), Config())
+    assert [(c.kind, c.finding.smell) for c in fd.changes] == [("fixed", "missing_phony")]
+    assert fd.verdict == "improved"
+
+
+def test_other_languages_have_no_language_smells():
+    for path in ("a.py", "a.dart"):
+        module = parse_source(b"x = 1\n" if path.endswith(".py") else b"int x = 1;\n", path)
+        assert adapter_for(path).language_smells(module) == []

@@ -110,6 +110,12 @@ mapped onto make:
   or `$(foreach)`, are scored for their make-level branching.
 - **Copied recipes** show up as Code Duplication. Fix hints suggest make remedies:
   pattern rules, `define` + `$(call)`, moving shell into a script file.
+- **Missing .PHONY** (Makefile-only smell): targets that never create a file of their
+  name (`clean`, `test`, `all`) but aren't listed in `.PHONY`. If a file or directory with
+  that name ever exists, `make test` silently does nothing. The check is conservative:
+  targets writing `$@` or mentioning their own name, names with `.`/`/`/`%`/`$`, empty
+  `FORCE:` rules and special targets are skipped, and `.PHONY: $(VARS)` is expanded from
+  the file's own assignments (nothing is reported if it can't be expanded).
 
 Generated files (automake, CMake, qmake output, and in every language anything marked
 "DO NOT EDIT" or "@generated") are skipped.

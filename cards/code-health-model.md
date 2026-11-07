@@ -41,6 +41,7 @@ Starting thresholds; all overridable in `.aihealth.toml`.
 | Code Duplication | function | clone ≥ 50 tokens / 6 lines, intra- or inter-file | extract shared function |
 | Large File | file | > 1000 LoC | split by responsibility |
 | Low Cohesion | class | LCOM4 ≥ 3 | split class |
+| Missing .PHONY | Makefile file | ≥ 1 phony-looking target not in `.PHONY` (weight 0.5) | declare it in `.PHONY` |
 | Deep Widget Tree | Dart function | widget constructor nesting > 8 in `build()` | extract sub-widgets |
 
 ## Metric definitions (implemented in M3)
@@ -227,8 +228,20 @@ Makefile-specific (adapter `hint()`).
 The generic thresholds fit without special cases. On 1,284 hand-written
 Makefiles, 96 % are healthy, the median file scores 10, and recipe LoC
 p90/p99 is 6/37 (limit 70). The common findings are copied recipes (553),
-long recipes (140) and complex shell logic (41). No Makefile-specific smells
-(e.g. missing `.PHONY`) yet.
+long recipes (140) and complex shell logic (41).
+
+**Missing .PHONY** is the first language-specific smell. Adapters return
+`LanguageSmell(smell, level, line, symbol, value, message)` from
+`language_smells(module)`, and the detector applies the usual
+threshold/weight/severity rules, so config, delta, report and MCP all work
+unchanged. It is file-level (recipe-less targets like `all: app` are not
+units), triggers at value > 0 (the number of undeclared targets), and has
+weight 0.5 because it's hygiene, not complexity. On 1,270 hand-written
+Makefiles only 305 use `.PHONY` at all, and 42 % are flagged. The most
+flagged names are all, clean, flash, run, distclean, test, install, deploy
+and help. Two guards were added after the first run surfaced junk names
+(`-Os`, `+=`, `#`): rules inside grammar-error recovery are ignored, and
+names must be plain words matching `[A-Za-z0-9_][A-Za-z0-9_-]*`.
 
 ### Refinements made while adding Makefiles
 

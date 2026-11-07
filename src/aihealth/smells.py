@@ -41,6 +41,9 @@ HINTS = {
     "primitive_obsession": "Introduce small domain types (value objects, enums) instead of "
     "passing raw strings/ints/maps around.",
     "code_duplication": "Extract the duplicated logic into a shared function.",
+    "missing_phony": "Declare targets that don't create a file of their name in .PHONY "
+    "(e.g. `.PHONY: clean test`); otherwise a file or directory with that name makes "
+    "`make <target>` silently do nothing.",
 }
 
 LABELS = {
@@ -57,6 +60,7 @@ LABELS = {
     "low_cohesion": "Low Cohesion",
     "primitive_obsession": "Primitive Obsession",
     "code_duplication": "Code Duplication",
+    "missing_phony": "Missing .PHONY",
 }
 
 
@@ -93,6 +97,11 @@ EXPLANATIONS = {
     "primitive_obsession": "Share of typed parameters in the file that are built-in primitives "
     "(str, int, dict, List, Map, ...; bool and untyped excluded). Domain concepts passed as raw "
     "primitives lose validation and meaning.",
+    "missing_phony": "Makefiles: targets that look phony (no `.`, `/`, `%` or `$` in the name, "
+    "and a recipe that never writes `$@` or mentions the name) but are not listed in .PHONY. "
+    "If a file or directory with that name ever exists, make considers the target up to date "
+    "and skips it. Empty `FORCE:` rules are not flagged, and nothing is reported when .PHONY "
+    "uses variables defined outside the file.",
     "code_duplication": "Blocks of 50+ tokens / 6+ lines repeated within the file or across the "
     "project (literals may differ). Duplicated logic must be changed in several places, and one "
     "copy is eventually forgotten.",
@@ -341,6 +350,17 @@ class _Detector:
                 f"file has {self.module.loc} lines of code",
             )
         self.primitive_obsession()
+        self.language_smells()
+
+    def language_smells(self) -> None:
+        """Smells only one language has (e.g. Makefile `missing_phony`); same
+        weights, thresholds and severity rules as every other smell."""
+        for hit in self.adapter.language_smells(self.module):
+            threshold = self.config.threshold(hit.smell)
+            if hit.value > threshold:
+                self.add(
+                    hit.smell, hit.level, hit.line, hit.symbol, hit.value, threshold, hit.message
+                )
 
     def primitive_obsession(self) -> None:
         cfg = self.config

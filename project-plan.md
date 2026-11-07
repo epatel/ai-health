@@ -140,6 +140,8 @@ M12 (Makefiles) done: `lang/make.py`, generic adapter hooks (`is_alternative`,
 skipping in every language, and state-based LCOM4. 182 tests. Validated on
 2,190 Makefiles found on disk. Details in the parser-choice and
 code-health-model cards.
+Missing .PHONY smell added after M12 (`lang/make_phony.py`, generic
+`language_smells` hook). 201 tests.
 All planned milestones are done. Possible next steps: more
 languages (adapter + role table + golden tests), behavioural hotspots from
 git change frequency (a v1 non-goal), and cross-file duplication in delta

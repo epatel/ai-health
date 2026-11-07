@@ -136,3 +136,9 @@ def test_stdio_server_round_trip(repo):
     }
     assert "**DEGRADED**" in review.content[0].text  # cwd = repo is the default
     assert bad.is_error and "unknown smell" in bad.content[0].text
+
+
+def test_explain_missing_phony():
+    text = srv.explain_smell("Missing .PHONY")
+    assert text.startswith("## Missing .PHONY (`missing_phony`)")
+    assert "undeclared phony-looking target" in text

@@ -40,6 +40,7 @@ DEFAULT_THRESHOLDS: dict[str, float] = {
     "large_file": 1000,  # code lines in a file
     "low_cohesion": 2,  # LCOM4 components (3 triggers)
     "primitive_obsession": 0.6,  # share of typed params that are primitive
+    "missing_phony": 0,  # Makefile targets that look phony but aren't in .PHONY
 }
 
 DEFAULT_WEIGHTS: dict[str, float] = {
@@ -56,6 +57,7 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "low_cohesion": 1.0,
     "primitive_obsession": 0.75,
     "code_duplication": 1.0,
+    "missing_phony": 0.5,  # hygiene, not complexity
 }
 
 DEFAULT_EXCLUDES: list[str] = [

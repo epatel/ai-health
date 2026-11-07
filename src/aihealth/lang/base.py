@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from typing import ClassVar
 
 from tree_sitter import Node
@@ -146,6 +147,19 @@ def _make_qualnames_unique(module: Module) -> None:
             fn.qualname = f"{fn.qualname}#{n}"
 
 
+@dataclass(frozen=True)
+class LanguageSmell:
+    """A language-specific smell measurement; it becomes a Finding when
+    ``value`` exceeds the smell's configured threshold."""
+
+    smell: str
+    level: str  # function | class | file
+    line: int
+    symbol: str | None
+    value: float
+    message: str
+
+
 class LanguageAdapter:
     """Turns source into a :class:`Module` and tells the metric walker what
     each node means. Subclasses implement ``_extract`` and fill ``roles``;
@@ -201,6 +215,11 @@ class LanguageAdapter:
     def hint(self, smell: str) -> str | None:
         """Language-specific fix hint for a smell, or None for the generic one."""
         return None
+
+    def language_smells(self, module: Module) -> list[LanguageSmell]:
+        """Smells specific to this language (default: none). Each must have a
+        `smells.LABELS/HINTS/EXPLANATIONS` entry and config threshold/weight."""
+        return []
 
     def tokens(self, root: Node) -> Iterator[tuple[str, int]]:
         """(token key, 1-based line) for duplication detection: syntax-tree

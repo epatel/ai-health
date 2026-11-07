@@ -28,7 +28,8 @@ from typing import ClassVar
 from tree_sitter import Node
 from tree_sitter_language_pack import get_parser
 
-from aihealth.lang.base import LanguageAdapter, iter_nodes, text
+from aihealth.lang.base import LanguageAdapter, LanguageSmell, iter_nodes, text
+from aihealth.lang.make_phony import missing_phony
 from aihealth.metrics import Role
 from aihealth.model import Function, Module
 
@@ -222,6 +223,9 @@ class MakeAdapter(LanguageAdapter):
 
     def hint(self, smell: str) -> str | None:
         return _HINTS.get(smell)
+
+    def language_smells(self, module: Module) -> list[LanguageSmell]:
+        return missing_phony(module.root)
 
     def tokens(self, root: Node) -> Iterator[tuple[str, int]]:
         """Words and symbols of the raw text (recipes are opaque to the make
