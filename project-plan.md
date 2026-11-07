@@ -37,7 +37,7 @@ Status: `todo` / `wip` / `done`.
 | M2 | Language adapters | done | Python + Dart adapters return a uniform `Module → Class → Function` model with spans, params, body nodes |
 | M3 | Function metrics | done | LoC, cyclomatic, cognitive, max nesting, bumps, args, complex conditionals, widget-tree depth (Dart) — golden-file tests per language |
 | M4 | Smells + scoring | done | smell detectors, penalty table, file score 1–10, LoC-weighted project score, `.aihealth.toml` overrides, duplication detector |
-| M5 | Delta mode | todo | before/after scoring for working tree, staged, or `base..head`; per-function new/worsened/fixed smells; verdict + exit code |
+| M5 | Delta mode | done | before/after scoring for working tree, staged, or `base..head`; per-function new/worsened/fixed smells; verdict + exit code |
 | M6 | Output formats | todo | `text`, `json`, `markdown` (agent-oriented, concise with refactor hints) |
 | M7 | MCP server | todo | stdio server exposing `review_changes`, `score_file`, `scan_project`, `explain_smell`; registered in `.mcp.json` and smoke-tested from Claude Code |
 | M8 | Storage + migrations | todo | SQLite at `<repo>/.aihealth/health.db`, `PRAGMA user_version` migration runner, scans persisted |
@@ -52,8 +52,9 @@ Status: `todo` / `wip` / `done`.
   has no usable Python-side parser otherwise. See `cards/parser-choice.md`.
 - **Scoring model:** smell-based penalties, 1–10, LoC-weighted aggregation,
   bands Healthy ≥ 9, Warning 4–9, Alert < 4. See `cards/code-health-model.md`.
-- **Delta gate default:** fail when a touched file's score drops, or a touched
-  function gains a smell. Tolerance configurable.
+- **Delta gate default:** fail when a touched file's score drops (beyond
+  `delta.tolerance`), or it gains/worsens a smell without a net score
+  gain. New files fail if they have any smell.
 - **Storage:** SQLite, dependency-free migration runner (standing default).
 - **Dashboard:** server-rendered (FastAPI + Jinja), charts via a pinned CDN
   library (ECharts) — no frontend build.
@@ -86,9 +87,17 @@ code-health-model card).
 Dogfooding: this repo scores 7.18. The worst files are `lang/dart.py`
 (`member_refs`, `role`) and `smells.py` (`_Detector.function`). Refactor
 candidates once delta mode exists to verify improvements.
-Next agent: M5 delta mode. `engine.score_source()` already scores
-in-memory content. Delta needs git before/after content, pairing by
-qualname, and new/worsened/fixed classification.
+M5 done: `gitutil.py` + `delta.py` + `aihealth delta` (worktree incl.
+untracked / `--staged` / `--base` / `--head`, path filters, text and json,
+exit 1 on degraded). 94 tests. The verdict rule was refined: new smells
+are OK if the file's score rises on net (see card).
+Dogfooded: delta flagged the new M5 code, so it was refactored until
+delta.py and gitutil.py score 10.00. `smells.py` went from 5.03 to 7.52,
+and the project from 7.18 to 8.09. Noise fixes: assert conditions and bool
+params.
+Next agent: M6 output formats. Add an agent-oriented `--format markdown`
+for delta and scan: concise, capped at N findings, hints included. Text
+and json already exist.
 Note: `pip install` may need user approval in this environment — ask the
 user to run `! make setup` rather than retrying.
 

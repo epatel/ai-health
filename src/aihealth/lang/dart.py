@@ -217,7 +217,6 @@ class DartAdapter(LanguageAdapter):
             "double",
             "num",
             "String",
-            "bool",
             "List",
             "Map",
             "Set",

@@ -121,6 +121,19 @@ def test_flutter_build_threshold_and_widget_depth():
     assert "large_method" in smells(other, "s.dart")
 
 
+def test_asserts_are_not_complex_conditionals():
+    py = "def f(a, b, c):\n    assert a and b or c\n    return a\n"
+    assert "complex_conditional" not in smells(py, "a.py")
+    dart = "void f(a, b, c) { assert(a && b || c); }"
+    assert "complex_conditional" not in smells(dart, "a.dart")
+    assert "complex_conditional" in smells(dart.replace("assert(", "g("), "a.dart")
+
+
+def test_bool_params_are_neutral_for_primitive_obsession():
+    flags = "\n".join(f"def f{i}(a: bool, b: bool, c: Order) -> None: ..." for i in range(5))
+    assert "primitive_obsession" not in smells(flags, "p.py")
+
+
 def test_weight_zero_disables_smell():
     cfg = Config()
     cfg.data["weights"]["excess_arguments"] = 0

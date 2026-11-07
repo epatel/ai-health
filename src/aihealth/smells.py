@@ -135,136 +135,135 @@ class _Detector:
     # -- function level -----------------------------------------------------
 
     def function(self, fn: Function, m: FunctionMetrics) -> None:
-        cfg = self.config
-        share = fn.loc / self.file_loc
+        large_limit = self._large_limit(fn)
         q, line = fn.qualname, fn.start_line
-
-        def over(smell: str, value: float) -> bool:
-            return cfg.weight(smell) > 0 and value > cfg.threshold(smell)
-
-        large_key = "large_method"
-        if self.adapter.language == "dart" and fn.name == "build" and fn.kind == "method":
-            large_key = "large_method_build"
-        large_limit = cfg.threshold(large_key)
-        is_large = fn.loc > large_limit
-        is_complex = m.cyclomatic > cfg.threshold("complex_method")
-        is_nested = m.max_nesting > cfg.threshold("deep_nesting")
-
-        if is_large and is_complex and is_nested:
-            sev = (
-                _severity(fn.loc, large_limit)
-                + _severity(m.cyclomatic, cfg.threshold("complex_method"))
-                + _severity(m.max_nesting, cfg.threshold("deep_nesting"))
-            ) / 3
-            self.add(
-                "brain_method",
-                "function",
-                line,
-                q,
-                fn.loc,
-                large_limit,
-                f"{q} is large ({fn.loc} lines), complex (cyclomatic {m.cyclomatic}) "
-                f"and deeply nested (depth {m.max_nesting})",
-                share,
-                severity=round(sev, 3),
-            )
-        if is_large and cfg.weight("large_method") > 0:
-            self.add(
+        self._brain_method(fn, m, large_limit)
+        # (smell, value, line, limit or None for the configured one, message)
+        simple = [
+            (
                 "large_method",
-                "function",
-                line,
-                q,
                 fn.loc,
+                line,
                 large_limit,
                 f"{q} has {fn.loc} lines of code (limit {large_limit:g})",
-                share,
-            )
-        if over("complex_method", m.cyclomatic):
-            self.add(
+            ),
+            (
                 "complex_method",
-                "function",
-                line,
-                q,
                 m.cyclomatic,
-                cfg.threshold("complex_method"),
+                line,
+                None,
                 f"{q} has cyclomatic complexity {m.cyclomatic}",
-                share,
-            )
-        if over("cognitive_complexity", m.cognitive):
-            self.add(
+            ),
+            (
                 "cognitive_complexity",
-                "function",
-                line,
-                q,
                 m.cognitive,
-                cfg.threshold("cognitive_complexity"),
+                line,
+                None,
                 f"{q} has cognitive complexity {m.cognitive}",
-                share,
-            )
-        if over("deep_nesting", m.max_nesting):
-            self.add(
+            ),
+            (
                 "deep_nesting",
-                "function",
-                m.nesting_line or line,
-                q,
                 m.max_nesting,
-                cfg.threshold("deep_nesting"),
+                m.nesting_line or line,
+                None,
                 f"{q} nests {m.max_nesting} levels deep at line {m.nesting_line}",
-                share,
-            )
-        if over("bumpy_road", len(m.bumps)):
-            spans = ", ".join(f"L{b.start_line}-{b.end_line}" for b in m.bumps)
-            self.add(
-                "bumpy_road",
-                "function",
-                m.bumps[0].start_line,
-                q,
-                len(m.bumps),
-                cfg.threshold("bumpy_road"),
-                f"{q} has {len(m.bumps)} separate nested chunks ({spans})",
-                share,
-            )
-        args = _effective_args(fn)
-        if over("excess_arguments", args):
-            self.add(
-                "excess_arguments",
-                "function",
-                line,
-                q,
-                args,
-                cfg.threshold("excess_arguments"),
-                f"{q} takes {len(fn.params)} parameters (weighted {args:g})",
-                share,
-                integer=False,
-            )
-        complex_bools = [
-            b for b in m.bool_exprs if b.operators > cfg.threshold("complex_conditional")
-        ]
-        if complex_bools and cfg.weight("complex_conditional") > 0:
-            worst = max(complex_bools, key=lambda b: b.operators)
-            where = ", ".join(f"L{b.line}" for b in complex_bools)
-            self.add(
-                "complex_conditional",
-                "function",
-                worst.line,
-                q,
-                worst.operators,
-                cfg.threshold("complex_conditional"),
-                f"{q} has {len(complex_bools)} complex boolean expression(s) "
-                f"(up to {worst.operators} operators: {where})",
-                share,
-            )
-        if over("deep_widget_tree", m.widget_depth):
-            self.add(
+            ),
+            (
                 "deep_widget_tree",
-                "function",
-                line,
-                q,
                 m.widget_depth,
-                cfg.threshold("deep_widget_tree"),
+                line,
+                None,
                 f"{q} builds a widget tree {m.widget_depth} levels deep",
-                share,
-            )
+            ),
+        ]
+        for smell, value, at, limit, message in simple:
+            limit = self.config.threshold(smell) if limit is None else limit
+            if value > limit:
+                self.add(smell, "function", at, q, value, limit, message, self._share(fn))
+        self._bumpy_road(fn, m)
+        self._excess_arguments(fn)
+        self._complex_conditional(fn, m)
+
+    def _share(self, fn: Function) -> float:
+        return fn.loc / self.file_loc
+
+    def _large_limit(self, fn: Function) -> float:
+        flutter_build = self.adapter.language == "dart" and _is_build_method(fn)
+        return self.config.threshold("large_method_build" if flutter_build else "large_method")
+
+    def _brain_method(self, fn: Function, m: FunctionMetrics, large_limit: float) -> None:
+        cfg = self.config
+        parts = [
+            (fn.loc, large_limit),
+            (m.cyclomatic, cfg.threshold("complex_method")),
+            (m.max_nesting, cfg.threshold("deep_nesting")),
+        ]
+        if not all(value > limit for value, limit in parts):
+            return
+        sev = sum(_severity(value, limit) for value, limit in parts) / len(parts)
+        self.add(
+            "brain_method",
+            "function",
+            fn.start_line,
+            fn.qualname,
+            fn.loc,
+            large_limit,
+            f"{fn.qualname} is large ({fn.loc} lines), complex (cyclomatic {m.cyclomatic}) "
+            f"and deeply nested (depth {m.max_nesting})",
+            self._share(fn),
+            severity=round(sev, 3),
+        )
+
+    def _bumpy_road(self, fn: Function, m: FunctionMetrics) -> None:
+        limit = self.config.threshold("bumpy_road")
+        if len(m.bumps) <= limit:
+            return
+        spans = ", ".join(f"L{b.start_line}-{b.end_line}" for b in m.bumps)
+        self.add(
+            "bumpy_road",
+            "function",
+            m.bumps[0].start_line,
+            fn.qualname,
+            len(m.bumps),
+            limit,
+            f"{fn.qualname} has {len(m.bumps)} separate nested chunks ({spans})",
+            self._share(fn),
+        )
+
+    def _excess_arguments(self, fn: Function) -> None:
+        args, limit = _effective_args(fn), self.config.threshold("excess_arguments")
+        if args <= limit:
+            return
+        self.add(
+            "excess_arguments",
+            "function",
+            fn.start_line,
+            fn.qualname,
+            args,
+            limit,
+            f"{fn.qualname} takes {len(fn.params)} parameters (weighted {args:g})",
+            self._share(fn),
+            integer=False,
+        )
+
+    def _complex_conditional(self, fn: Function, m: FunctionMetrics) -> None:
+        limit = self.config.threshold("complex_conditional")
+        hits = [b for b in m.bool_exprs if not b.in_assert and b.operators > limit]
+        if not hits:
+            return
+        worst = max(hits, key=lambda b: b.operators)
+        where = ", ".join(f"L{b.line}" for b in hits)
+        self.add(
+            "complex_conditional",
+            "function",
+            worst.line,
+            fn.qualname,
+            worst.operators,
+            limit,
+            f"{fn.qualname} has {len(hits)} complex boolean expression(s) "
+            f"(up to {worst.operators} operators: {where})",
+            self._share(fn),
+        )
 
     # -- class level ----------------------------------------------------------
 
@@ -372,6 +371,10 @@ class _Detector:
                 if min_lines > 1
                 else 1.0,
             )
+
+
+def _is_build_method(fn: Function) -> bool:
+    return fn.kind == "method" and fn.name == "build"
 
 
 def _effective_args(fn: Function) -> float:

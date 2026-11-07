@@ -59,6 +59,7 @@ class Bump:
 class BoolExpr:
     line: int
     operators: int
+    in_assert: bool = False  # `assert a and b`: a check, not branching
 
 
 @dataclass
@@ -161,7 +162,9 @@ def _walk(root: Node, adapter: LanguageAdapter, fn_name: str | None) -> _Totals:
             if ops:
                 t.cyclomatic += len(ops)
                 t.cognitive += 1 + sum(1 for a, b in pairwise(ops) if a != b)
-                t.bool_exprs.append(BoolExpr(node.start_point[0] + 1, len(ops)))
+                t.bool_exprs.append(
+                    BoolExpr(node.start_point[0] + 1, len(ops), _in_assert(node, adapter))
+                )
         elif fn_name and adapter.is_recursive_call(node, fn_name):
             t.cognitive += 1
 
@@ -175,6 +178,15 @@ def _is_bool_root(node: Node, adapter: LanguageAdapter) -> bool:
     while parent is not None and parent.type in adapter.bool_transparent:
         parent = parent.parent
     return parent is None or adapter.role(parent) is not Role.BOOL_EXPR
+
+
+def _in_assert(node: Node, adapter: LanguageAdapter) -> bool:
+    parent = node.parent
+    while parent is not None and adapter.role(parent) not in (Role.STOP, Role.LAMBDA):
+        if parent.type in adapter.assert_types:
+            return True
+        parent = parent.parent
+    return False
 
 
 def _bool_operators(root: Node, adapter: LanguageAdapter) -> list[str]:

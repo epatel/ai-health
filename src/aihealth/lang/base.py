@@ -134,6 +134,9 @@ class LanguageAdapter:
     # --- module/class smell hooks ----------------------------------------------
 
     primitive_types: ClassVar[frozenset[str]] = frozenset()
+    # flag types: neither primitive nor domain types for Primitive Obsession
+    neutral_types: ClassVar[frozenset[str]] = frozenset({"bool"})
+    assert_types: ClassVar[frozenset[str]] = frozenset({"assert_statement"})
     # composite nodes treated as one token (and normalised) for duplication
     literal_types: ClassVar[frozenset[str]] = frozenset()
 
@@ -147,6 +150,7 @@ class LanguageAdapter:
         if type_text is None:
             return None
         bases = self.base_types(type_text)
+        bases = [b for b in bases or [] if b not in self.neutral_types]
         if not bases:
             return None
         return all(b in self.primitive_types for b in bases)

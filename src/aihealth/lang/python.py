@@ -138,7 +138,6 @@ class PythonAdapter(LanguageAdapter):
             "float",
             "complex",
             "str",
-            "bool",
             "bytes",
             "bytearray",
             "dict",

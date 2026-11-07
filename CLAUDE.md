@@ -17,9 +17,12 @@ parsing via tree-sitter, history in SQLite.
 - Lint / format: `make lint` · `make fmt`
 - Scan: `.venv/bin/aihealth scan PATH [--format json] [-v] [--fail-under 7]`
   (config: `PATH/.aihealth.toml`, documented in `src/aihealth/config.py`)
+- Delta: `.venv/bin/aihealth delta [PATHS] [--staged | --base REV [--head REV]] [-v] [--format json]`
+  (default: working tree incl. untracked vs HEAD; exit 1 = degraded)
+- Run `aihealth delta` on your own changes before committing. Fix new or worsened smells
+  it reports in code you touched.
 - Not yet implemented (exit 2 until their milestone lands):
-  `aihealth delta [--staged|--base REV]` (M5) · `aihealth mcp` (M7) ·
-  `aihealth serve --repo PATH` (M9)
+  `aihealth mcp` (M7) · `aihealth serve --repo PATH` (M9)
 
 ## Enforced rules
 

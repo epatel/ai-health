@@ -75,6 +75,80 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- delta --------------------------------------------------------------------
+
+_MARK = {
+    "new": "+ new     ",
+    "worsened": "↑ worse   ",
+    "improved": "↓ better  ",
+    "fixed": "✓ fixed   ",
+}
+
+
+_HEAD_LABEL = {"worktree": "working tree", "index": "staged changes"}
+
+
+def _print_delta_text(result, verbose: bool) -> None:
+    head = _HEAD_LABEL.get(result.head, result.head)
+    base = result.base or "(empty repository)"
+    print(f"aihealth delta: {head} vs {base}: {result.verdict.upper()}")
+    if not result.files:
+        print("no changed Python/Dart files")
+    for fd in result.files:
+        _print_file_delta(fd, verbose)
+
+
+def _score_label(fd) -> str:
+    if fd.score_before is None:
+        return f"new file, {fd.score_after:.2f}"
+    return f"{fd.score_before:.2f} → {fd.score_after:.2f} ({fd.score_delta:+.2f})"
+
+
+def _print_file_delta(fd, verbose: bool) -> None:
+    rename = f" (from {fd.old_path})" if fd.status == "renamed" else ""
+    print(f"\n  {fd.verdict:9} {fd.path}{rename}  {_score_label(fd)}")
+    if fd.after and fd.after.parse_errors:
+        print(f"            ! {fd.after.parse_errors} syntax error(s): results may be partial")
+    shown = fd.changes if verbose else fd.of_kind("new", "worsened")
+    for ch in shown:
+        _print_change(ch)
+    hidden = len(fd.changes) - len(shown)
+    if hidden:
+        print(f"    ({hidden} improvement(s), -v to list)")
+
+
+def _print_change(ch) -> None:
+    f = ch.finding
+    was = f" (was {ch.value_before:g})" if ch.kind in ("worsened", "improved") else ""
+    line = "" if ch.kind == "fixed" else f"L{f.line}"
+    print(f"    {_MARK[ch.kind]}{line:6} {f.label}: {f.message}{was}")
+    if ch.kind in ("new", "worsened"):
+        print(f"                     → {f.hint}")
+
+
+def _cmd_delta(args: argparse.Namespace) -> int:
+    from aihealth import gitutil
+    from aihealth.delta import DEGRADED, run_delta
+
+    if args.staged and args.head:
+        print("error: --staged and --head are mutually exclusive", file=sys.stderr)
+        return 2
+    head = gitutil.INDEX if args.staged else (args.head or gitutil.WORKTREE)
+    try:
+        root = gitutil.repo_root(args.repo)
+        config = load_config(root, args.config)
+        result = run_delta(root, config, gitutil.Revisions(args.base, head), args.paths or None)
+    except (gitutil.GitError, ConfigError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    if args.format == "json":
+        json.dump(result.to_dict(), sys.stdout, indent=2)
+        print()
+    else:
+        _print_delta_text(result, args.verbose)
+    return 1 if result.verdict == DEGRADED else 0
+
+
 # --- parser -------------------------------------------------------------------
 
 
@@ -98,10 +172,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scan.set_defaults(func=_cmd_scan)
 
-    delta = sub.add_parser("delta", help="score a code change before vs after")
-    delta.add_argument("--staged", action="store_true", help="compare index against HEAD")
-    delta.add_argument("--base", metavar="REV", help="compare working tree against REV")
-    delta.set_defaults(func=_not_yet("M5"))
+    delta = sub.add_parser(
+        "delta",
+        help="score a code change before vs after (exit 1 if health degraded)",
+        description="Compare code health of changed files. Default: working tree "
+        "(incl. untracked files) against HEAD.",
+    )
+    delta.add_argument("paths", nargs="*", help="limit to these files/directories")
+    delta.add_argument("--repo", default=".", help="path inside the git repository")
+    delta.add_argument("--staged", action="store_true", help="compare the index against base")
+    delta.add_argument("--base", metavar="REV", default="HEAD", help="before revision (HEAD)")
+    delta.add_argument("--head", metavar="REV", help="after revision instead of the working tree")
+    delta.add_argument("--format", choices=["text", "json"], default="text")
+    delta.add_argument("-v", "--verbose", action="store_true", help="also list improvements")
+    delta.add_argument("--config", help="config file (default: <repo root>/.aihealth.toml)")
+    delta.set_defaults(func=_cmd_delta)
 
     mcp = sub.add_parser("mcp", help="run the MCP server over stdio")
     mcp.set_defaults(func=_not_yet("M7"))

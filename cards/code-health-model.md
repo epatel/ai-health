@@ -152,11 +152,37 @@ Scan speed is about 12k LoC/s including cross-file duplication.
 Functions are paired by qualified name (`Class.method`); renamed functions
 appear as removed + added.
 
+Findings pair by `(level, symbol, smell)`. The before-content is scored
+under the new path, so findings still pair across a git rename.
+
 - **new** smell: present after, absent before in that function.
-- **worsened**: present in both, severity increased.
+- **worsened** / **improved**: present in both, and severity went up / down.
+  Text output shows the previous metric value ("was 12").
 - **fixed**: present before, absent after.
-- Verdict `degraded` if any touched file score drops by more than
-  `delta.tolerance` (default 0.0) or any new/worsened smell exists; exit 1.
+- Per-file verdict (implemented in M5, refined from the plan):
+  - `degraded` if the score dropped by more than `delta.tolerance`
+    (default 0.0), **or** there are new/worsened smells *without a net score
+    gain*. Trading one smell for another is allowed only if the file gets
+    healthier overall.
+  - Added files are judged on their own findings: any smell means
+    degraded, and a clean new file is unchanged.
+  - `improved` if the score rose or anything was fixed or reduced, and
+    `unchanged` otherwise.
+  - Deleted files are ignored, since removing code never degrades health.
+- Overall: degraded if any file degraded (exit 1), else improved if any
+  file improved.
+- Duplication in delta mode is checked within each file only. Cross-file
+  clones introduced by a change are not detected yet.
+- The tolerance exists because a function can grow without its smells
+  getting worse: its share of the file rises, so its penalty rises.
+
+### Noise fixes from dogfooding (M5)
+
+- Boolean expressions inside `assert` (Python `assert`, Dart `assert(...)`)
+  don't count as Complex Conditional. They are checks, not branching logic.
+- `bool` parameters are neutral for Primitive Obsession (they are flags,
+  not hidden domain concepts). Before this fix, CLI modules full of
+  `verbose: bool` were flagged.
 
 ## Alternatives considered
 
