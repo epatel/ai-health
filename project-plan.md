@@ -50,7 +50,8 @@ Status: `todo` / `wip` / `done`.
 | M15 | TypeScript adapter | done | `.ts`/`.mts`/`.cts`/`.tsx` scored, named function values and test closures as units, JSX depth, 100 % of 18k declarations/methods on 12.7k files, calibrated on 10 repos |
 | M16 | JavaScript adapter | done | `.js`/`.mjs`/`.cjs`/`.jsx` via the TypeScript adapter, assigned functions (CommonJS, prototypes) as units, 100 % of 26k declarations/methods on 22.7k files, calibrated on 7 repos |
 | M17 | CMake adapter | done | `CMakeLists.txt`/`*.cmake` scored (functions, macros, top-level blocks, `AND`/`OR`), all 639 definitions on 956 files, 90 % of 566 hand-written files healthy |
-| M18 | Next language | todo | which one is the user's call: ask first (see handoff) |
+| M18 | C, C++, Objective-C | todo | one combined adapter per `plan-c-family.md`: coverage, calibration and snapshots as for earlier languages |
+| M19 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
 
@@ -121,14 +122,16 @@ SQLite history with migrations, a dashboard, and Claude Code hooks.
 Scoring is calibrated on 61 corpora, plus distribution checks on
 Makefiles and CMake files.
 
-**Next task: another language (M18).** The user picks which, so ask.
-Candidates: Go (`if err != nil` needs a calibration decision), Kotlin
-(Compose maps onto widget depth; labelled args like Swift), and shell
-scripts (cheapest: the bash role table already exists in
-`lang/make.py`). Follow README "Adding a language". `lang/swift.py` shows
-a grammar without an `alternative` field and with unreliable operator
-precedence; `lang/rust.py` shows a wrapped else-if (`else_if()`), tests
-in the same file, and idiom exclusions for cohesion.
+**Next task: C, C++ and Objective-C (M18).** The plan, measurements and
+decisions (settled with the user) are in `plan-c-family.md`. Later
+candidates (M19+): Go (`if err != nil` needs a calibration decision),
+Kotlin (Compose maps onto widget depth; labelled args like Swift), and
+shell scripts (cheapest: the bash role table already exists in
+`lang/make.py`). Follow README "Adding a language". `lang/swift.py`
+shows a grammar without an `alternative` field and with unreliable
+operator precedence; `lang/rust.py` shows a wrapped else-if
+(`else_if()`), tests in the same file, and idiom exclusions for
+cohesion.
 
 **Prove existing languages are unaffected** with `scripts/snapshot.py
 --lang python,dart,make` before and after, then `--compare` (exit 0 =
