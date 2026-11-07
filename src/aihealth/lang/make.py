@@ -46,8 +46,10 @@ _MAKE_LOOPS = {"foreach"}
 _PLACEHOLDER = "MAKEVAR"
 _AUTO_VARS = re.compile(r"\$[@<^*?+|%]")
 _TOKEN = re.compile(r"\$\(|\w+|[^\s\w]")
+# `^[^\S\n]*`, not `^\s*`: the latter runs across blank lines from every line
+# start (a `define` body of 40,000 blank lines took 61 s)
 _MAKE_LINE = re.compile(
-    r"^\s*(?:(?:ifeq|ifneq|ifdef|ifndef|else|endif|include|-include|sinclude|override"
+    r"^[^\S\n]*(?:(?:ifeq|ifneq|ifdef|ifndef|else|endif|include|-include|sinclude|override"
     r"|export|unexport|vpath)\b"  # directives
     r"|[\w.$()%/-]+\s*(?::=|::=|\+=|\?=|!=|=)\s"  # VAR := value
     r"|[\w.$()%/-]+\s*::?(?:\s|$))",  # target: prerequisites

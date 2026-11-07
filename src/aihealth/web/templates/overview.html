@@ -106,7 +106,7 @@
     if (document.getElementById("trend-chart")) {
       aihealthCharts.trend("trend-chart", data.trend.map((t) => ({
         label: "#" + t.id, date: t.created_at, commit: t.git_commit, value: t.score,
-        parsers: t.parser_versions,
+        tool: t.tool_version, parsers: t.parser_versions,
         href: "/?scan=" + t.id,
       })), { current: "#" + data.scan });
     }

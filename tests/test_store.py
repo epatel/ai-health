@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import aihealth
 from aihealth.cli import main
 from aihealth.config import Config
 from aihealth.engine import scan
@@ -213,16 +214,38 @@ def test_scans_record_parser_versions(project, tmp_path):
     assert file_trend(conn, "bad.py")[0]["parser_versions"] == recorded
 
 
-def test_history_notes_parser_changes(project, capsys):
-    for _ in range(4):
+def _history_rows(project, capsys, scans: int, updates: list[str]) -> list[str]:
+    """`aihealth history` rows after saving ``scans`` scans and running
+    ``updates`` (SQL) on the history database."""
+    for _ in range(scans):
         assert main(["scan", str(project), "--save"]) == 0
     db = sqlite3.connect(project / ".aihealth" / "health.db")
-    db.execute("UPDATE scan SET parser_versions = NULL WHERE id = 1")  # saved before v3
-    db.execute("UPDATE scan SET parser_versions = 'tree-sitter-language-pack 1.26.0' WHERE id = 4")
+    for sql in updates:
+        db.execute(sql)
     db.commit()
     capsys.readouterr()
     assert main(["history", str(project)]) == 0
-    rows = capsys.readouterr().out.splitlines()[3:]
+    return capsys.readouterr().out.splitlines()[3:]
+
+
+def test_history_notes_parser_changes(project, capsys):
+    rows = _history_rows(
+        project,
+        capsys,
+        4,
+        [
+            "UPDATE scan SET parser_versions = NULL WHERE id = 1",  # saved before v3
+            "UPDATE scan SET parser_versions = 'tree-sitter-language-pack 1.26.0' WHERE id = 4",
+        ],
+    )
     notes = ["parsers changed" in row for row in rows]
     assert notes == [False, False, False, True]  # unknown -> known is not a change
     assert "parsers changed: tree-sitter-language-pack 1.26.0" in rows[3]
+
+
+def test_history_notes_aihealth_version_changes(project, capsys):
+    rows = _history_rows(
+        project, capsys, 2, ["UPDATE scan SET tool_version = '0.1.0' WHERE id = 1"]
+    )
+    assert "aihealth changed" not in rows[0]
+    assert f"aihealth changed: {aihealth.__version__}" in rows[1]

@@ -206,7 +206,7 @@ def project_trend(conn: sqlite3.Connection, limit: int = 200) -> list[dict]:
     """Project score per scan, oldest first."""
     rows = conn.execute(
         "SELECT id, created_at, git_commit, score, loc, file_count, config_hash,"
-        " parser_versions FROM"
+        " tool_version, parser_versions FROM"
         " (SELECT * FROM scan ORDER BY id DESC LIMIT ?) ORDER BY id",
         (limit,),
     ).fetchall()
@@ -216,7 +216,8 @@ def project_trend(conn: sqlite3.Connection, limit: int = 200) -> list[dict]:
 def file_trend(conn: sqlite3.Connection, path: str, limit: int = 200) -> list[dict]:
     """One file's score per scan it appears in, oldest first."""
     rows = conn.execute(
-        "SELECT s.id AS scan_id, s.created_at, s.git_commit, s.parser_versions, f.score, f.loc"
+        "SELECT s.id AS scan_id, s.created_at, s.git_commit, s.tool_version, s.parser_versions,"
+        " f.score, f.loc"
         " FROM file_score f"
         " JOIN scan s ON s.id = f.scan_id WHERE f.path = ? ORDER BY s.id DESC LIMIT ?",
         (path, limit),

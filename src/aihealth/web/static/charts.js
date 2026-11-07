@@ -46,12 +46,18 @@
     return chart;
   }
 
-  // Labels of scans whose parser/grammar versions differ from the scan
-  // before (both known): scores there may move without any code change.
-  function parserChanges(points) {
-    const changed = (p, i) => i > 0 && Boolean(p.parsers) && Boolean(points[i - 1].parsers) &&
-      p.parsers !== points[i - 1].parsers;
+  // Labels of scans whose aihealth or parser/grammar versions differ from
+  // the scan before (both known): scores there may move without any code
+  // change.
+  function versionChanges(points) {
+    const differs = (a, b) => Boolean(a) && Boolean(b) && a !== b;
+    const changed = (p, i) => i > 0 &&
+      (differs(p.tool, points[i - 1].tool) || differs(p.parsers, points[i - 1].parsers));
     return new Set(points.filter(changed).map((p) => p.label));
+  }
+
+  function versionsText(p) {
+    return `aihealth ${p.tool || "?"}${p.parsers ? ", " + p.parsers : ""}`;
   }
 
   function trendTooltip(points, changed) {
@@ -60,27 +66,27 @@
       const when = (p.date || "").slice(0, 16).replace("T", " ");
       const score = p.value == null ? "n/a" : p.value.toFixed(2) + " (" + band(p.value) + ")";
       const commit = p.commit ? p.commit.slice(0, 7) + "<br>" : "";
-      const parsers = changed.has(p.label) ? `<br>parsers changed: ${p.parsers}` : "";
-      return `<b>${p.label}</b> · ${when}<br>${commit}score ${score}${parsers}`;
+      const versions = changed.has(p.label) ? `<br>versions changed: ${versionsText(p)}` : "";
+      return `<b>${p.label}</b> · ${when}<br>${commit}score ${score}${versions}`;
     };
   }
 
-  // band thresholds (dashed) and parser changes (dotted, vertical)
+  // band thresholds (dashed) and version changes (dotted, vertical)
   function trendMarks(t, changed) {
-    const parserLine = (label) => ({
-      xAxis: label, name: "parsers", lineStyle: { type: "dotted", color: t.secondary },
+    const versionLine = (label) => ({
+      xAxis: label, name: "versions", lineStyle: { type: "dotted", color: t.secondary },
     });
     return [
       { yAxis: 9, name: "healthy ≥ 9" },
       { yAxis: 4, name: "alert < 4" },
-      ...[...changed].map(parserLine),
+      ...[...changed].map(versionLine),
     ];
   }
 
   // Score per scan: one series, fixed 1-10 axis, dashed band thresholds,
-  // a dotted vertical line where the parser/grammar versions changed.
+  // a dotted vertical line where the aihealth or parser versions changed.
   function trend(id, points, opts) {
-    const changed = parserChanges(points);
+    const changed = versionChanges(points);
     const chart = mount(id, (t) => ({
       grid: { left: 36, right: 64, top: 16, bottom: 28 },
       tooltip: {

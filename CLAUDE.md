@@ -22,6 +22,9 @@ parsing via tree-sitter, history in SQLite.
   (default: working tree incl. untracked vs HEAD; exit 1 = degraded)
 - Run `aihealth delta` on your own changes before committing. Fix new or worsened smells
   it reports in code you touched.
+- Version: `src/aihealth/__init__.py` is the only source. Bump the minor version when the
+  same code can score differently (a language, thresholds, smell or metric logic), the patch
+  otherwise, and add an entry to `CHANGELOG.md`.
 - History: `.venv/bin/aihealth scan PATH --save` then `.venv/bin/aihealth history PATH`
   (DB `PATH/.aihealth/health.db`; schema changes = append to `store/migrations.py`)
 - Dashboard: `.venv/bin/aihealth serve --repo PATH [--db DB] [--port 8765]` (http://127.0.0.1:8765)

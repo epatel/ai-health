@@ -26,3 +26,13 @@ def test_serve_warns_when_reachable_from_other_machines(tmp_path, monkeypatch, c
 
 def test_serve_on_loopback_does_not_warn(tmp_path, monkeypatch, capsys):
     assert not _serve_warning(tmp_path, monkeypatch, capsys, "127.0.0.1")
+
+
+def test_installed_version_is_the_package_version():
+    """pyproject.toml reads the version from aihealth.__version__ (one
+    source). Fails after a bump until the package is reinstalled."""
+    from importlib import metadata
+
+    import aihealth
+
+    assert metadata.version("aihealth") == aihealth.__version__

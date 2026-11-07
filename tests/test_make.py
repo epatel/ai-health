@@ -1,6 +1,7 @@
 """Makefile adapter: units, recipe shell complexity, conditionals, duplication."""
 
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,7 @@ from aihealth.config import Config
 from aihealth.engine import scan, score_source
 from aihealth.lang import adapter_for, is_supported, parse_file, parse_source
 from aihealth.lang.base import is_generated
-from aihealth.lang.make import _neutralise
+from aihealth.lang.make import _looks_like_make, _neutralise
 from aihealth.metrics import function_metrics
 
 FIXTURE = Path(__file__).parent / "fixtures" / "Makefile"
@@ -253,3 +254,12 @@ def test_other_languages_have_no_language_smells():
     for path in ("a.py", "a.dart"):
         module = parse_source(b"x = 1\n" if path.endswith(".py") else b"int x = 1;\n", path)
         assert adapter_for(path).language_smells(module) == []
+
+
+def test_define_body_check_is_linear():
+    """`^\\s*` ran across blank lines from every line start: a `define`
+    body of 40,000 blank lines took 61 s."""
+    start = time.perf_counter()
+    assert not _looks_like_make("\n" * 80000)
+    assert _looks_like_make("\n" * 80000 + "  ifeq ($(X),1)\n")
+    assert time.perf_counter() - start < 1

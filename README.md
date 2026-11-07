@@ -60,7 +60,7 @@ aihealth scan src/app.py            # one file (also: x.dart, main.rs, app.tsx, 
 
 ```bash
 aihealth scan . --save     # store in .aihealth/health.db (self-gitignored)
-aihealth history           # score per saved scan, Δ, config and parser changes
+aihealth history           # score per saved scan, Δ, config, aihealth and parser changes
 ```
 
 ## Dashboard

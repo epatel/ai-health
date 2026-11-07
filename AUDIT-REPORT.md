@@ -617,3 +617,77 @@ since widening them needs a snapshot comparison and calibration.
 1. ~~Fix 15~~ (done).
 2. ~~16 and 17~~ (done). 507 tests pass.
 3. Then the next language (M21) is the user's call.
+
+---
+
+## Third re-assessment
+
+**Date:** 2026-11-07 · **Commit:** `f11c7b5` (main) · **Range:** `ed24108..f11c7b5`
+(fixes for 15–17), plus a sweep of areas not timed before
+
+### State
+
+- Findings 1–17 are fixed or covered. CI passes on every push, including
+  the first run with SHA-pinned actions.
+- The repo scores 10.00 (62 of 62 files healthy). 507 tests, ruff clean.
+- **`smells.py` refactor verified:** scanning each corpus twice, once with
+  the new `Detector` and once with the pre-refactor `detect()` loaded from
+  git, gives identical findings and scores for all 14,842 files (Python
+  site-packages, 17 C-family repos, the shell corpora, the Flutter
+  packages: 56,915 findings, cross-file duplication included).
+
+| # | Finding | Severity |
+|---|---|---|
+| 18 | Makefile `define` bodies: quadratic `^\s*` search (missed by 13) | **new**, Low, fixed |
+| 19 | Version never bumped: `scan.tool_version` is always `0.1.0` | **new**, Low, fixed |
+
+### 18. Quadratic `_MAKE_LINE` search (new, Low)
+
+`make._looks_like_make` runs `_MAKE_LINE.search(body)` on every `define`
+body, and the pattern starts with `^\s*` under MULTILINE: the same
+construct finding 13 fixed in the C-family header markers. The sweep for
+13 timed only preparation regexes and per-line matches. Measured: a
+body of 20,000 blank lines takes 15 s, and 40,000 take 61 s. A grep of
+`src/` for MULTILINE patterns finds no other case. The rest are
+`[ \t]*` or `[^\S\n]*`, and the shebang patterns run on 128 bytes.
+**Fixed:** `^[^\S\n]*` (same matches: 70,793 Makefile chunks from
+`~/Development` agree), and a timing test with 80,000 blank lines.
+
+### 19. The version is never bumped (new, Low)
+
+`pyproject.toml` and `aihealth.__version__` have said `0.1.0` through
+all 49 commits, including nine language adapters and several scoring
+changes, and there are no git tags or changelog. So:
+
+- `scan.tool_version`, recorded so history can explain score changes,
+  is the same for every scan and explains nothing (parser versions now
+  cover grammar updates, but not aihealth's own scoring changes).
+- Users install `git+https://…/ai-health` and get whatever `main` is.
+  There is nothing to pin to or roll back to.
+- The version is written in two places, which can drift.
+
+**Fix:** a single source (`[tool.setuptools.dynamic] version = {attr =
+"aihealth.__version__"}`). Bump the minor version when scores can
+change (a new language, thresholds, smell logic), tag releases, and keep
+a short CHANGELOG. `aihealth history` could then note "aihealth
+changed", like "parsers changed".
+**Fixed:** `pyproject.toml` reads the version from `aihealth.__version__`
+(`dynamic = ["version"]`). The version is bumped to **0.2.0**, and
+`CHANGELOG.md` states the rule (minor when the same code can score
+differently, patch otherwise), as does `CLAUDE.md`. `aihealth history`
+notes "aihealth changed: 0.2.0", and the dashboard trends mark aihealth
+version changes like parser changes. A test checks that the installed
+metadata matches `__version__`, which catches a missed reinstall or a
+second source. The release tag (`v0.2.0`) goes with the push. 510
+tests.
+
+### Verified
+
+- **15:** IPv6 loopback served, foreign hosts still refused, and the
+  `Origin` comparison works with bracketed hosts.
+- **16:** `read_head` stops git after 128 bytes. An empty file is `b""`,
+  a missing one `None`. Delta reads content only for files it will score.
+- **17:** both actions resolve at the pinned SHAs (CI green). Dependabot
+  covers only the workflow, by design.
+- **Walks:** `os.walk` doesn't follow symlinked directories, so a link
+  loop can't hang a scan outside git.

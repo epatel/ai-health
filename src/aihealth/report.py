@@ -113,17 +113,19 @@ def _history_notes(s: dict, prev: dict | None) -> list[str]:
         notes.append("uncommitted changes")
     if prev is not None and prev["config_hash"] != s["config_hash"]:
         notes.append("config changed")
-    if parsers_changed(prev, s):
+    if changed_since(prev, s, "tool_version"):
+        notes.append(f"aihealth changed: {s['tool_version']}")
+    if changed_since(prev, s, "parser_versions"):
         notes.append(f"parsers changed: {s['parser_versions']}")
     return notes
 
 
-def parsers_changed(prev: dict | None, s: dict) -> bool:
-    """Did the parser/grammar versions change since ``prev``? Unknown (scans
-    saved before versions were recorded) counts as no change."""
+def changed_since(prev: dict | None, s: dict, key: str) -> bool:
+    """Did ``key`` (a version) change since ``prev``? Unknown (scans saved
+    before it was recorded) counts as no change."""
     if prev is None:
         return False
-    before, after = prev.get("parser_versions"), s.get("parser_versions")
+    before, after = prev.get(key), s.get(key)
     return None not in (before, after) and before != after
 
 
