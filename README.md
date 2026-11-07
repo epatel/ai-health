@@ -110,7 +110,8 @@ project's `.claude/settings.json` (use the absolute path to your aihealth instal
 - **Parameters** with a call-site label count half for Excess Arguments; `_ x` counts
   fully.
 - **SwiftUI**: nesting of view calls (`VStack { HStack { Text(...) } }`) is the Deep
-  Widget Tree depth. `body` uses the normal Large Method limit (measured below).
+  Widget Tree depth. View-builder closures don't add cognitive nesting (they are layout,
+  not control flow); `Task { }` and `.map { }` closures do. `body` uses the normal Large Method limit (measured below).
 - **Skipped**: `.build/`, `Pods/`, `DerivedData/`, `*.docc/` (tutorial step files),
   `*.generated.swift` and SwiftGen/Sourcery output.
 - Very new or stdlib-internal syntax (`@_lifetime`, `__owned`) and `f(())` are not in

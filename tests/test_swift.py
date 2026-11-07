@@ -440,3 +440,40 @@ def test_deep_view_tree_gets_swiftui_hint():
     ]
     assert found and found[0].value == 11
     assert "View` structs" in found[0].hint
+
+
+VIEW_BUILDERS = """
+struct V: View {
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading) {
+                ForEach(items) { item in
+                    if item.done {
+                        Text(item.name)
+                    }
+                }
+            }
+        }
+    }
+
+    func work(_ xs: [Int]) {
+        Task {
+            xs.forEach { x in
+                if x > 0 { print(x) }
+            }
+        }
+    }
+}
+"""
+
+
+def test_view_builder_closures_add_no_cognitive_nesting():
+    m = metrics(VIEW_BUILDERS)
+    assert m["V.body"].cognitive == 1  # the if, at level 0 despite 3 view closures
+    assert m["V.work"].cognitive == 3  # Task { } and forEach { } still nest: +1 +2
+    assert m["V.body"].widget_depth == 4  # depth is still measured
+
+
+def test_fixture_body_cognitive():
+    m = function_metrics(functions()["ProfileView.body"], adapter_for(FIXTURE))
+    assert m.cognitive == 1

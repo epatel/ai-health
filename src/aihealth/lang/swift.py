@@ -224,10 +224,14 @@ def _called_name(call: Node) -> Node | None:
     return _ident(target)
 
 
+# capitalised calls taking a closure that is control flow, not a view tree
+_NOT_VIEWS = frozenset({"Task", "AsyncStream", "AsyncThrowingStream", "Result"})
+
+
 def _is_view_call(call: Node) -> bool:
     """`Text(...)`, `VStack { ... }`: a call of a capitalised name."""
     name = text(_callee(call)).lstrip("_")
-    return bool(name) and name[0].isupper()
+    return bool(name) and name[0].isupper() and name not in _NOT_VIEWS
 
 
 def _closure_call(lam: Node) -> Node | None:
@@ -427,7 +431,7 @@ class SwiftAdapter(LanguageAdapter):
 
     def role(self, node: Node) -> Role | None:
         if node.type == "lambda_literal":
-            return Role.STOP if self._test_call(node) is not None else Role.LAMBDA
+            return self._closure_role(node)
         if node.type == "control_transfer_statement":
             return _jump_role(node)
         if node.type == "switch_entry":
@@ -484,6 +488,17 @@ class SwiftAdapter(LanguageAdapter):
         """Bare or `self.`-qualified references to the type's own stored
         properties and methods in each method body."""
         return member_refs_by_method(cls, _instance_fields(cls), _member_names_in)
+
+    def _closure_role(self, lam: Node) -> Role | None:
+        """Test closures are units of their own. View-builder closures
+        (`VStack { }`, `ForEach(xs) { }`) are layout, not control flow, so
+        they don't add cognitive nesting, like Flutter widget arguments."""
+        call = _closure_call(lam)
+        if call is None:
+            return Role.LAMBDA
+        if text(_callee(call)) in self.test_calls:
+            return Role.STOP
+        return None if _is_view_call(call) else Role.LAMBDA
 
     def _test_call(self, lam: Node) -> Node | None:
         call = _closure_call(lam)

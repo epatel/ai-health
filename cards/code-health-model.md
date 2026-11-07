@@ -272,6 +272,24 @@ exceeds 8. SwiftUI code already splits views into small structs and
 properties, so unlike Flutter `build()` (p97 = 120) no higher `body` limit
 was added. A 145-line `body` is worth a finding.
 
+**View-builder closures add no cognitive nesting.** A closure passed to a
+capitalised call (`VStack { }`, `ForEach(xs) { }`, `Button { }`) is
+layout, like a Flutter widget argument, so it doesn't raise the nesting
+level. Ifs and loops inside still count. Closures passed to `Task`,
+`AsyncStream`, `AsyncThrowingStream`, `Result` and to lowercase calls
+(`.map { }`) keep the Sonar closure penalty. Found by scanning a SwiftUI
+app after calibration: `body` getters reached cognitive 85–101, and
+5 levels of `VStack`/`HStack` made an `if` cost +6. Functions over the
+cognitive limit (15), before → after:
+
+| Codebase | `body` getters | other functions |
+|---|---:|---:|
+| IceCubesApp | 38 → 17 of 212 | 33 → 19 of 1,891 (view helpers) |
+| Claude-Usage-Tracker | 28 → 4 of 112 | 27 → 25 of 1,268 |
+
+Non-UI corpora are unchanged. IceCubesApp went from 8.7 to 8.8, and its
+Cognitive Complexity share of the penalty from 19 % to 10 %.
+
 **Excludes added:** `.build/`, `Pods/`, `DerivedData/`, `*.generated.swift`,
 SwiftGen headers, and `*.docc/*`. DocC tutorial step files are
 near-copies of each other by design: they made up 94 % of TCA's penalty
@@ -288,7 +306,7 @@ scripts/calibrate.py --only swift:`):
 | Kingfisher | lib | 12.3 | 8.5 | 10 | 77 | 0 |
 | vapor | lib | 14.2 | 9.4 | 10 | 88 | 0 |
 | TCA (Sources) | lib | 14.4 | 6.2 | 10 | 69 | 31 |
-| IceCubesApp | app | 40.1 | 8.7 | 10 | 75 | 0 |
+| IceCubesApp | app | 40.1 | 8.8 | 10 | 78 | 0 |
 | swift-nio | complex | 72.5 | 7.1 | 9.7 | 57 | 18 |
 | SwiftLint | complex | 61.9 | 9.7 | 10 | 91 | 0 |
 
