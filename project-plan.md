@@ -5,8 +5,9 @@
 A code-health tool that gives an AI coding agent fast, actionable feedback on
 its changes (delta mode) and gives humans an overview of where an existing
 codebase needs improvement (scan mode). Scores are on a CodeScene-inspired
-1–10 scale, derived from explainable code smells. First languages: **Python**
-and **Dart (Flutter)**.
+1–10 scale, derived from explainable code smells. Languages: **Python**,
+**Dart (Flutter)** and **Makefiles** (more via the adapter layer: README
+"Adding a language").
 
 Delivered as three faces over one engine:
 
@@ -21,8 +22,6 @@ Delivered as three faces over one engine:
 - Behavioural/git-history analysis (hotspots by change frequency, knowledge
   loss, team coupling) in v1. Change frequency may be added later as a
   hotspot weight only.
-- Languages beyond Python and Dart in v1. The adapter layer must make adding
-  more cheap, but none are implemented.
 - Auto-fixing code. We explain and hint; the agent refactors.
 - A JS build step for the dashboard.
 
@@ -43,8 +42,9 @@ Status: `todo` / `wip` / `done`.
 | M8 | Storage + migrations | done | SQLite at `<repo>/.aihealth/health.db`, `PRAGMA user_version` migration runner, scans persisted |
 | M9 | Dashboard | done | FastAPI + Jinja: project overview, treemap (size=LoC, colour=score), file view with smells per function, score trend |
 | M10 | Agent loop integration | done | optional Claude Code hook / skill that runs delta after edits; dogfooded on this repo |
-| M11 | Calibration | done |
-| M12 | Makefile adapter | done | run on 2–3 open-source Python and Flutter repos, tune thresholds/weights so scores spread sensibly; record results in the scoring card |
+| M11 | Calibration | done | run on open-source Python and Flutter code, tune thresholds/weights so scores spread sensibly; results in the scoring card |
+| M12 | Makefile adapter | done | Makefiles scored (rules/recipes via bash, conditionals, defines), Missing .PHONY smell, validated on 2,190 real Makefiles |
+| M13 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
 
@@ -76,78 +76,59 @@ Status: `todo` / `wip` / `done`.
 
 ## Current state / handoff
 
-2026-11-07: M0 and M1 done. Skeleton package, CLI stubs (exit 2 with the
-planned milestone), Makefile, 7 passing tests. tree-sitter-language-pack's
-Dart grammar handles Dart 3 + Flutter cleanly — no source build needed.
-Grammar quirks (sibling signature/body, no call node, unreliable boolean
-precedence) are recorded in `cards/parser-choice.md`.
-M2 done: `model.py` + `lang/{base,python,dart}.py` + registry. 23 tests.
-Verified on the Flutter SDK: every Dart `function_body` is extracted.
-M3 done: `metrics.py` plus adapter role tables. 50 tests, golden values
-from the SonarSource white paper. Runs over the full Flutter SDK with no
-crashes at about 31k LoC/s for Dart and 83k LoC/s for Python. Baseline
-distributions are in `cards/code-health-model.md`.
-M4 done: config, smells (13), LCOM4, primitive obsession, winnowing
-duplication, scoring, `engine.py`, and a working `aihealth scan` (text/json,
-`--top`, `-v`, `--functions`, `--fail-under`, `--config`). 76 tests.
-Dart test closures are separate units (decision (a)). A function's LoC is
-its own lines only. Score formula changed to exponential decay (see
-code-health-model card).
-Dogfooding: this repo scores 7.18. The worst files are `lang/dart.py`
-(`member_refs`, `role`) and `smells.py` (`_Detector.function`). Refactor
-candidates once delta mode exists to verify improvements.
-M5 done: `gitutil.py` + `delta.py` + `aihealth delta` (worktree incl.
-untracked / `--staged` / `--base` / `--head`, path filters, text and json,
-exit 1 on degraded). 94 tests. The verdict rule was refined: new smells
-are OK if the file's score rises on net (see card).
-Dogfooded: delta flagged the new M5 code, so it was refactored until
-delta.py and gitutil.py score 10.00. `smells.py` went from 5.03 to 7.52,
-and the project from 7.18 to 8.09. Noise fixes: assert conditions and bool
-params.
-M6 done: `report.py` (renderers moved out of cli.py) and `--format
-markdown` plus `--max-findings` for scan and delta. Entries are grouped per
-function, with distinct hints. 105 tests. Project self-score is 8.20.
-M7 done: `mcp_server.py` (5 tools incl. `preview_change`), `aihealth mcp`,
-`.mcp.json`, README.md, and the `aihealth: disable=` comment directive. 116
-tests incl. a stdio round trip. mcp SDK 2.x is pinned: v2 renamed FastMCP
-to MCPServer, hides non-ToolError messages and uses snake_case result
-fields.
-M8 done: `store/` with 2 migrations (scan/file_score/finding, then
-function_metric), atomic runner, scan persistence with git and config
-metadata, `aihealth scan --save` and `aihealth history`. 127 tests,
-including rollback of a half-failed migration.
-M9 done: `web/` dashboard (overview, treemap, file view, scan-now, JSON
-API) with `aihealth serve`. 145 tests. Visually checked in Chrome: dark and
-light mode, and 390 px width with no horizontal overflow. Calibration fixes
-found while building it: generic containers are judged by their contents,
-and the delta tolerance default is 0.1.
-Caution for agents: `aihealth scan X --save` writes `X/.aihealth/`. For
-repos you don't own (e.g. the Flutter SDK), pass `--db` to a scratch path.
-M10 done: `hooks.py` + `aihealth hook post-edit|stop`, wired in this repo
-(`.claude/hooks/post-edit.sh` = format + health, `.claude/hooks/stop.sh`),
-and a README section for other projects. 154 tests. Verified live: a
-smelly Write produced the regression report as PostToolUse context, and
-fixing it made the hook go silent. Calibration: Complex Conditional now
-counts only branch/loop conditions.
-M11 done: `scripts/calibrate.py` with 22 reference corpora (~520k LoC,
-read-only). Scoring was calibrated: per-symbol cap 4, density damping above
-300 LoC, decay 15, Large Method counts body lines, Python keyword-only
-params count half. Fixed a scan bug for gitignored directories. Results and
-rationale are in the code-health-model card. This repo now scores 9.15.
-160 tests.
-M12 (Makefiles) done: `lang/make.py`, generic adapter hooks (`is_alternative`,
-`tokens`, `hint`, `reports_parse_errors`, filename matching), generated-file
-skipping in every language, and state-based LCOM4. 182 tests. Validated on
-2,190 Makefiles found on disk. Details in the parser-choice and
-code-health-model cards.
-Missing .PHONY smell added after M12 (`lang/make_phony.py`, generic
-`language_smells` hook). 201 tests.
-All planned milestones are done. Possible next steps: more
-languages (adapter + role table + golden tests), behavioural hotspots from
-git change frequency (a v1 non-goal), and cross-file duplication in delta
-mode.
-Note: `pip install` may need user approval in this environment — ask the
-user to run `! make setup` rather than retrying.
+**2026-11-07, end of the first session.** All milestones M0–M12 are done
+and pushed to https://github.com/epatel/ai-health (public, MIT). 205
+tests, ruff clean, and this repo scans at 9.89 (39 healthy files, 1
+warning). The per-milestone history is in git; the design and the numbers
+are in `cards/`.
+
+**What exists:** an engine for Python, Dart/Flutter and Makefiles (13
+generic smells plus Makefile `missing_phony`). Interfaces: CLI
+`scan` (dir or file) / `delta` / `history` / `serve` / `mcp` / `hook`,
+an MCP server (5 tools), SQLite history with migrations, a dashboard, and
+Claude Code hooks. Scoring is calibrated on 22 corpora (~520k LoC).
+
+**Next task (user request): add a new language (M13).** The user has not
+said which one, so ask. Good candidates: TypeScript/JavaScript (biggest
+reach; JSX maps onto widget depth), Swift (SwiftUI `body` maps onto widget
+depth), Kotlin, Go, and shell scripts (cheapest: the bash role table
+already exists in `lang/make.py`). Follow the README section "Adding a
+language" step by step (grammar spike, adapter, register, golden tests,
+coverage on real code, calibration, docs). `lang/python.py` and
+`lang/dart.py` are clean reference adapters. Use `base.ExtractionScope` for
+module/class/prefix, `language_smells()` for language-only smells (see
+`lang/make_phony.py`), and the generic hooks `is_alternative` / `tokens` /
+`hint` / `reports_parse_errors` / `filenames` where the grammar needs them.
+
+**Prove existing languages are unaffected** with `scripts/snapshot.py`:
+take a snapshot before and after, then `--compare` (exit 0 = identical).
+Corpora on this machine, all read-only:
+- Python: `.venv/lib/python3.12/site-packages` (httpx, starlette, click,
+  pydantic, pip/_internal, ...)
+- Dart: `~/Development/Flutter/flutter/packages` (the SDK), and
+  `~/.pub-cache/hosted/pub.dev` (provider, http, dio, go_router, ...)
+- Makefiles: `~/Development` (2,190 found; about 900 are generated and
+  skipped)
+
+The full Dart corpus takes about 9 minutes, so run it in the background.
+Calibration: add the new language's corpora to `CORPORA` in
+`scripts/calibrate.py`.
+
+**Remaining refactor candidate:** `src/aihealth/smells.py` (8.64):
+`_Detector.add` takes 10 params, plus `_Detector.duplication` (cognitive
+20) and `lcom4`. The method that worked for metrics, dart, python and
+duplication: snapshot, refactor with small handlers / named predicates /
+parameter objects, then compare.
+
+**Environment notes:**
+- `pip install` is denied for the agent: edit `pyproject.toml`, then ask
+  the user to run `! make setup`.
+- Auto mode blocks running downloaded scripts.
+- Hooks are active: every Edit/Write of a supported file reports
+  regressions (fix them), and the Stop hook nudges once.
+- Never write into repos you don't own: `scan --save` writes
+  `<path>/.aihealth/`, so use `--db` with a scratch path.
+- `.aihealth.toml` excludes `tests/fixtures/*` from this repo's scans.
 
 ## Open questions
 

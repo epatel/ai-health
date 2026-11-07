@@ -25,6 +25,8 @@ parsing via tree-sitter, history in SQLite.
 - History: `.venv/bin/aihealth scan PATH --save` then `.venv/bin/aihealth history PATH`
   (DB `PATH/.aihealth/health.db`; schema changes = append to `store/migrations.py`)
 - Dashboard: `.venv/bin/aihealth serve --repo PATH [--db DB] [--port 8765]` (http://127.0.0.1:8765)
+- Behaviour-preserving check: `.venv/bin/python scripts/snapshot.py --out before.json ROOT...`,
+  change, `--out after.json`, then `--compare before.json after.json` (snapshots go in a scratch dir)
 - MCP: `.venv/bin/aihealth mcp` (stdio; registered in `.mcp.json`; usage in README.md)
 
 ## Enforced rules
