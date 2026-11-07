@@ -38,7 +38,7 @@ Status: `todo` / `wip` / `done`.
 | M3 | Function metrics | done | LoC, cyclomatic, cognitive, max nesting, bumps, args, complex conditionals, widget-tree depth (Dart) — golden-file tests per language |
 | M4 | Smells + scoring | done | smell detectors, penalty table, file score 1–10, LoC-weighted project score, `.aihealth.toml` overrides, duplication detector |
 | M5 | Delta mode | done | before/after scoring for working tree, staged, or `base..head`; per-function new/worsened/fixed smells; verdict + exit code |
-| M6 | Output formats | todo | `text`, `json`, `markdown` (agent-oriented, concise with refactor hints) |
+| M6 | Output formats | done | `text`, `json`, `markdown` (agent-oriented, concise with refactor hints) |
 | M7 | MCP server | todo | stdio server exposing `review_changes`, `score_file`, `scan_project`, `explain_smell`; registered in `.mcp.json` and smoke-tested from Claude Code |
 | M8 | Storage + migrations | todo | SQLite at `<repo>/.aihealth/health.db`, `PRAGMA user_version` migration runner, scans persisted |
 | M9 | Dashboard | todo | FastAPI + Jinja: project overview, treemap (size=LoC, colour=score), file view with smells per function, score trend |
@@ -95,9 +95,13 @@ Dogfooded: delta flagged the new M5 code, so it was refactored until
 delta.py and gitutil.py score 10.00. `smells.py` went from 5.03 to 7.52,
 and the project from 7.18 to 8.09. Noise fixes: assert conditions and bool
 params.
-Next agent: M6 output formats. Add an agent-oriented `--format markdown`
-for delta and scan: concise, capped at N findings, hints included. Text
-and json already exist.
+M6 done: `report.py` (renderers moved out of cli.py) and `--format
+markdown` plus `--max-findings` for scan and delta. Entries are grouped per
+function, with distinct hints. 105 tests. Project self-score is 8.20.
+Next agent: M7 MCP server. Add the `mcp` dependency (ask the user to run
+`! make setup` after editing pyproject). Tools: review_changes (delta
+markdown/json), score_file (path or inline content), scan_project,
+explain_smell. Reuse `report.render_*`.
 Note: `pip install` may need user approval in this environment — ask the
 user to run `! make setup` rather than retrying.
 

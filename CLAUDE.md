@@ -15,9 +15,9 @@ parsing via tree-sitter, history in SQLite.
 - Setup: `make setup` (creates `.venv`, installs `-e '.[dev]'`)
 - Test: `make test` (one test: `.venv/bin/pytest tests/test_cli.py::test_help_exits_cleanly`)
 - Lint / format: `make lint` · `make fmt`
-- Scan: `.venv/bin/aihealth scan PATH [--format json] [-v] [--fail-under 7]`
+- Scan: `.venv/bin/aihealth scan PATH [--format text|markdown|json] [--max-findings N] [-v] [--fail-under 7]`
   (config: `PATH/.aihealth.toml`, documented in `src/aihealth/config.py`)
-- Delta: `.venv/bin/aihealth delta [PATHS] [--staged | --base REV [--head REV]] [-v] [--format json]`
+- Delta: `.venv/bin/aihealth delta [PATHS] [--staged | --base REV [--head REV]] [-v] [--format text|markdown|json]`
   (default: working tree incl. untracked vs HEAD; exit 1 = degraded)
 - Run `aihealth delta` on your own changes before committing. Fix new or worsened smells
   it reports in code you touched.

@@ -42,7 +42,7 @@ Planned package layout (`src/aihealth/`):
 | `engine.py` | The facade every interface uses. `score_source(bytes, path, config)` scores a single file (duplication within the file only). `scan(root, config) -> ScanResult` discovers files with `git ls-files` (falling back to `os.walk`), applies excludes (fnmatch, `*` crosses `/`, matched against every path suffix), and runs cross-file duplication. |
 | `gitutil.py` | Subprocess git plumbing. `repo_root`, `has_revision`. `Revisions(base, head)`: base None means an empty repository, and head is `WORKTREE` (files on disk plus untracked), `INDEX` or a revision. `changed_files(root, revs, paths)` uses `diff --name-status -M` for renames, plus untracked files for the worktree. `read_file(root, rev, path)`. |
 | `delta.py` | `run_delta(repo, config, revs, paths) -> DeltaResult`. For each changed supported, non-excluded file, `delta_for_contents(change, before, after, config)` scores both versions with `engine.score_source`, `compare()` pairs findings by (level, symbol, smell), and `file_verdict()` applies the rules. `FileDelta` and `DeltaResult` have `to_dict()` for JSON/MCP. |
-| `report.py` | Renders results as text, json, or agent-oriented markdown. |
+| `report.py` | `render_scan(result, fmt, ReportOptions)` / `render_delta(...)` return strings for `fmt` in `FORMATS` (text, markdown, json). `ReportOptions(top, max_findings, verbose, functions)`. The CLI only prints these, and MCP (M7) should return the markdown or json from here too. |
 | `cli.py` | `aihealth scan`, `aihealth delta`, `aihealth serve`, `aihealth mcp`. |
 | `mcp_server.py` | FastMCP stdio server wrapping the engine. |
 | `store/` | SQLite connection, `MIGRATIONS` list, `PRAGMA user_version` runner, scan persistence. |
@@ -66,11 +66,21 @@ Planned package layout (`src/aihealth/`):
 
 ## Agent feedback contract
 
-The agent-facing output (MCP and `--format markdown`) is short by design:
-verdict, score before → after per touched file, and at most N findings
-ranked by penalty, each with function name, line, the metric value vs.
-threshold, and a one-line refactoring hint ("extract the nested loop at
-L42 into a helper"). Full detail is available via `--format json`.
+The agent-facing output (`--format markdown`, and MCP from M7) is short by
+design:
+
+- **delta:** a heading naming what was compared; a one-line verdict
+  (`**DEGRADED**: … Fix the issues below before finishing.`); a table of
+  files with before/after/Δ/verdict; a syntax-error warning if any file
+  parsed partially; "Fix before finishing"; and "Improvements".
+- **scan:** the project score and band counts, a "Worst files" table, and
+  "Top refactoring targets".
+- Entries are **grouped per (file, symbol)**, ranked by total penalty, and
+  capped at `--max-findings` (default 10, with a "…and N more" line). Each
+  entry is `N. **path:line** \`symbol\`: Smell (new), Smell (worse, was 4)`
+  followed by one bullet per message and up to 3 distinct `Fix:` hints.
+  `path:line` is the first finding's line, so it can be opened directly.
+- Full detail is available via `--format json`.
 
 ## Deployment shape
 
