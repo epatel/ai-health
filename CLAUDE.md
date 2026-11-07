@@ -3,7 +3,7 @@
 ## About this project
 
 aihealth estimates code health (CodeScene-style, 1–10 from explainable code
-smells) for **Python**, **Dart/Flutter**, **Swift** and **Makefiles**. Two modes: **delta** scores a code
+smells) for **Python**, **Dart/Flutter**, **Swift**, **Rust** and **Makefiles**. Two modes: **delta** scores a code
 change as feedback for an AI coding agent; **scan** gives an overview of an
 existing codebase. Exposed as a CLI, an MCP server and a FastAPI dashboard;
 parsing via tree-sitter, history in SQLite.

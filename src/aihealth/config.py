@@ -17,6 +17,9 @@ Example `.aihealth.toml`::
 
     [swift]
     test_closure_calls = ["describe", "context", "it"]   # Quick-style specs
+
+    [rust]
+    score_test_modules = true   # include `#[cfg(test)] mod tests` (default: false)
 """
 
 from __future__ import annotations
@@ -86,6 +89,8 @@ DEFAULT_EXCLUDES: list[str] = [
     ".build/*",  # SwiftPM
     "Pods/*",  # CocoaPods
     "DerivedData/*",
+    "target/debug/*",  # Cargo build output (build-script generated code)
+    "target/release/*",
     "*.docc/*",  # DocC catalogs: tutorial step files repeat each other
 ]
 
@@ -102,6 +107,8 @@ DEFAULTS: dict[str, Any] = {
     "delta": {"tolerance": 0.1},
     "dart": {"test_closure_calls": None},  # None = built-in list
     "swift": {"test_closure_calls": None},
+    # `#[cfg(test)]` modules: left out of scores by default (code-health-model)
+    "rust": {"score_test_modules": False},
 }
 
 
@@ -133,6 +140,8 @@ class Config:
         if language in ("dart", "swift"):
             calls = self.data[language]["test_closure_calls"]
             return {} if calls is None else {"test_calls": frozenset(calls)}
+        if language == "rust":
+            return {"score_test_modules": bool(self.data["rust"]["score_test_modules"])}
         return {}
 
 

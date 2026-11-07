@@ -254,6 +254,12 @@ class LanguageAdapter:
         """Is child ``index`` of an IF node its else / else-if branch?"""
         return node.field_name_for_child(index) == "alternative"
 
+    def else_if(self, node: Node) -> Node | None:
+        """For grammars that wrap an else-if (Rust `else_clause >
+        if_expression`): the inner IF node of an else branch. None means the
+        walker decides from the branch's own role, as for most grammars."""
+        return None
+
     def hint(self, smell: str) -> str | None:
         """Language-specific fix hint for a smell, or None for the generic one."""
         return None

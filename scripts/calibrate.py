@@ -37,6 +37,15 @@ SITE = (
 )
 FLUTTER = Path.home() / "Development/Flutter/flutter/packages"
 PUB = Path.home() / ".pub-cache/hosted/pub.dev"
+CARGO = Path.home() / ".cargo/registry/src"
+
+
+def crate(name: str) -> Path:
+    """`src/` of the newest downloaded version of a crates.io crate."""
+    found = sorted(CARGO.glob(f"*/{name}-[0-9]*"), key=lambda p: p.name)
+    return found[-1] / "src" if found else CARGO / f"{name}-missing"
+
+
 # shallow clones (`git clone --depth 1`) of the Swift repos below, in one directory
 SWIFT = Path(os.environ.get("AIHEALTH_SWIFT_CORPORA", Path.home() / "Development/swift-corpora"))
 
@@ -74,6 +83,19 @@ CORPORA = [
     ("swift:IceCubesApp", SWIFT / "IceCubesApp", "complex"),
     ("swift:nio", SWIFT / "swift-nio/Sources", "complex"),
     ("swift:SwiftLint", SWIFT / "SwiftLint/Source", "complex"),
+    ("rust:anyhow", crate("anyhow"), "lib"),
+    ("rust:serde", crate("serde"), "lib"),
+    ("rust:serde_json", crate("serde_json"), "lib"),
+    ("rust:itertools", crate("itertools"), "lib"),
+    ("rust:memchr", crate("memchr"), "lib"),
+    ("rust:crossterm", crate("crossterm"), "lib"),
+    ("rust:ratatui-widgets", crate("ratatui-widgets"), "lib"),
+    ("rust:nom", crate("nom"), "lib"),
+    ("rust:syn", crate("syn"), "complex"),
+    ("rust:regex-syntax", crate("regex-syntax"), "complex"),
+    ("rust:regex-automata", crate("regex-automata"), "complex"),
+    ("rust:hashbrown", crate("hashbrown"), "complex"),
+    ("rust:termwiz", crate("termwiz"), "complex"),
 ]
 
 

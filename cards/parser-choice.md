@@ -167,3 +167,37 @@ type information (e.g. Primitive Obsession on inferred types).
   Flutter iOS code), 0 crashes, about 8 ms per file. 46,160 of 46,179
   bodies extracted (99.96 %); the rest are protocol subscript requirements
   and local computed variables (scored as part of their function).
+
+## Rust (M14)
+
+- Grammar `rust` (tree-sitter-language-pack). Parses Rust 2024 syntax with
+  zero errors in the fixture, including let-chains
+  (`if let Some(x) = y && x > 0`), `let … else`, async fns, labeled loops
+  and `unsafe` blocks.
+- Units: `function_item` (body field `body` = `block`). Methods sit in
+  `impl_item` / `trait_item` > `declaration_list`; trait methods without a
+  body are `function_signature_item`. `mod_item` with a body nests items.
+  Parameters: `parameter` (fields `pattern`, `type`), `self_parameter`,
+  `variadic_parameter`.
+- **Else-if is wrapped:** `if_expression` field `alternative` is an
+  `else_clause` holding either an `if_expression` or a `block`. The walker
+  expects the alternative child itself to be the IF node, so adapters can
+  now return the inner node from `else_if(node)` (default: none; the walker
+  falls back to the child's own role, as before).
+- `let_declaration` has an `alternative` block for `let … else`; the
+  adapter keeps it out of `is_alternative`, so it scores like Swift
+  `guard` (one IF, its block is the body).
+- Statements are mostly `expression_statement` wrappers around
+  if/loops/match; `unwrap_loop` looks through one for Bumpy Road.
+- `binary_expression` has an `operator` field; only `&&`/`||` make it a
+  BOOL_EXPR. `let_chain` is a BOOL_EXPR whose `&&` tokens count.
+  Precedence is correct in this grammar.
+- `break` / `continue` take a `label` child (`'outer`).
+- Comments: `line_comment` / `block_comment`; doc comments are the same
+  nodes with a `doc_comment` child, so they never count as code.
+- Macro invocations keep their contents as a `token_tree`: code inside
+  `quote! { }` or `tokio::select! { }` is not parsed into functions.
+- Coverage: 4,845 files (the 165 crates in `~/.cargo/registry` plus
+  terminal_pad, 1.31M LoC), 0 crashes, 5.9 ms per file, 0.6 % of files
+  with parse errors. 56,262 of 56,267 function bodies extracted
+  (99.99 %); the 5 misses are `impl` blocks inside `const _: () = { … }`.

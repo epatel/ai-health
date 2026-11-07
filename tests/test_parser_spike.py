@@ -1,4 +1,4 @@
-"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter and Swift code.
+"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift and Rust code.
 
 These tests pin the node type names the M2 adapters will rely on, so a
 grammar upgrade that renames them fails loudly here.
@@ -41,7 +41,12 @@ def _errors(node) -> list[tuple[int, str]]:
 
 @pytest.mark.parametrize(
     ("lang", "fixture"),
-    [("python", "sample.py"), ("dart", "flutter_widget.dart"), ("swift", "sample.swift")],
+    [
+        ("python", "sample.py"),
+        ("dart", "flutter_widget.dart"),
+        ("swift", "sample.swift"),
+        ("rust", "sample.rs"),
+    ],
 )
 def test_parses_without_errors(lang, fixture):
     root = _parse(lang, fixture)
@@ -155,3 +160,34 @@ def test_swift_else_is_a_bare_token_and_kinds_are_a_field():
         stack.extend(n.children)
     assert kinds == {"struct", "class", "enum", "actor", "extension"}
     assert else_follows == {"if_statement", "{"}
+
+
+RUST_NODE_TYPES = """
+function_item function_signature_item impl_item trait_item mod_item
+attribute_item parameters self_parameter parameter block expression_statement
+if_expression else_clause let_chain let_declaration for_expression
+while_expression loop_expression match_expression match_arm closure_expression
+binary_expression break_expression label line_comment
+"""
+
+
+def test_rust_node_types():
+    types = _types(_parse("rust", "sample.rs"))
+    assert set(RUST_NODE_TYPES.split()) <= types
+
+
+def test_rust_else_if_is_wrapped_in_else_clause():
+    """Rust quirk: the else branch is an `else_clause` that wraps the inner
+    `if_expression` (or a block); adapters unwrap it via `else_if()`."""
+    root = _parse("rust", "sample.rs")
+    inner = set()
+    stack = [root]
+    while stack:
+        n = stack.pop()
+        if n.type == "if_expression":
+            alt = n.child_by_field_name("alternative")
+            if alt is not None:
+                assert alt.type == "else_clause"
+                inner |= {c.type for c in alt.named_children}
+        stack.extend(n.children)
+    assert inner == {"if_expression", "block"}

@@ -6,8 +6,8 @@ A code-health tool that gives an AI coding agent fast, actionable feedback on
 its changes (delta mode) and gives humans an overview of where an existing
 codebase needs improvement (scan mode). Scores are on a CodeScene-inspired
 1–10 scale, derived from explainable code smells. Languages: **Python**,
-**Dart (Flutter)**, **Swift (SwiftUI)** and **Makefiles** (more via the
-adapter layer: README "Adding a language").
+**Dart (Flutter)**, **Swift (SwiftUI)**, **Rust** and **Makefiles** (more
+via the adapter layer: README "Adding a language").
 
 Delivered as three faces over one engine:
 
@@ -45,7 +45,8 @@ Status: `todo` / `wip` / `done`.
 | M11 | Calibration | done | run on open-source Python and Flutter code, tune thresholds/weights so scores spread sensibly; results in the scoring card |
 | M12 | Makefile adapter | done | Makefiles scored (rules/recipes via bash, conditionals, defines), Missing .PHONY smell, validated on 2,190 real Makefiles |
 | M13 | Swift adapter | done | Swift scored (types, accessors, `#Preview`, Quick closures, SwiftUI view depth), 99.96 % of 46k bodies on 5.6k files, calibrated on 9 corpora |
-| M14 | Next language | todo | which one is the user's call: ask first (see handoff) |
+| M14 | Rust adapter | done | Rust scored (impl/trait blocks, let-else, let-chains, labeled loops), `#[cfg(test)]` modules left out by default, 99.99 % of 56k bodies on 4.8k files, calibrated on 13 crates |
+| M15 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
 
@@ -77,31 +78,39 @@ Status: `todo` / `wip` / `done`.
   the generic Large Method limit (only 6 % exceed 70 LoC, p97 = 91) and
   view-call nesting feeds Deep Widget Tree. Parse errors stay reported
   (app code 0–2 % of files). See the Swift sections of both cards.
+- **Rust** (M14): `#[cfg(test)]` modules are left out of scores by default
+  (`[rust] score_test_modules`), because unit tests share the production
+  file; builder setters and traits are not judged for cohesion. See the
+  Rust sections of both cards.
 - **Generated Dart files** (`*.g.dart`, `*.freezed.dart`, `*.mocks.dart`)
   excluded by default.
 
 ## Current state / handoff
 
-**2026-11-07, second session.** M13 (Swift) is done: `lang/swift.py`,
-`tests/test_swift.py` (golden Sonar metrics plus Swift constructs),
-spike tests, calibration and docs. Everything from the first session
-(M0–M12) is unchanged: snapshots of Python, Dart and Makefile output
-before and after this work compare identical. 262 tests, ruff clean, and this repo scans at 9.91 (42 healthy
-files, 1 warning).
+**2026-11-07, second session.** M13 (Swift) and M14 (Rust) are done:
+`lang/swift.py`, `lang/rust.py`, `tests/test_swift.py`, `tests/test_rust.py`
+(golden Sonar metrics plus language constructs), spike tests, calibration
+and docs. After an audit (`AUDIT-REPORT.md`), git calls are hardened
+against option injection and a repo's `core.fsmonitor`. Earlier
+languages are unchanged: snapshots of Python, Dart, Swift and Makefile
+output before and after the Rust work compare identical. 296 tests, ruff
+clean, and this repo scans at 9.92 (44 healthy files, 1 warning).
 
-**What exists:** an engine for Python, Dart/Flutter, Swift and Makefiles
-(13 generic smells plus Makefile `missing_phony`). Interfaces: CLI
-`scan` (dir or file) / `delta` / `history` / `serve` / `mcp` / `hook`,
-an MCP server (5 tools), SQLite history with migrations, a dashboard, and
-Claude Code hooks. Scoring is calibrated on 31 corpora.
+**What exists:** an engine for Python, Dart/Flutter, Swift, Rust and
+Makefiles (13 generic smells plus Makefile `missing_phony`). Interfaces:
+CLI `scan` (dir or file) / `delta` / `history` / `serve` / `mcp` /
+`hook`, an MCP server (5 tools), SQLite history with migrations, a
+dashboard, and Claude Code hooks. Scoring is calibrated on 44 corpora.
 
-**Next task: another language (M14).** The user picks which, so ask.
+**Next task: another language (M15).** The user picks which, so ask.
 Candidates: TypeScript/JavaScript (biggest reach; JSX maps onto widget
-depth), Kotlin (Compose maps onto widget depth; labelled args like
-Swift), Go, and shell scripts (cheapest: the bash role table already
-exists in `lang/make.py`). Follow README "Adding a language".
-`lang/swift.py` is the newest reference: it shows how to handle a grammar
-without an `alternative` field and with unreliable operator precedence.
+depth), Go (`if err != nil` needs a calibration decision), Kotlin
+(Compose maps onto widget depth; labelled args like Swift), and shell
+scripts (cheapest: the bash role table already exists in
+`lang/make.py`). Follow README "Adding a language". `lang/swift.py` shows
+a grammar without an `alternative` field and with unreliable operator
+precedence; `lang/rust.py` shows a wrapped else-if (`else_if()`), tests
+in the same file, and idiom exclusions for cohesion.
 
 **Prove existing languages are unaffected** with `scripts/snapshot.py
 --lang python,dart,make` before and after, then `--compare` (exit 0 =
@@ -109,6 +118,8 @@ identical). Corpora on this machine, all read-only:
 - Python: `.venv/lib/python3.12/site-packages`
 - Dart: `~/Development/Flutter/flutter/packages`, `~/.pub-cache/hosted/pub.dev`
 - Makefiles: `~/Development`
+- Rust: the crates in `~/.cargo/registry/src` (calibrate.py finds the
+  newest version of each by name).
 - Swift: shallow clones (Alamofire, swift-argument-parser,
   swift-collections, swift-nio, Kingfisher, IceCubesApp, vapor,
   swift-composable-architecture, SwiftLint), set

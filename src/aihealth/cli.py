@@ -68,7 +68,9 @@ def _scan_file(path: Path, args: argparse.Namespace) -> int:
         return 2
     root, rel = project_path(path)
     if not is_supported(rel):
-        print(f"unsupported file type: {rel} (Python, Dart, Swift, Makefiles)", file=sys.stderr)
+        print(
+            f"unsupported file type: {rel} (Python, Dart, Swift, Rust, Makefiles)", file=sys.stderr
+        )
         return 2
     try:
         config = load_config(root, args.config)
@@ -189,7 +191,7 @@ def _cmd_hook(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="aihealth",
-        description="Code health estimates (1-10) for Python, Dart, Swift and Makefiles.",
+        description="Code health estimates (1-10) for Python, Dart, Swift, Rust and Makefiles.",
     )
     parser.add_argument("--version", action="version", version=f"aihealth {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)

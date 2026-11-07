@@ -32,7 +32,7 @@ class ToolInputError(ValueError):
 
 INSTRUCTIONS = """\
 aihealth estimates code health (1-10, CodeScene-style code smells) for Python, Dart/Flutter,
-Swift and Makefiles.
+Swift, Rust and Makefiles.
 - After editing such code, call `review_changes` (working tree vs HEAD). If the verdict \
 is DEGRADED, fix the listed new/worsened smells in the code you touched before finishing.
 - Before writing a large rewrite of a file, `preview_change` scores the proposed content \
@@ -94,7 +94,7 @@ def score_file(
     fs = score_source(absolute.read_bytes(), rel, load_config(root))
     if fs is None:
         raise ToolInputError(
-            f"unsupported file type (supported: Python, Dart, Swift, Makefiles): {rel}"
+            f"unsupported file type (supported: Python, Dart, Swift, Rust, Makefiles): {rel}"
         )
     return render_file(fs, output, _options(max_findings))
 
@@ -114,7 +114,7 @@ def preview_change(
     before = absolute.read_bytes() if absolute.is_file() else None
     if score_source(b"", rel, config) is None:
         raise ToolInputError(
-            f"unsupported file type (supported: Python, Dart, Swift, Makefiles): {rel}"
+            f"unsupported file type (supported: Python, Dart, Swift, Rust, Makefiles): {rel}"
         )
     fd = delta_for_contents(rel, before, content.encode(), config)
     result = DeltaResult(str(root), "current file", "proposed content", [fd])

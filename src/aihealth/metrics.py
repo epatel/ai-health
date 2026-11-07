@@ -161,8 +161,11 @@ class _Walker:
         child = f.node.children[i]
         if not self.adapter.is_alternative(f.node, i):
             return _Frame(child, f.level + 1, d)
-        if self.adapter.role(child) is Role.IF:
-            return _Frame(child, f.level, f.depth, _ELSE_IF)
+        inner = self.adapter.else_if(child)
+        if inner is None and self.adapter.role(child) is Role.IF:
+            inner = child
+        if inner is not None:
+            return _Frame(inner, f.level, f.depth, _ELSE_IF)
         return _Frame(child, f.level, d, _ELSE)
 
     def _else(self, f: _Frame) -> None:

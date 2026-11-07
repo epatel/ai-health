@@ -337,6 +337,61 @@ IceCubesApp, 8 in Claude-Usage-Tracker). That rule is shared by all
 languages (each `case` is a branch), so changing it is a separate,
 cross-language decision.
 
+## Rust (M14)
+
+Units and grammar notes are in the parser card. Three Rust idioms needed
+measured, targeted rules. None changes other languages.
+
+**Unit tests in the same file.** Rust puts unit tests in the file under
+test (`#[cfg(test)] mod tests`). Test code is repetitive by nature, so it
+lowered production files' scores: in ratatui-widgets, 192 of 199
+duplication findings were in test modules. By default these modules are
+left out entirely (no units, no lines, no duplication tokens), which
+judges a file the way separate test files are judged elsewhere.
+`[rust] score_test_modules = true` restores them. Integration tests in
+`tests/` are separate files and stay scored. Project score with test
+modules → without: ratatui-widgets 6.3 → 7.9, hashbrown 6.1 → 7.7,
+crossterm 7.8 → 8.2, regex-syntax alert LoC 50 % → 0 %; crates without
+inline tests (serde, syn) unchanged.
+
+**Builder setters and traits are not judged for cohesion.** A builder
+setter (`fn title(mut self, t: String) -> Self`) touches one field by
+design, so a builder type split into "12 groups" (ratatui `BarChart`,
+`Block`, `Dataset`). Methods taking `self` by value and returning `Self`
+are excluded from LCOM4. Traits have no fields, so their default
+methods aren't judged (itertools' `Itertools`: 12 groups). In
+ratatui-widgets all 13 Low Cohesion findings (27 % of its penalty) were
+builders; none remain.
+
+**Duplication kept as is.** It is the top penalty in most crates. The
+largest clones are real: serde's owned vs borrowed deserializers, nom's
+`complete` vs `streaming` modules (76-line copies), hashbrown's
+hand-specialised probe loops and memchr's per-architecture SIMD copies.
+
+**Calibration** (`scripts/calibrate.py --only rust:`; crates from
+`~/.cargo/registry`, newest version):
+
+| Corpus | kind | kLoC | project | median file | healthy % | alert LoC % |
+|---|---|---:|---:|---:|---:|---:|
+| anyhow | lib | 2.2 | 9.5 | 10 | 92 | 0 |
+| itertools | lib | 8.4 | 8.8 | 10 | 78 | 0 |
+| crossterm | lib | 5.4 | 8.2 | 10 | 77 | 13 |
+| ratatui-widgets | lib | 12.5 | 8.2 | 10 | 74 | 0 |
+| memchr | lib | 7.6 | 7.1 | 9.4 | 60 | 9 |
+| serde_json | lib | 12.5 | 7.0 | 10 | 76 | 26 |
+| serde | lib | 11.5 | 5.7 | 10 | 75 | 26 |
+| nom | lib | 8.0 | 5.4 | 8.6 | 43 | 43 |
+| hashbrown | complex | 8.4 | 7.7 | 10 | 79 | 0 |
+| termwiz | complex | 18.7 | 7.1 | 8.5 | 45 | 0 |
+| regex-automata | complex | 24.6 | 6.8 | 8.8 | 48 | 13 |
+| regex-syntax | complex | 9.2 | 6.3 | 7.3 | 37 | 0 |
+| syn | complex | 19.7 | 6.2 | 10 | 62 | 41 |
+
+The median file is healthy in every library. serde and nom stay low on
+deliberate duplication, accepted like httpx and TCA. Other generic
+thresholds fit without Rust exceptions. `?` adds no complexity
+(error propagation, like Go's `if err != nil` question in the README).
+
 ## Delta classification
 
 Functions are paired by qualified name (`Class.method`); renamed functions

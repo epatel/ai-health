@@ -3,7 +3,7 @@
 # aihealth
 
 Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter**,
-**Swift/SwiftUI** and **Makefiles**, built as feedback for AI coding agents.
+**Swift/SwiftUI**, **Rust** and **Makefiles**, built as feedback for AI coding agents.
 
 - **delta**: did this change make the code healthier or worse? Verdict, score before → after,
   new/worsened smells with `path:line` and fix hints. Exit code 1 when health degraded.
@@ -38,7 +38,7 @@ aihealth delta --format markdown    # agent-oriented output (also: text, json)
 
 aihealth scan path/to/repo --format markdown --max-findings 20
 aihealth scan . --fail-under 7      # CI gate on the project score
-aihealth scan src/app.py            # one file (also: Makefile, lib/x.dart, App.swift)
+aihealth scan src/app.py            # one file (also: Makefile, lib/x.dart, App.swift, main.rs)
 ```
 
 ## History
@@ -125,6 +125,27 @@ project's `.claude/settings.json` (use the absolute path to your aihealth instal
   the grammar yet: such files report "syntax errors", and the rest of the file is still
   scored.
 
+## Rust
+
+`*.rs` files are scored with the generic smells.
+
+- **Units**: functions, methods in `impl` and `trait` blocks (default bodies), and items
+  nested in a function. Closures stay part of their function. Modules prefix qualnames
+  (`net::http::post` is `net.http.post`). `self` isn't counted as a parameter.
+- **`impl` and `trait` blocks** are classes. Low Cohesion is measured per `impl` block
+  through `self.x`; traits (no state) and builder setters (`fn x(mut self, ..) -> Self`)
+  aren't judged.
+- **Branching**: `else if`, `match` arms (`_` is the default), `let … else` (counts once,
+  like a guard), let-chains (`if let Some(x) = y && x > 0`), labeled `break 'outer`. The
+  `?` operator adds nothing.
+- **Unit tests** in `#[cfg(test)] mod tests` are left out of the score by default (no
+  units, lines or duplication), so a file is judged on its production code, as in
+  languages with separate test files. Integration tests in `tests/` are scored. Set
+  `score_test_modules = true` under `[rust]` to include them.
+- **Skipped**: `target/debug/`, `target/release/` and files marked `@generated`.
+- Code inside macro invocations (`quote! { }`, `tokio::select! { }`) is opaque to the
+  parser and not scored.
+
 ## Makefiles
 
 `Makefile`, `makefile`, `GNUmakefile` and `*.mk` files are scored with the same smells,
@@ -168,6 +189,9 @@ test_closure_calls = ["group", "test", "testWidgets", "patrolTest"]
 
 [swift]
 test_closure_calls = ["describe", "context", "it"]   # default: Quick's full set
+
+[rust]
+score_test_modules = true        # include `#[cfg(test)]` modules (default: false)
 ```
 
 Turn smells off for one file where they are imposed by an interface (e.g. CLI/JSON/MCP
@@ -181,8 +205,8 @@ boundaries) with a comment (strings and docstrings don't count):
 
 All metrics, smells and scoring are language-neutral. A language is **one adapter file**
 that tells the engine what the syntax tree means, plus tests that pin that meaning. Python
-(`src/aihealth/lang/python.py`), Dart (`lang/dart.py`) and Swift (`lang/swift.py`) are the
-reference adapters. Copy the one whose language is closer.
+(`src/aihealth/lang/python.py`), Dart (`lang/dart.py`), Swift (`lang/swift.py`) and Rust
+(`lang/rust.py`) are the reference adapters. Copy the one whose language is closer.
 
 ### How the pieces fit
 
@@ -222,6 +246,7 @@ I'd do it in this order. Each step has a check before you move on.
    | `Param` | `named=True` for parameters that are named at the call site (Kotlin/Swift labels, Python keyword-only, Dart `{}`), which count half for Excess Arguments. `type_text` as written, or `None` if untyped. |
    | `roles` | node type → `Role`: `IF`, `LOOP`, `SWITCH`, `CASE` (non-default arms), `CATCH`, `TERNARY`, `LAMBDA` (closures), `STOP`, `COMPREHENSION`, `JUMP_LABEL`, `BOOL_EXPR` |
    | `role(node)` override | only where meaning depends on context: an else-if, a `default`/`_` arm, a catch body that is a sibling block, labeled jumps |
+   | `else_if(node)` | only where the grammar wraps an else-if (Rust `else_clause > if_expression`): return the inner IF node |
    | `bool_token(node)` | `"and"`/`"or"` for `&&`/`\|\|`/`and`/`or` tokens. Count tokens, don't trust the tree shape (grammars disagree on precedence). |
    | `comment_types`, `block_types`, `bool_transparent` | for line counts, statement lists and condition detection |
    | `primitive_types`, `base_types()` | for Primitive Obsession; generics are judged by their type arguments (`List<Order>` is a domain type) |
@@ -265,6 +290,11 @@ I'd do it in this order. Each step has a check before you move on.
   consistent with Dart and Python.
 - **UI trees**: JSX, SwiftUI `body` and Compose `@Composable` functions map onto
   `widget_depth` and the Deep Widget Tree smell.
+- **Tests in the same file** (Rust `#[cfg(test)] mod tests`): repetitive test code then
+  lowers the production file's score. Rust leaves them out by default; check corpora with
+  and without them.
+- **Idioms that look like smells**: builder setters each touch one field (Low Cohesion),
+  and stateless traits have no shared state. Exclude them from the metric, not globally.
 - **Operator precedence**: grammars can nest operators wrongly. Swift's puts `||` inside
   `a > b`, and parses `n * f(x)` as `(n * f)(x)`. Look through comparison nodes
   (`bool_transparent`) and look for callees in the rightmost operand, then pin both in tests.

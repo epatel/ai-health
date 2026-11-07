@@ -10,6 +10,7 @@ from aihealth.lang.base import LanguageAdapter
 from aihealth.lang.dart import DartAdapter
 from aihealth.lang.make import MakeAdapter
 from aihealth.lang.python import PythonAdapter
+from aihealth.lang.rust import RustAdapter
 from aihealth.lang.swift import SwiftAdapter
 from aihealth.model import Module
 
@@ -21,6 +22,7 @@ ADAPTERS: tuple[type[LanguageAdapter], ...] = (
     DartAdapter,
     MakeAdapter,
     SwiftAdapter,
+    RustAdapter,
 )
 
 _BY_EXT = {ext: cls for cls in ADAPTERS for ext in cls.extensions}
