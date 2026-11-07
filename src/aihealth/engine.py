@@ -123,13 +123,13 @@ def _git_files(root: Path) -> list[str] | None:
     None when git can't tell: not a work tree, or `root` itself is ignored
     (e.g. a dependency inside .venv the user explicitly asked to scan)."""
     ignored = subprocess.run(
-        ["git", "check-ignore", "-q", "."], cwd=root, capture_output=True, check=False
+        [*gitutil.GIT, "check-ignore", "-q", "."], cwd=root, capture_output=True, check=False
     )
     if ignored.returncode == 0:
         return None
     try:
         res = subprocess.run(
-            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            [*gitutil.GIT, "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
             cwd=root,
             capture_output=True,
             check=True,

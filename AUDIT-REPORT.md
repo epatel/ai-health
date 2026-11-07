@@ -27,6 +27,7 @@ hardening and maintenance items. None of them blocks use.
 | 8 | MCP server registration and error mapping are untested | Tests | Low |
 | 9 | Only Python 3.12 is tested, though `requires-python >= 3.11` | Packaging | Low |
 | 10 | Remaining refactor target `smells.py` (8.64); stale test count in the plan | Maintenance | Info |
+| 11 | A scanned repo's `.git/config` (`core.fsmonitor`) runs commands (found in the re-audit) | Security | Low, fixed |
 
 ---
 
@@ -247,3 +248,73 @@ complete:
 4. Dashboard hardening: Host check, Origin check, SRI or vendored ECharts,
    warning for non-loopback hosts (2–4).
 5. Size limit in delta, hooks and MCP (5).
+
+---
+
+## Re-audit of the follow-up changes
+
+**Date:** 2026-11-07 · **Range:** `10a08ab..2c19ce9` (the finding 1 fix and the
+`AGENT-INSTALL.md` rewrite)
+
+### The finding 1 fix: sound
+
+- Every revision that reaches git goes through `_rev()` (rejects a leading
+  `-`) and sits after `--end-of-options`: `diff` (all three head modes),
+  `ls-tree` (no-base path) and `show`. `has_revision` returns False for
+  option-like input before calling git. File paths were already after `--`.
+- `delta` now validates `head` as well as `base`, so a typo gives
+  `unknown revision` (exit 2) instead of a raw git error.
+- The reproduction from finding 1 now exits 2 and creates no file. The four
+  new tests fail on the old code and pass on the new. Rename pairing, staged
+  and commit-range tests still pass (262 in total).
+- **Side effect:** `--end-of-options` needs **git 2.24+** (released 2019).
+  On older git every delta call fails. This is now stated in the README
+  Install section. Rejecting a leading `-` alone would also block the
+  attack, so the flag can be dropped if older git matters.
+
+### 11. A scanned repo's own git config can run commands (new, Low, fixed)
+
+**Status: fixed.** Every git call (`gitutil` and `engine._git_files`) now
+starts with `gitutil.GIT = ("git", "-c", "core.fsmonitor=false")`; config
+on the command line overrides the repo's. The reproduction below now runs
+the command 0 times (14 before). `test_repo_fsmonitor_command_never_runs`
+covers scan, `scan --save`, delta and the post-edit hook, and fails on the
+old code. Filter drivers remain, as noted below.
+
+Not caused by the recent changes: the first audit missed it. aihealth runs
+git inside the target directory (`ls-files` for scan, `status` for
+`--save`, `diff` for delta and the hooks), and git reads that
+directory's `.git/config`. A `core.fsmonitor` value there is run as a
+shell command. Reproduced in a throwaway repo: plain `aihealth scan .`
+ran it 4 times, `scan --save` 6 more and `delta` 4 more. Clean/smudge
+filters from `.gitattributes` plus config are a second route for
+`diff`/`status`.
+
+- **Exposure:** only directories whose `.git/config` an attacker wrote:
+  a downloaded archive or a shared folder that includes `.git`.
+  `git clone` never copies `.git/config`. The user's own `git status` in
+  that directory, and Claude Code's startup `git status`, run the same
+  command, so aihealth adds no new exposure beyond git's own threat model.
+- **Fix (cheap hardening):** pass `-c core.fsmonitor=false` on every git
+  call in `gitutil` and `engine._git_files`. Filters can't be disabled
+  generically. Document "scan untrusted code without its `.git` folder, or
+  with `--no-git`" if a git-free walk mode is added.
+
+### AGENT-INSTALL.md: four inaccuracies, fixed
+
+- It said every part "fails open" when aihealth isn't installed. True for
+  the hooks, but a project's `.mcp.json` entry shows as a failed server in
+  `/mcp`. Now stated.
+- If `~/.local/bin` isn't on PATH, `$(command -v aihealth)` is empty, so
+  `claude mcp add` would register a broken server and the hooks would
+  silently do nothing. An `aihealth --version` check with the
+  `uv tool update-shell` remedy now follows the install.
+- The stop hook was described as reacting to "its changes" (the agent's).
+  It checks *all* uncommitted changes. Corrected.
+- "The agent runs only the steps on this page" promised something a
+  prompt can't guarantee. It now says the prompts ask the agent to show
+  each change first, so the user can check it against the page.
+
+The commands themselves were checked: `claude mcp add|remove --scope user`
+match the current CLI, and the hook command was tested with and without
+aihealth on PATH (exit 0, report passed through when a file degrades).

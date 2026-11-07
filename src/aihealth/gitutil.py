@@ -6,6 +6,11 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+# Every git call starts with this. A scanned directory's own .git/config can
+# set core.fsmonitor to a shell command, which git runs on ls-files, status
+# and diff; command-line config overrides the repo's (AUDIT-REPORT.md #11).
+GIT = ("git", "-c", "core.fsmonitor=false")
+
 WORKTREE = None  # sentinel "revision" meaning the files on disk
 INDEX = ":"  # the staging area
 
@@ -16,7 +21,7 @@ class GitError(RuntimeError):
 
 def _git(cwd: Path, *args: str, check: bool = True) -> bytes:
     try:
-        res = subprocess.run(["git", *args], cwd=cwd, capture_output=True, check=False)
+        res = subprocess.run([*GIT, *args], cwd=cwd, capture_output=True, check=False)
     except OSError as e:
         raise GitError(f"git not available: {e}") from e
     if check and res.returncode != 0:
@@ -42,7 +47,7 @@ def has_revision(root: Path, rev: str) -> bool:
     if rev.startswith("-"):
         return False
     res = subprocess.run(
-        ["git", "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}"],
+        [*GIT, "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}"],
         check=False,
         cwd=root,
         capture_output=True,
@@ -138,7 +143,7 @@ def read_file(root: Path, rev: str | None, path: str) -> bytes | None:
         return p.read_bytes() if p.is_file() else None
     spec = f":{path}" if rev == INDEX else f"{_rev(rev)}:{path}"
     res = subprocess.run(
-        ["git", "show", "--end-of-options", spec], cwd=root, capture_output=True, check=False
+        [*GIT, "show", "--end-of-options", spec], cwd=root, capture_output=True, check=False
     )
     return res.stdout if res.returncode == 0 else None
 

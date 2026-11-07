@@ -17,6 +17,8 @@ healthy ≥ 9, warning 4–9, alert < 4.
 
 ## Install
 
+Needs Python 3.11+ and git 2.24+.
+
 ```bash
 uv tool install "git+https://github.com/epatel/ai-health"   # or: pipx install "git+..."
 python3 -m venv .venv && .venv/bin/pip install -e .         # from a clone (or: make setup)

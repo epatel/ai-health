@@ -231,3 +231,21 @@ def test_cli_json(repo, capsys):
 def test_cli_errors(tmp_path, capsys):
     assert main(["delta", "--repo", str(tmp_path)]) == 2  # not a git repo
     assert "error" in capsys.readouterr().err
+
+
+def test_repo_fsmonitor_command_never_runs(repo, tmp_path_factory, capsys):
+    """A scanned repo's .git/config can set core.fsmonitor to a shell command,
+    which git runs on ls-files/status/diff (AUDIT-REPORT.md finding 11)."""
+    from aihealth import hooks
+
+    marker = tmp_path_factory.mktemp("out") / "fsmonitor-ran"
+    git(repo, "config", "core.fsmonitor", f"touch '{marker}'; false")
+    (repo / "app.py").write_text(NESTED)
+    db = tmp_path_factory.mktemp("db") / "health.db"
+    assert main(["scan", str(repo)]) == 0
+    assert main(["scan", str(repo), "--save", "--db", str(db)]) == 0
+    assert main(["delta", "--repo", str(repo)]) == 1
+    edit = {"cwd": str(repo), "tool_input": {"file_path": str(repo / "app.py")}}
+    assert "DEGRADED" in hooks.run("post-edit", json.dumps(edit))
+    capsys.readouterr()
+    assert not marker.exists()

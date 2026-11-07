@@ -14,14 +14,16 @@ with the steps below, or let your agent do the same steps.
 | Hooks | `~/.claude/settings.json` | `.claude/settings.json` in the repo |
 | Agent note | none | a section in `CLAUDE.md` |
 
-Nothing else is touched. Every part fails open: outside a git repo, for other languages,
-or when aihealth isn't installed, it does nothing.
+Nothing else is touched. The hooks fail open: outside a git repo, for other languages,
+or when aihealth isn't installed, they do nothing. A project's MCP entry shows as failed
+in `/mcp` for anyone who hasn't installed aihealth yet.
 
 ## For you
 
 ```bash
 # 1. Install the CLI (needs Python 3.11+; with pipx: pipx install "git+...")
 uv tool install "git+https://github.com/epatel/ai-health"
+aihealth --version       # not found? run `uv tool update-shell`, open a new terminal
 
 # 2. Register the MCP server for all your projects
 claude mcp add --scope user aihealth -- "$(command -v aihealth)" mcp
@@ -70,8 +72,8 @@ Merge these into the settings file and keep any hooks already there.
 
 - **post-edit**: after an edit, reports new or worsened smells in that file. Silent
   otherwise.
-- **stop**: before the agent finishes, gives it one more turn if its changes made health
-  worse. It never fires twice in a row.
+- **stop**: before the agent finishes, gives it one more turn if the uncommitted changes
+  make health worse. It never fires twice in a row.
 
 ## Try it
 
@@ -99,7 +101,8 @@ instead of replacing them. Don't commit. Then run `aihealth scan . --max-finding
 and summarise it.
 ```
 
-The agent runs only the steps on this page, and you approve each one.
+The prompts ask the agent to show each command and file change first, so you can check
+it against this page before approving it.
 
 ## Remove
 
