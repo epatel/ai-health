@@ -214,11 +214,12 @@ identical). Corpora on this machine, all read-only:
 
 The full Dart corpus takes about 9 minutes, so run it in the background.
 
-**Remaining refactor candidate:** `src/aihealth/smells.py` (8.64):
-`_Detector.add` takes 10 params, plus `_Detector.duplication` (cognitive
-20) and `lcom4`. The method that worked for metrics, dart, python and
-duplication: snapshot, refactor with small handlers / named predicates /
-parameter objects, then compare.
+**Refactoring:** no file below 10 is left after `smells.py` (8.64 →
+10.00: a `_Hit` parameter object, a `_DuplicateSite` accumulator, a
+union-find class, `Detector.detect` replacing the 5-parameter `detect`).
+The method that worked for metrics, dart, python, duplication and smells:
+snapshot, refactor with small handlers / named predicates / parameter
+objects, then compare.
 
 **Environment notes:**
 - `pip install` is denied for the agent: edit `pyproject.toml`, then ask

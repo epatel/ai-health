@@ -20,13 +20,13 @@ from aihealth.lang.base import is_generated
 from aihealth.metrics import function_metrics
 from aihealth.model import Module
 from aihealth.scoring import FileScore, ScoreParams, file_score, project_score
-from aihealth.smells import detect
+from aihealth.smells import Detector
 
 
 def score_module(module: Module, config: Config, clones=None) -> FileScore:
     adapter = adapter_for(module.path, config, module.source)
     metrics = [function_metrics(fn, adapter) for fn in module.all_functions()]
-    findings = detect(module, adapter, config, metrics, clones)
+    findings = Detector(module, adapter, config).detect(metrics, clones)
     return FileScore(
         path=module.path,
         language=module.language,
