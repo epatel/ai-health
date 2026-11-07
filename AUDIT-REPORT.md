@@ -4,8 +4,7 @@
 
 ## Status (v0.2.0)
 
-Findings 1–24 are fixed or covered; 25 is a repository setting for the
-owner. The audit below and its four
+All 25 findings are fixed or covered. The audit below and its four
 re-assessments are kept as the record, in order; this table is the
 current state.
 
@@ -35,7 +34,7 @@ current state.
 | 22 | Stale opening summary | Info | fixed (this table) |
 | 23 | Dependabot PRs #1 and #2 predate the wheel job's pins | Info | fixed (rebased, merged) |
 | 24 | Markdown reports break on `|` and backticks from scanned code | Low | fixed |
-| 25 | GitHub's Dependabot security alerts are off | Info | open (repository setting) |
+| 25 | GitHub's Dependabot security alerts are off | Info | fixed (enabled by the owner) |
 
 ## Summary
 
@@ -867,7 +866,7 @@ covered: how text taken from scanned code reaches the reports.
 | # | Finding | Severity |
 |---|---|---|
 | 24 | Markdown reports break on `|` and backticks from scanned code | **new**, Low, fixed |
-| 25 | GitHub's Dependabot security alerts are off | **new**, Info |
+| 25 | GitHub's Dependabot security alerts are off | **new**, Info, fixed |
 
 ### 24. Unescaped code text in markdown reports (new, Low)
 
@@ -917,4 +916,11 @@ snapshot comparison), which makes the alert more useful, not less.
 **Fix:** enable Dependabot alerts (and optionally security updates) in
 the repository's Security settings. That needs the owner; it isn't
 something the code can do.
+
+**25, resolved:** the owner enabled Dependabot alerts. The API confirms
+it: `GET /repos/epatel/ai-health/vulnerability-alerts` answers 204
+(enabled), and the alerts list now answers with 0 open alerts instead of
+"disabled". Dependabot security updates (automatic fix PRs) stay off on
+purpose, because Python dependency ranges are widened by hand after a
+snapshot comparison. Secret scanning and push protection were already on.
 
