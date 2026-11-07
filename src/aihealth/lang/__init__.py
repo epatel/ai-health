@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from aihealth.lang.base import LanguageAdapter
+from aihealth.lang.cfamily import CFamilyAdapter
 from aihealth.lang.cmake import CMakeAdapter
 from aihealth.lang.dart import DartAdapter
 from aihealth.lang.javascript import JavaScriptAdapter
@@ -30,6 +31,7 @@ ADAPTERS: tuple[type[LanguageAdapter], ...] = (
     TsxAdapter,
     JavaScriptAdapter,
     CMakeAdapter,
+    CFamilyAdapter,
 )
 
 _BY_EXT = {ext: cls for cls in ADAPTERS for ext in cls.extensions}
@@ -37,7 +39,9 @@ _BY_NAME = {name: cls for cls in ADAPTERS for name in cls.filenames}
 
 SUPPORTED_EXTENSIONS = frozenset(_BY_EXT)
 # for messages: keep in sync with ADAPTERS
-SUPPORTED_LANGUAGES = "Python, Dart, Swift, Rust, TypeScript, JavaScript, Makefiles and CMake"
+SUPPORTED_LANGUAGES = (
+    "Python, Dart, Swift, Rust, TypeScript, JavaScript, C, C++, Objective-C(++), Makefiles and CMake"
+)
 
 
 def _adapter_class(path: str | Path) -> type[LanguageAdapter] | None:

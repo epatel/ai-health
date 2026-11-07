@@ -485,6 +485,64 @@ and complex conditionals (42): nested platform and option logic, such as
 CGAL's 289-line `if(CGAL_BRANCH_BUILD)` block (cognitive 123) and
 OrcaSlicer's `FindGLEW.cmake`.
 
+## C, C++ and Objective-C (M18)
+
+Generic thresholds, no C-family exceptions. Units are function definitions,
+C++ methods (in-class and out-of-line) and Objective-C methods; lambdas and
+blocks are closures. `goto` is +1 cognitive (JUMP_LABEL), `#if` adds
+nothing. Objective-C selector parameters count half for Excess Arguments.
+Primitive Obsession: `int`/`char`/`long`/... , `<stdint.h>` types,
+`std::string`/`string_view`, bare containers (`vector`, `map`, ...) and
+Foundation value types (`NSString`, `NSNumber`, `NSInteger`, `NSArray`,
+`id`, ...) are primitive; `bool`/`BOOL`/`void` are neutral; `const`, `*`,
+`&` and `std::` are stripped. Low Cohesion: C has no classes; a C++
+class/struct/union is a `Class` only with a method in its body, and it is
+judged only when no method is merely declared there (members are used
+without `this->`, and out-of-line methods live in another file);
+Objective-C uses ivars, properties of a same-file `@interface`, `self.x`
+and `[self m]`.
+
+Calibration corpora exclude tests, examples, fuzzers and benchmarks,
+including XCTest files kept next to the sources (`*Test.mm`, `*Tests.m`):
+with them, Flutter's darwin code scored 6.4 with 76 % of the penalty from
+duplicated test methods (`calibrate.py --only c` covers C and C++,
+`--only objc` covers Objective-C and Objective-C++; `AIHEALTH_C_CORPORA`).
+Objective-C++ (`.mm`) uses the same rules as Objective-C plus C++ out-of-line
+methods; no exceptions.
+
+| Corpus | kind | kLoC | project | median file | healthy % | alert LoC % |
+|---|---|---:|---:|---:|---:|---:|
+| lua | lib | 22.5 | 7.7 | 10 | 76 | 0 |
+| cJSON | lib | 4.3 | 4.3 | 9.7 | 62 | 84 |
+| libuv | lib | 38.6 | 5.8 | 8.7 | 48 | 23 |
+| redis | complex | 153.4 | 3.9 | 8.5 | 47 | 66 |
+| curl | complex | 120.7 | 5.0 | 10 | 61 | 45 |
+| fmt | lib | 14.9 | 6.5 | 9.6 | 57 | 24 |
+| leveldb | lib | 14.3 | 7.6 | 10 | 76 | 7 |
+| googletest | lib | 14.0 | 7.5 | 10 | 81 | 0 |
+| nlohmann/json | complex | 38.4 | 5.8 | 9.4 | 55 | 23 |
+| abseil | complex | 99.0 | 8.3 | 10 | 84 | 4 |
+| SDWebImage | lib | 16.2 | 7.6 | 10 | 87 | 8 |
+| AFNetworking | lib | 3.6 | 7.1 | 10 | 64 | 0 |
+| fmdb | lib | 2.4 | 6.7 | 10 | 69 | 0 |
+| Mantle | lib | 2.8 | 7.2 | 10 | 86 | 0 |
+| KVOController | lib | 0.5 | 9.0 | 10 | 80 | 0 |
+| Texture (Obj-C++) | lib | 48.7 | 7.9 | 10 | 87 | 6 |
+| ComponentKit (Obj-C++) | lib | 20.6 | 9.5 | 10 | 95 | 0 |
+| Flutter engine darwin (Obj-C/Obj-C++) | complex | 29.6 | 8.4 | 10 | 90 | 0 |
+
+C++ and Objective-C land where Python and Dart libraries did. C sits lower,
+and the samples behind it are real: libuv's `uv__tty_write_bufs` (cognitive
+340) and a `uv__io_poll` copied across four platform files (79–117
+duplicated lines each); redis's 9,630-line `redis-cli.c`, 1,360-line
+`rdbLoadObject`, and unit tests compiled into production files under
+`#ifdef REDIS_TEST` (`quicklistTest`, 1,281 lines; the preprocessor
+blanking can't tell them apart); cJSON is two dense files with
+`parse_object` ≈ `parse_array`. As with httpx and click in M11, a C
+exception would fit the targets, not the code. The C idiom of passing the
+context first (`uv_fs_open(loop, req, path, flags, mode, cb)`) does count
+for Excess Arguments; it is not a dominant penalty (≤ 11 % of any corpus).
+
 ## Delta classification
 
 Functions are paired by qualified name (`Class.method`); renamed functions

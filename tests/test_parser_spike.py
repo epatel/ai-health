@@ -1,5 +1,5 @@
-"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift, Rust and
-TypeScript code.
+"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift, Rust,
+TypeScript, CMake, C, C++ and Objective-C code.
 
 These tests pin the node type names the M2 adapters will rely on, so a
 grammar upgrade that renames them fails loudly here.
@@ -51,6 +51,9 @@ def _errors(node) -> list[tuple[int, str]]:
         ("tsx", "sample.tsx"),
         ("javascript", "sample.js"),
         ("cmake", "CMakeLists.txt"),
+        ("c", "sample.c"),
+        ("cpp", "sample.cpp"),
+        ("objc", "sample.m"),
     ],
 )
 def test_parses_without_errors(lang, fixture):
@@ -246,3 +249,63 @@ def test_cmake_if_is_flat():
     ]
     types = _types(root)
     assert {"function_def", "macro_def", "foreach_loop", "while_loop", "block_def"} <= types
+
+
+C_NODE_TYPES = """
+function_definition function_declarator pointer_declarator parenthesized_declarator
+parameter_list parameter_declaration compound_statement if_statement else_clause
+for_statement while_statement do_statement switch_statement case_statement
+goto_statement labeled_statement conditional_expression binary_expression
+preproc_ifdef preproc_else preproc_function_def struct_specifier comment
+"""
+CPP_NODE_TYPES = """
+namespace_definition declaration_list class_specifier field_declaration_list
+access_specifier field_declaration qualified_identifier destructor_name operator_name
+field_identifier template_declaration for_range_loop try_statement catch_clause
+lambda_expression condition_clause reference_declarator
+"""
+OBJC_NODE_TYPES = """
+class_interface class_implementation implementation_definition method_definition
+method_declaration method_parameter method_type instance_variables message_expression
+block_literal try_statement catch_clause finally_clause property_declaration
+"""
+
+
+def test_c_family_node_types():
+    assert set(C_NODE_TYPES.split()) <= _types(_parse("c", "sample.c"))
+    assert set(CPP_NODE_TYPES.split()) <= _types(_parse("cpp", "sample.cpp"))
+    assert set(OBJC_NODE_TYPES.split()) <= _types(_parse("objc", "sample.m"))
+
+
+def _find(node, kind):
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        if n.type == kind:
+            yield n
+        stack.extend(reversed(n.children))
+
+
+def test_c_default_case_has_no_value_and_names_sit_in_the_inner_declarator():
+    """C quirks: `default:` is a `case_statement` without a `value` field;
+    a function returning a function pointer has two function_declarators,
+    and only the inner one holds the name and parameters."""
+    root = _parse("c", "sample.c")
+    cases = [c.child_by_field_name("value") is not None for c in _find(root, "case_statement")]
+    assert cases == [True, True, False]
+    pick = next(f for f in _find(root, "function_definition") if b"pick" in f.text.split(b"{")[0])
+    outer = pick.child_by_field_name("declarator")
+    assert outer.type == "function_declarator"
+    inner = next(_find(outer.child_by_field_name("declarator"), "function_declarator"))
+    assert inner.child_by_field_name("declarator").text == b"pick"
+
+
+def test_objc_methods_have_no_fields():
+    """Objective-C quirk: a method's selector pieces are its direct
+    `identifier` children and its body a plain `compound_statement`; the
+    `-`/`+` marker is an anonymous token."""
+    root = _parse("objc", "sample.m")
+    greet = next(m for m in _find(root, "method_definition") if b"greet:" in m.text)
+    assert greet.children[0].type == "-"
+    assert [c.text for c in greet.named_children if c.type == "identifier"] == [b"greet", b"times"]
+    assert greet.named_children[-1].type == "compound_statement"

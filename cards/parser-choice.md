@@ -277,3 +277,112 @@ type information (e.g. Primitive Obsession on inferred types).
   excluded by default) and OrcaSlicer's `FindOpenVDB.cmake`, which the
   grammar rejects as a whole (cause not isolated; every single command in
   it parses).
+
+## C, C++ and Objective-C (M18)
+
+- **One adapter, three grammars** (`c`, `cpp`, `objc`), picked per file in
+  `lang/cfamily.py`: `.c` → c, `.cpp/.cc/.cxx/.hpp/.hh/.hxx` → cpp, `.m` →
+  objc, and `.h` by content. Objective-C if a line starts with
+  `@interface`/`@protocol`/`@implementation`/`@end`/`#import`; C++ if it
+  has `namespace`, `template <`, `class X {`/`class X :`, `struct X :`,
+  an access specifier or `\w::\w`; otherwise C. (`struct X {` is not a
+  marker: C has it too.) The registry still routes by extension; base
+  `LanguageAdapter` grew `grammars`, `_grammar_for()` and `_prepare()`
+  for this, and the chosen grammar is `module.language`.
+- **Router measurement** (9,463 headers from Pico SDK, Flipper, OrcaSlicer,
+  the Flutter engine and Xcode package checkouts): 6,476 → c, 1,850 → cpp,
+  1,137 → objc. Error lines under the router 3.6 % vs 2.9 % if every
+  non-ObjC header used `cpp`. The headers C++ parses better are
+  macro-heavy C (CMSIS `cmsis_gcc.h`, mlib), not misroutes; kept the router
+  so C headers report as C.
+- **Prepared source** (`cfamily.prepare`, same byte offsets, so node text
+  and lines refer to the file):
+  1. `#if/#ifdef/#ifndef/#elif/#else/#endif` lines (with continuations)
+     become spaces. The grammars parse a conditional block only when each
+     branch is complete; a branch that opens a brace or splits a statement
+     turned the whole block, often the whole file, into one ERROR
+     (lwIP `sockets.c`: 4,165 of 4,206 lines). Both branches now parse as
+     one sequence. C files with errors 47 % → 22 %, error lines 7.0 % →
+     2.0 % (14k files, Pico SDK + Flipper). A branch that duplicates an
+     opening brace still misnests what follows: accepted. Side effect: the
+     blanked directive lines don't count as code lines (LoC).
+  2. `typedef NS_ENUM(T, Name)` (also `NS_OPTIONS`, `NS_CLOSED_ENUM`,
+     `NS_ERROR_ENUM`, `CF_*`) becomes `enum Name`, without `typedef`
+     (which would need a name after the body). Objective-C files with
+     errors 36 % → 15 %, error lines 7.1 % → 1.4 %.
+  3. A line holding only an ALL_CAPS identifier (`Q_OBJECT`,
+     `ABSL_NAMESPACE_BEGIN`, `NS_ASSUME_NONNULL_BEGIN`,
+     `PACK_STRUCT_BEGIN`) becomes spaces; the grammars read it as the
+     start of a declaration and lost the class around it. C++ files with
+     errors 26.5 % → 20.8 %, Objective-C error lines 1.3 % → 0.7 %. At worst
+     it drops a last enumerator written without a comma.
+- **Parse errors are not reported** (`reports_parse_errors = False`): after
+  preparation, files with any error are still C 24 %, C++ 21 %,
+  Objective-C 9.5 %, covering 1.8 / 1.8 / 0.7 % of lines. They are local:
+  attribute macros (`PLACE_IN_SECTION("x") ALIGN(4) static ...`),
+  table and token-pasting macros, inline asm.
+- **Shared statement nodes**: `if_statement` with `alternative:
+  else_clause` (unwrapped by `else_if()`), `case_statement` (`default:` has
+  no `value` field), `goto_statement` (JUMP_LABEL: +1 cognitive),
+  `labeled_statement`, `conditional_expression`, `compound_statement`.
+  C++ wraps conditions in `condition_clause` (bool-transparent), adds
+  `for_range_loop`, `try_statement > catch_clause`, `lambda_expression`;
+  Objective-C adds `@try` as `try_statement > catch_clause /
+  finally_clause` and blocks as `block_literal`.
+- **Declarators** (`lang/cfamily_decl.py`): name and parameters sit in the
+  *innermost* `function_declarator`, under pointer / reference /
+  parenthesized declarators; `int (*pick(int w))(int)` has an outer
+  declarator holding the return type's parameters, and `int (f)(int)`
+  parenthesizes the name. In-class method names are `field_identifier`,
+  out-of-line ones `qualified_identifier` (`A::B::~C` → `A.B.~C`, template
+  arguments dropped, `operator<` kept).
+- **Objective-C methods have no fields** (`lang/cfamily_objc.py`): the
+  `-`/`+` marker is an anonymous token, selector pieces are the direct
+  `identifier` children, parameters are `method_parameter` children, the
+  body is a `compound_statement`. Categories are `class_implementation`
+  with a `category` field (kind `extension`).
+- **Misparses recovered by extraction**: a `function_definition` without a
+  function declarator is a loop macro (`NETIF_FOREACH(n) { ... }`): its
+  body is code of the enclosing function, not a unit. At file level the
+  same shape is `class EXPORT_MACRO C { ... }`: its body is scanned for
+  members (named `C.f`; the first member after `public:` is folded into a
+  labeled statement and lost). A stray top-level `compound_statement`, a
+  struct body in a definition's type field, and `friend` definitions are
+  scanned too.
+- **Coverage** (24,900 files, 4.2M LoC: Pico SDK, Flipper, OrcaSlicer, the
+  Flutter engine, Xcode checkouts and the calibration clones), 0 crashes,
+  about 10 ms per file with duplication. Definitions outside ERROR nodes
+  extracted: C 96,652 of 96,652, C++ 94,603 of 94,682 (the rest sit in
+  misparsed labeled statements), Objective-C 13,476 of 13,479. Inside
+  ERROR nodes, and lost: C 1.0 %, C++ 0.7 %, Objective-C 0.2 % of
+  definitions.
+- **ERROR nodes are scanned** for units (`_add_error`): the grammars keep
+  intact definitions as ERROR children. An `@implementation` token there
+  opens a recovered class (up to `@end`), so methods keep `Foo.` and
+  cohesion (`objc.member_refs` accepts the ERROR node). Recovered: C 993
+  of 993 definitions inside ERROR nodes, C++ 663 of 675, Objective-C 26 of
+  26.
+
+## Objective-C++ (added after M18)
+
+- **No grammar of its own.** On 352 `.mm` files (Flutter engine,
+  OrcaSlicer, Xcode checkouts; 113k lines) after `prepare()`: the `objc`
+  grammar leaves 24 % of lines in ERROR nodes, `cpp` 73 %. So `.mm`, and
+  `.h` files with both Objective-C and C++ markers, are language `objcpp`,
+  parsed by the `objc` parser (`_parsers["objcpp"]`).
+- **`a::b` → `a__b`** (same length, one identifier; also a leading `::x`,
+  not `foo::)` in selectors): error lines 24 % → 14 %. Names, class names
+  and parameter types are read from `module.source`
+  (`cfamily_decl.source_text`), so `int Cart::total()` is `Cart.total`
+  with type `const std::vector<int>&`.
+- **Tried and dropped** (measured, no gain or worse): blanking
+  `namespace X` (its block becomes a stray compound statement), blanking
+  template argument lists, and rewriting lambda introducers `[x](` to
+  block carets `^(` (lost lines 8.4 % → 8.9 %).
+- **Remaining errors**: lambdas, templates, `auto`, braced initializer
+  lists in message arguments (`newWithView:{...}`), designated
+  initializers; a few test files fail as a whole. With ERROR scanning,
+  4,863 units are found for 4,878 recognised definitions, but 8–10 % of
+  `.mm` code lines (Flutter/OrcaSlicer/firebase 8.4 %, Texture and
+  ComponentKit 9.6 %) sit in ERROR nodes outside any unit and are not
+  scored. C++, for comparison: 0.3 %; Objective-C 0.1 %.

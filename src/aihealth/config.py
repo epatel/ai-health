@@ -106,6 +106,15 @@ DEFAULT_EXCLUDES: list[str] = [
     "target/debug/*",  # Cargo build output (build-script generated code)
     "target/release/*",
     "*.docc/*",  # DocC catalogs: tutorial step files repeat each other
+    "*.pb.cc",  # protobuf (C++)
+    "*.pb.h",
+    "moc_*.cpp",  # Qt moc / rcc output (uic `ui_*.h` is caught by its marker)
+    "qrc_*.cpp",
+    "lex.yy.c",  # flex / bison output
+    "*.tab.c",
+    "*.tab.cc",
+    "*.tab.h",
+    "*.tab.hh",
 ]
 
 DEFAULTS: dict[str, Any] = {

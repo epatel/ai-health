@@ -52,6 +52,8 @@ def crate(name: str) -> Path:
 
 # shallow clones (`git clone --depth 1`) of the Swift repos below, in one directory
 SWIFT = Path(os.environ.get("AIHEALTH_SWIFT_CORPORA", Path.home() / "Development/swift-corpora"))
+# shallow clones of the C, C++ and Objective-C repos below, in one directory
+CFAM = Path(os.environ.get("AIHEALTH_C_CORPORA", Path.home() / "Development/c-corpora"))
 
 # (name, path, expectation) - "lib": well-regarded library code, expected mostly
 # healthy; "complex": large, inherently complex code, expected lower.
@@ -117,6 +119,24 @@ CORPORA = [
     ("js:webpack", JS / "webpack/lib", "complex"),
     ("js:eslint", JS / "eslint/lib", "complex"),
     ("js:three.js", JS / "three.js/src", "complex"),
+    ("c:lua", CFAM / "lua", "lib"),
+    ("c:cJSON", CFAM / "cJSON", "lib"),
+    ("c:libuv", CFAM / "libuv/src", "lib"),
+    ("c:redis", CFAM / "redis/src", "complex"),
+    ("c:curl", CFAM / "curl/lib", "complex"),
+    ("cpp:fmt", CFAM / "fmt", "lib"),
+    ("cpp:leveldb", CFAM / "leveldb", "lib"),
+    ("cpp:googletest", CFAM / "googletest/googletest", "lib"),
+    ("cpp:nlohmann-json", CFAM / "json/include", "complex"),
+    ("cpp:abseil", CFAM / "abseil-cpp/absl", "complex"),
+    ("objc:SDWebImage", CFAM / "SDWebImage/SDWebImage", "lib"),
+    ("objc:AFNetworking", CFAM / "AFNetworking/AFNetworking", "lib"),
+    ("objc:fmdb", CFAM / "fmdb/src/fmdb", "lib"),
+    ("objc:Mantle", CFAM / "Mantle/Mantle", "lib"),
+    ("objc:KVOController", CFAM / "KVOController/FBKVOController", "lib"),
+    ("objcpp:Texture", CFAM / "Texture/Source", "lib"),
+    ("objcpp:ComponentKit", CFAM / "componentkit/ComponentKit", "lib"),
+    ("objcpp:flutter-darwin", FLUTTER.parent / "engine/src/flutter/shell/platform/darwin", "complex"),
 ]
 
 
@@ -152,12 +172,40 @@ JS_EXCLUDES = [
 ]
 
 
+# C-family repos: tests, examples, fuzzers and benchmarks next to the code
+C_EXCLUDES = [
+    "test/*",
+    "tests/*",
+    "*/test/*",
+    "*/tests/*",
+    "*/testdata/*",
+    "*_test.c",
+    "*_test.cc",
+    "*_unittest.cc",
+    "*_benchmark.cc",
+    "*Test.m",  # XCTest files kept next to the sources
+    "*Tests.m",
+    "*Test.mm",
+    "*Tests.mm",
+    "*_test.mm",
+    "*_unittests.mm",
+    "*/benchmarks/*",
+    "fuzzing/*",
+    "examples/*",
+    "samples/*",
+    "doc/*",
+    "docs/*",
+]
+
+
 def corpus_config(name: str) -> Config:
     config = Config()
     if name.startswith("ts:"):
         config.data["scan"]["exclude"] = list(TS_TEST_FILES)
     elif name.startswith("js:"):
         config.data["scan"]["exclude"] = list(JS_EXCLUDES)
+    elif name.startswith(("c:", "cpp:", "objc:", "objcpp:")):
+        config.data["scan"]["exclude"] = list(C_EXCLUDES)
     return config
 
 

@@ -7,7 +7,8 @@ its changes (delta mode) and gives humans an overview of where an existing
 codebase needs improvement (scan mode). Scores are on a CodeScene-inspired
 1–10 scale, derived from explainable code smells. Languages: **Python**,
 **Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **TypeScript/TSX**,
-**JavaScript/JSX**, **Makefiles** and **CMake** (more via the adapter layer:
+**JavaScript/JSX**, **C**, **C++**, **Objective-C**, **Makefiles** and **CMake**
+(more via the adapter layer:
 README "Adding a language").
 
 Delivered as three faces over one engine:
@@ -50,7 +51,7 @@ Status: `todo` / `wip` / `done`.
 | M15 | TypeScript adapter | done | `.ts`/`.mts`/`.cts`/`.tsx` scored, named function values and test closures as units, JSX depth, 100 % of 18k declarations/methods on 12.7k files, calibrated on 10 repos |
 | M16 | JavaScript adapter | done | `.js`/`.mjs`/`.cjs`/`.jsx` via the TypeScript adapter, assigned functions (CommonJS, prototypes) as units, 100 % of 26k declarations/methods on 22.7k files, calibrated on 7 repos |
 | M17 | CMake adapter | done | `CMakeLists.txt`/`*.cmake` scored (functions, macros, top-level blocks, `AND`/`OR`), all 639 definitions on 956 files, 90 % of 566 hand-written files healthy |
-| M18 | C, C++, Objective-C | todo | one combined adapter per `plan-c-family.md`: coverage, calibration and snapshots as for earlier languages |
+| M18 | C, C++, Objective-C(++) | done | one adapter, three grammars (`.h` routed by content), source prepared against macros, units recovered from ERROR nodes; Objective-C++ via the objc grammar with `::` rewritten; calibrated on 18 repos |
 | M19 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
@@ -98,40 +99,50 @@ Status: `todo` / `wip` / `done`.
 - **CMake** (M17): units mirror the Makefile adapter (definitions and
   top-level blocks); generic thresholds fit. See the CMake sections of
   both cards.
+- **C, C++, Objective-C** (M18): one adapter (`lang/cfamily.py`) with
+  three grammars; `.h` routed by content. `#if` lines and lone ALL_CAPS
+  macro lines are blanked before parsing, `typedef NS_ENUM` read as an
+  enum. Parse errors not reported, `.mm` not supported, vendored folders
+  not excluded, `goto` +1 (user decisions 2026-11-07). Objective-C++
+  added on request: `objc` grammar with `a::b` → `a__b`, names from the
+  original source, about 9 % of `.mm` code lines unscored (parse errors).
+  C++ cohesion only for classes with all methods in the body. No C-family thresholds. See
+  the C-family sections of both cards.
 - **Generated Dart files** (`*.g.dart`, `*.freezed.dart`, `*.mocks.dart`)
   excluded by default.
 
 ## Current state / handoff
 
-**2026-11-07, second session.** M13 (Swift), M14 (Rust), M15
-(TypeScript), M16 (JavaScript) and M17 (CMake) are done: `lang/swift.py`,
-`lang/rust.py`, `lang/typescript.py`, `lang/javascript.py`, `lang/cmake.py`
-and their tests
-(golden Sonar metrics plus language constructs), spike tests, calibration
-and docs. After an audit (`AUDIT-REPORT.md`), git calls are hardened
-against option injection and a repo's `core.fsmonitor`. Earlier
-languages are unchanged: snapshots of Python, Dart, Swift and Makefile
-output before and after each language compare identical. 372 tests, ruff
-clean, and this repo scans at 9.93 (52 healthy files, 1 warning).
+**2026-11-07, third session.** M18 (C, C++, Objective-C) is done, and
+Objective-C++ (`.mm`, language `objcpp`) was added after it:
+`lang/cfamily.py` (adapter, header router, source preparation),
+`lang/cfamily_decl.py` (declarators, params, types),
+`lang/cfamily_objc.py` (selectors, cohesion), `tests/test_cfamily.py`,
+units recovered from ERROR nodes,
+spike tests, `c:`/`cpp:`/`objc:` corpora in `scripts/calibrate.py`, and
+docs. Shared code changed only by adding hooks (`grammars`,
+`_grammar_for`, `_prepare` in `lang/base.py`), C-family default excludes
+and three generated-file markers (Qt, bison, flex). Snapshots of every
+earlier language (49,533 files plus 1,217 Makefiles) compare identical.
+431 tests, ruff clean, and this repo scans at 9.94 (56 healthy files,
+1 warning).
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
-TypeScript/TSX, JavaScript/JSX, Makefiles and CMake (13 generic smells
-plus Makefile `missing_phony`). Interfaces: CLI `scan` (dir or file) /
-`delta` / `history` / `serve` / `mcp` / `hook`, an MCP server (5 tools),
-SQLite history with migrations, a dashboard, and Claude Code hooks.
-Scoring is calibrated on 61 corpora, plus distribution checks on
-Makefiles and CMake files.
+TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), Makefiles and CMake
+(13 generic smells plus Makefile `missing_phony`). Interfaces: CLI `scan`
+(dir or file) / `delta` / `history` / `serve` / `mcp` / `hook`, an MCP
+server (5 tools), SQLite history with migrations, a dashboard, and
+Claude Code hooks. Scoring is calibrated on 79 corpora, plus
+distribution checks on Makefiles and CMake files.
 
-**Next task: C, C++ and Objective-C (M18).** The plan, measurements and
-decisions (settled with the user) are in `plan-c-family.md`. Later
-candidates (M19+): Go (`if err != nil` needs a calibration decision),
-Kotlin (Compose maps onto widget depth; labelled args like Swift), and
-shell scripts (cheapest: the bash role table already exists in
-`lang/make.py`). Follow README "Adding a language". `lang/swift.py`
-shows a grammar without an `alternative` field and with unreliable
-operator precedence; `lang/rust.py` shows a wrapped else-if
-(`else_if()`), tests in the same file, and idiom exclusions for
-cohesion.
+**Next task (M19): ask the user which language.** Candidates: Go
+(`if err != nil` needs a calibration decision), Kotlin (Compose maps
+onto widget depth; labelled args like Swift), shell scripts (cheapest:
+the bash role table already exists in `lang/make.py`).
+Follow README "Adding a language". `lang/cfamily.py` shows several
+grammars in one adapter and source preparation; `lang/swift.py` a grammar
+without an `alternative` field; `lang/rust.py` a wrapped else-if, tests in
+the same file, and cohesion idiom exclusions.
 
 **Prove existing languages are unaffected** with `scripts/snapshot.py
 --lang python,dart,make` before and after, then `--compare` (exit 0 =
@@ -147,6 +158,13 @@ identical). Corpora on this machine, all read-only:
   ESLint, three.js), set `AIHEALTH_JS_CORPORA` for `--only js:`.
 - Rust: the crates in `~/.cargo/registry/src` (calibrate.py finds the
   newest version of each by name).
+- C / C++ / Objective-C: Pico SDK (`~/Development/pico-sdk`), Flipper
+  (`~/Development/flipper/flipperzero-firmware`, skip its `toolchain/`),
+  OrcaSlicer `src/`, the Flutter engine, Xcode checkouts; shallow clones
+  (lua, cJSON, libuv, redis, curl, fmt, leveldb, googletest,
+  nlohmann/json, abseil, SDWebImage, AFNetworking, fmdb, Mantle,
+  KVOController, Texture, ComponentKit), set `AIHEALTH_C_CORPORA` for `calibrate.py --only c`
+  (C and C++) and `--only objc`.
 - Swift: shallow clones (Alamofire, swift-argument-parser,
   swift-collections, swift-nio, Kingfisher, IceCubesApp, vapor,
   swift-composable-architecture, SwiftLint), set

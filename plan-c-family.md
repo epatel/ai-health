@@ -1,5 +1,11 @@
 # Plan: C, C++ and Objective-C (M18)
 
+> **Done (M18).** Kept as the record of how the work was planned. What was
+> built and measured (and where it differs from this plan: source
+> preparation against macros, the `struct X {` router fix, extraction of
+> misparses) is in the C-family sections of `cards/parser-choice.md` and
+> `cards/code-health-model.md`.
+
 Written 2026-11-07, before a context reset. Everything needed to start is
 here or in the files it points to. Follow README "Adding a language" for the
 general method. This plan covers what is specific to the C family.
