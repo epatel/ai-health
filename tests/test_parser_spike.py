@@ -50,6 +50,7 @@ def _errors(node) -> list[tuple[int, str]]:
         ("typescript", "sample.ts"),
         ("tsx", "sample.tsx"),
         ("javascript", "sample.js"),
+        ("cmake", "CMakeLists.txt"),
     ],
 )
 def test_parses_without_errors(lang, fixture):
@@ -226,3 +227,22 @@ def test_javascript_differs_from_typescript_in_params_and_fields():
     types = _types(_parse("javascript", "sample.js"))
     assert {"assignment_pattern", "rest_pattern", "field_definition", "jsx_element"} <= types
     assert not {"required_parameter", "public_field_definition"} & types
+
+
+def test_cmake_if_is_flat():
+    """CMake quirk: elseif/else commands and their bodies are siblings inside
+    `if_condition`, not nested; AND/OR are plain unquoted arguments."""
+    root = _parse("cmake", "CMakeLists.txt")
+    first_if = next(c for c in root.named_children if c.type == "if_condition")
+    kinds = [c.type for c in first_if.named_children]
+    assert kinds == [
+        "if_command",
+        "body",
+        "elseif_command",
+        "body",
+        "else_command",
+        "body",
+        "endif_command",
+    ]
+    types = _types(root)
+    assert {"function_def", "macro_def", "foreach_loop", "while_loop", "block_def"} <= types

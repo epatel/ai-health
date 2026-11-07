@@ -91,6 +91,11 @@ DEFAULT_EXCLUDES: list[str] = [
     "*/__pycache__/*",
     "*/migrations/versions/*",
     "*/CMakeFiles/*",  # CMake-generated Makefiles
+    "CMakeFiles/*",
+    "cmake-build-*/*",  # CLion build directories
+    "_deps/*",  # CMake FetchContent sources (third-party)
+    "*.h.cmake",  # configure_file() templates: C headers, not CMake
+    "*.hpp.cmake",
     "*.generated.swift",  # Sourcery / SwiftGen
     ".build/*",  # SwiftPM
     "Pods/*",  # CocoaPods

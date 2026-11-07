@@ -252,3 +252,28 @@ type information (e.g. Primitive Obsession on inferred types).
   declarations and class methods extracted. The 350 files with parse errors
   (1.5 %) are all test fixtures: webpack hot-update cases with `---`
   separators and ESLint's deliberately broken inputs.
+
+## CMake (M17)
+
+- Grammar `cmake` (tree-sitter-language-pack): `CMakeLists.txt` (matched by
+  name) and `*.cmake`. Commands are case-insensitive in the grammar too.
+- Definitions: `function_def` / `macro_def` = `function_command` (first
+  argument is the name, the rest are parameters) + `body` + end command.
+  Blocks: `if_condition`, `foreach_loop`, `while_loop`, `block_def`.
+- **`if` is flat:** `if_command`, `body`, `elseif_command`, `body`,
+  `else_command`, `body`, `endif_command` are siblings in `if_condition`.
+  `is_alternative` marks the elseif/else commands; `elseif_command` has the
+  IF role, so the walker scores it as an else-if, and each following `body`
+  nests one level inside the if, as it should.
+- Conditions are `argument_list`s of the if/elseif/while command: `AND` /
+  `OR` are plain `unquoted_argument`s, counted as words. The command nodes
+  are `bool_transparent`, so a condition is recognised as the block's.
+- Comments: `line_comment`, `bracket_comment` (`#[[ ... ]]`, any number of
+  `=`).
+- Coverage: 956 hand-written files (OrcaSlicer incl. its deps, Pico SDK,
+  Flutter, OpenSCAD, Xcode package checkouts), 0 crashes, about 5 ms per
+  file, all 639 function/macro definitions extracted. Two files fail to
+  parse: a `configure_file()` template (`*.h.cmake`, a C header; now
+  excluded by default) and OrcaSlicer's `FindOpenVDB.cmake`, which the
+  grammar rejects as a whole (cause not isolated; every single command in
+  it parses).

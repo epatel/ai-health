@@ -7,8 +7,8 @@ its changes (delta mode) and gives humans an overview of where an existing
 codebase needs improvement (scan mode). Scores are on a CodeScene-inspired
 1–10 scale, derived from explainable code smells. Languages: **Python**,
 **Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **TypeScript/TSX**,
-**JavaScript/JSX** and **Makefiles** (more via the adapter layer: README
-"Adding a language").
+**JavaScript/JSX**, **Makefiles** and **CMake** (more via the adapter layer:
+README "Adding a language").
 
 Delivered as three faces over one engine:
 
@@ -49,7 +49,8 @@ Status: `todo` / `wip` / `done`.
 | M14 | Rust adapter | done | Rust scored (impl/trait blocks, let-else, let-chains, labeled loops), `#[cfg(test)]` modules left out by default, 99.99 % of 56k bodies on 4.8k files, calibrated on 13 crates |
 | M15 | TypeScript adapter | done | `.ts`/`.mts`/`.cts`/`.tsx` scored, named function values and test closures as units, JSX depth, 100 % of 18k declarations/methods on 12.7k files, calibrated on 10 repos |
 | M16 | JavaScript adapter | done | `.js`/`.mjs`/`.cjs`/`.jsx` via the TypeScript adapter, assigned functions (CommonJS, prototypes) as units, 100 % of 26k declarations/methods on 22.7k files, calibrated on 7 repos |
-| M17 | Next language | todo | which one is the user's call: ask first (see handoff) |
+| M17 | CMake adapter | done | `CMakeLists.txt`/`*.cmake` scored (functions, macros, top-level blocks, `AND`/`OR`), all 639 definitions on 956 files, 90 % of 566 hand-written files healthy |
+| M18 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
 
@@ -93,28 +94,34 @@ Status: `todo` / `wip` / `done`.
 - **JavaScript** (M16): the TypeScript adapter with the `javascript`
   grammar; functions assigned to a name (`module.exports`, `app.f =`,
   prototypes) are units too, in JavaScript only.
+- **CMake** (M17): units mirror the Makefile adapter (definitions and
+  top-level blocks); generic thresholds fit. See the CMake sections of
+  both cards.
 - **Generated Dart files** (`*.g.dart`, `*.freezed.dart`, `*.mocks.dart`)
   excluded by default.
 
 ## Current state / handoff
 
 **2026-11-07, second session.** M13 (Swift), M14 (Rust), M15
-(TypeScript) and M16 (JavaScript) are done: `lang/swift.py`, `lang/rust.py`,
-`lang/typescript.py`, `lang/javascript.py` and their tests
+(TypeScript), M16 (JavaScript) and M17 (CMake) are done: `lang/swift.py`,
+`lang/rust.py`, `lang/typescript.py`, `lang/javascript.py`, `lang/cmake.py`
+and their tests
 (golden Sonar metrics plus language constructs), spike tests, calibration
 and docs. After an audit (`AUDIT-REPORT.md`), git calls are hardened
 against option injection and a repo's `core.fsmonitor`. Earlier
 languages are unchanged: snapshots of Python, Dart, Swift and Makefile
-output before and after each language compare identical. 353 tests, ruff
-clean, and this repo scans at 9.92 (50 healthy files, 1 warning).
+output before and after each language compare identical. 372 tests, ruff
+clean, and this repo scans at 9.93 (52 healthy files, 1 warning).
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
-TypeScript/TSX, JavaScript/JSX and Makefiles (13 generic smells plus Makefile `missing_phony`). Interfaces:
-CLI `scan` (dir or file) / `delta` / `history` / `serve` / `mcp` /
-`hook`, an MCP server (5 tools), SQLite history with migrations, a
-dashboard, and Claude Code hooks. Scoring is calibrated on 61 corpora.
+TypeScript/TSX, JavaScript/JSX, Makefiles and CMake (13 generic smells
+plus Makefile `missing_phony`). Interfaces: CLI `scan` (dir or file) /
+`delta` / `history` / `serve` / `mcp` / `hook`, an MCP server (5 tools),
+SQLite history with migrations, a dashboard, and Claude Code hooks.
+Scoring is calibrated on 61 corpora, plus distribution checks on
+Makefiles and CMake files.
 
-**Next task: another language (M17).** The user picks which, so ask.
+**Next task: another language (M18).** The user picks which, so ask.
 Candidates: Go (`if err != nil` needs a calibration decision), Kotlin
 (Compose maps onto widget depth; labelled args like Swift), and shell
 scripts (cheapest: the bash role table already exists in
@@ -128,7 +135,8 @@ in the same file, and idiom exclusions for cohesion.
 identical). Corpora on this machine, all read-only:
 - Python: `.venv/lib/python3.12/site-packages`
 - Dart: `~/Development/Flutter/flutter/packages`, `~/.pub-cache/hosted/pub.dev`
-- Makefiles: `~/Development`
+- Makefiles and CMake: `~/Development` (CMake: OrcaSlicer, Pico SDK,
+  Flutter, OpenSCAD; Xcode `SourcePackages/checkouts`)
 - TypeScript: shallow clones (zod, TanStack Query, tRPC, date-fns, Vite,
   ky, TypeORM, Excalidraw, Nest), set `AIHEALTH_TS_CORPORA` for
   `scripts/calibrate.py --only ts:`.

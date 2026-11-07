@@ -467,6 +467,24 @@ holds 83 % of the lines). webpack's `lib/` contains hand-ported parsers
 and printers (from terser and SWC) of 11–22k lines with functions up to
 2,344 lines; they are real code, not generated.
 
+## CMake (M17)
+
+Units follow the Makefile adapter: `function()` / `macro()` definitions,
+plus top-level `if` / `foreach` / `while` blocks named by their header;
+plain commands are not scored. `AND` / `OR` in if/elseif/while conditions
+are boolean operators. Fix hints are CMake-specific (adapter `hint()`).
+
+The generic thresholds fit without CMake exceptions. On 566 hand-written
+files from 7 projects (OrcaSlicer, Pico SDK, Flutter, OpenSCAD,
+firebase-ios-sdk, leveldb, nanopb), 90 % are healthy, the median file
+scores 10 and no file is in alert. Unit LoC p50 / p90 / p99 is
+6 / 27 / 117 (1,380 units). Project scores: Flutter 9.90,
+firebase-ios-sdk 9.86, Pico SDK 8.95, OrcaSlicer 8.94, OpenSCAD 8.07. The
+most common findings are cognitive complexity (63), complex method (57)
+and complex conditionals (42): nested platform and option logic, such as
+CGAL's 289-line `if(CGAL_BRANCH_BUILD)` block (cognitive 123) and
+OrcaSlicer's `FindGLEW.cmake`.
+
 ## Delta classification
 
 Functions are paired by qualified name (`Class.method`); renamed functions
