@@ -4,7 +4,8 @@
 
 ## Status (v0.2.0)
 
-All 22 findings are fixed or covered. The audit below and its four
+All 22 findings are fixed or covered; 23 is a note on two open pull
+requests. The audit below and its four
 re-assessments are kept as the record, in order; this table is the
 current state.
 
@@ -32,6 +33,7 @@ current state.
 | 20 | Install instructions not pinned to a release | Low | fixed |
 | 21 | Only editable installs tested | Low | fixed (wheel job in CI) |
 | 22 | Stale opening summary | Info | fixed (this table) |
+| 23 | Dependabot PRs #1 and #2 predate the wheel job's pins | Info | open: rebase before merging |
 
 ## Summary
 
@@ -806,4 +808,34 @@ kept as the record.
   templates and `charts.js` are installed, and renders the dashboard's
   front page. Its first real run is the push of this fix.
 - **22:** the status table at the top of this report.
+
+---
+
+## Fifth re-assessment
+
+**Date:** 2026-11-07 · **Commit:** `3781de3` (main) · **Range:** fixes for 20–22
+
+- **State:** findings 1–22 fixed or covered. The repo scores 10.00 (62 of
+  62 files), with 511 tests and ruff clean. CI passed on `3781de3` in
+  all five jobs.
+- **Wheel job verified from its log:** it built
+  `aihealth-0.2.0-py3-none-any.whl`, installed it with its dependencies
+  into a clean venv, scored `src/` 10.00 from the installed copy, and
+  `check_installed.py` reported the copy in `site-packages` (templates,
+  `charts.js` and the dashboard page all present).
+- **Install docs:** both guides pin `@v0.2.0`, and the test that keeps
+  them in step with `__version__` passes.
+
+### 23. Dependabot PRs predate the wheel job (new, Info)
+
+PRs #1 (`setup-python` → v7.1.0) and #2 (`checkout` → v7.0.1) were opened
+before the `wheel` job, which repeats both pins. Each PR changes only the
+line that existed then. Merged as they are, both merge cleanly, but the
+test jobs would move to v7 while the wheel job stayed on v4/v5. **Fix:**
+comment `@dependabot rebase` on each PR (or close them and let Dependabot
+reopen), so they update every occurrence, then merge if CI passes. They
+cross major versions, so the merge is the maintainer's call.
+
+Nothing else new turned up. The open items are the two PRs and the
+next language (M21).
 
