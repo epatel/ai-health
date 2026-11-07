@@ -318,6 +318,25 @@ samples are real copy-paste: Alamofire's `DataRequest` and
 `Deprecations.swift`. As with Dart, duplication is kept as is, and TCA's
 6.2 is accepted like httpx's.
 
+**Enum lookup tables: measured, not changed.** Several computed properties
+switching over the same enum cases (`label`, `iconName`, …) can look like
+a clone, because literals are normalised and the case names match. Of
+2,968 clones in the 9 Swift corpora plus a SwiftUI app, 172 lie mostly
+(≥ 80 % of lines on both sides) inside all-enum-case `switch` statements.
+156 of those have the same literal values on both sides: real copies,
+such as swift-nio's `BufferedStream` state machine and
+swift-argument-parser's `parseValue` branches. 16 (0.5 %) have different
+values. In apps these are the lookup tables (IceCubesApp
+`NotificationType.label` / `.menuTitle`, `StatusAction.displayName` /
+`.iconName`). In swift-nio they are copied state machines with different
+error messages, so a "values differ" filter would also hide real copies.
+Dropping all 16 moves no project score by more than 0.03. Not worth a
+special case: use the per-file disable comment where it matters. Related:
+functions that are one big enum `switch` trip Complex Method (18 in
+IceCubesApp, 8 in Claude-Usage-Tracker). That rule is shared by all
+languages (each `case` is a branch), so changing it is a separate,
+cross-language decision.
+
 ## Delta classification
 
 Functions are paired by qualified name (`Class.method`); renamed functions
