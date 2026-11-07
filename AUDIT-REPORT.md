@@ -534,3 +534,78 @@ isn't counted as a change. Tests cover the v2 → v3 upgrade (data kept,
 column NULL), the recorded value, and the history note. The chart logic
 was checked in Node with a stubbed ECharts (no JS tests in the repo).
 504 tests pass.
+
+---
+
+## Second re-assessment
+
+**Date:** 2026-11-07 · **Commit:** `c7737ed` (main) · **Range:** `5783c5c..c7737ed`
+(fixes for 2–9 and 12–14, `smells.py` refactor, parser versions in scans)
+
+### State
+
+- Every finding from the first audit and the first re-assessment is fixed
+  or covered: 1–14 (8 was already covered by the stdio round-trip test).
+- The repo scores **10.00**: all 62 files healthy, `smells.py` 8.64 →
+  10.00. 504 tests, line coverage **96.5 %** (5,241 / 5,433), ruff clean.
+  `src/` is 8.6k lines.
+- CI has passed on every push since it was added (Python 3.11, 3.12 and
+  3.13 on Linux, 3.12 on macOS). Dependency ranges are pinned to the
+  tested versions.
+
+| # | Finding | Severity |
+|---|---|---|
+| 15 | `serve --host ::1` refuses every request | **new**, Low, fixed |
+| 16 | Delta reads a changed file whole before the size check | **new**, Info |
+| 17 | CI actions referenced by tag, not commit SHA | **new**, Info |
+
+### 15. IPv6 loopback refused by the host check (new, Low)
+
+Introduced with the fix for finding 2. Starlette keeps the brackets when
+it parses an IPv6 `Host` header (`[::1]:8765` → `[::1]`), but
+`allowed_hosts("::1")` lists `::1`. So the dashboard started with
+`aihealth serve --host ::1` answers every request with 400. Reproduced
+with `TestClient`: 400 for `Host: [::1]:8765`, 200 for `127.0.0.1` and
+`localhost`. The default host (`127.0.0.1`) isn't affected.
+**Fixed:** `allowed_hosts` adds the bracketed form of every name
+containing `:` (`::1` → `[::1]`). `test_ipv6_loopback_is_served` (200 for
+`[::1]`, still 400 for a foreign host) fails on the old code. 505 tests
+pass.
+
+### 16. Whole file read before the size check (new, Info)
+
+`gitutil.read_file` reads the changed file completely (or `git show`
+returns it) before `too_large` rejects it. Parsing, the slow part, is
+skipped, so a 1 GB file costs memory and about a second, not minutes.
+**Optional fix:** `stat` working-tree files first, and use `git cat-file
+-s` for revisions.
+
+### 17. CI actions pinned by tag (new, Info)
+
+`actions/checkout@v4` and `actions/setup-python@v5` follow their major
+tags. A compromised tag would run in CI, which holds only a read-only
+token (`permissions: contents: read`) and no secrets. **Optional fix:**
+pin to commit SHAs (Dependabot can keep them current).
+
+### Verified in the recent changes
+
+- **Dashboard:** the host check, the cross-site check on `POST /scan`,
+  the security headers (also on static files) and SRI behave as tested,
+  for loopback, a LAN address and `0.0.0.0`. A same-origin post through a
+  LAN address passes (`Origin` and `Host` agree).
+- **Size limit:** the MCP `score_file` checks `stat` before reading.
+  Delta skips a file when either version is too large, and reports list
+  skipped files, including in the hooks' markdown.
+- **Migration 3:** an `ALTER TABLE ... ADD COLUMN` inside the step's
+  transaction. A v2 database upgrades with its data kept, and an older
+  aihealth refuses a v3 database (`SchemaTooNewError`), as designed.
+- **zsh guard:** wall-clock alarm and CPU limit both tested. It passes on
+  macOS and Linux in CI.
+- **`smells.py` refactor:** same tests, 501 → 504 with later additions.
+  Before/after snapshot comparison: see below.
+
+### Recommended order
+
+1. ~~Fix 15~~ (done).
+2. Optionally 16 and 17.
+3. Then the next language (M21) is the user's call.

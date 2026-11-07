@@ -45,7 +45,9 @@ def allowed_hosts(host: str) -> list[str]:
     check against: `serve` warns about that)."""
     if host in ALL_INTERFACES:
         return ["*"]
-    return sorted(LOOPBACK | {host})
+    names = LOOPBACK | {host}
+    # an IPv6 address arrives in brackets (`Host: [::1]:8765` -> `[::1]`)
+    return sorted(names | {f"[{n}]" for n in names if ":" in n})
 
 
 def same_origin(request: Request) -> bool:

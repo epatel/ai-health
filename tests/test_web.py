@@ -154,8 +154,16 @@ def test_requests_for_other_hosts_are_refused(project):
     assert c.get("/api/scans", headers={"host": "localhost:8765"}).status_code == 200
 
 
+def test_ipv6_loopback_is_served(project):
+    """Starlette parses `Host: [::1]:8765` as `[::1]`, brackets kept."""
+    c = TestClient(create_app(project, host="::1"), base_url="http://[::1]:8765")
+    assert c.get("/api/scans").status_code == 200
+    assert c.get("/api/scans", headers={"host": "evil.example"}).status_code == 400
+
+
 def test_allowed_hosts():
-    assert allowed_hosts("127.0.0.1") == ["127.0.0.1", "::1", "localhost"]
+    assert allowed_hosts("127.0.0.1") == ["127.0.0.1", "::1", "[::1]", "localhost"]
+    assert "[fe80::1]" in allowed_hosts("fe80::1")
     assert "box.lan" in allowed_hosts("box.lan")
     assert allowed_hosts("0.0.0.0") == ["*"]  # nothing to check against; serve warns
 
