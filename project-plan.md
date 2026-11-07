@@ -43,7 +43,8 @@ Status: `todo` / `wip` / `done`.
 | M8 | Storage + migrations | done | SQLite at `<repo>/.aihealth/health.db`, `PRAGMA user_version` migration runner, scans persisted |
 | M9 | Dashboard | done | FastAPI + Jinja: project overview, treemap (size=LoC, colour=score), file view with smells per function, score trend |
 | M10 | Agent loop integration | done | optional Claude Code hook / skill that runs delta after edits; dogfooded on this repo |
-| M11 | Calibration | done | run on 2–3 open-source Python and Flutter repos, tune thresholds/weights so scores spread sensibly; record results in the scoring card |
+| M11 | Calibration | done |
+| M12 | Makefile adapter | done | run on 2–3 open-source Python and Flutter repos, tune thresholds/weights so scores spread sensibly; record results in the scoring card |
 
 ## Decisions
 
@@ -134,7 +135,12 @@ read-only). Scoring was calibrated: per-symbol cap 4, density damping above
 params count half. Fixed a scan bug for gitignored directories. Results and
 rationale are in the code-health-model card. This repo now scores 9.15.
 160 tests.
-All planned milestones (M0-M11) are done. Possible next steps: more
+M12 (Makefiles) done: `lang/make.py`, generic adapter hooks (`is_alternative`,
+`tokens`, `hint`, `reports_parse_errors`, filename matching), generated-file
+skipping in every language, and state-based LCOM4. 182 tests. Validated on
+2,190 Makefiles found on disk. Details in the parser-choice and
+code-health-model cards.
+All planned milestones are done. Possible next steps: more
 languages (adapter + role table + golden tests), behavioural hotspots from
 git change frequency (a v1 non-goal), and cross-file duplication in delta
 mode.

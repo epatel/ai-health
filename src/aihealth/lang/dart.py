@@ -159,6 +159,33 @@ def _is_member_of_other(ident: Node) -> bool:
     return False
 
 
+def _class_body(cls: Class) -> Node | None:
+    if cls.node is None:
+        return None
+    return cls.node.child_by_field_name("body") or next(
+        (c for c in cls.node.named_children if c.type in _BODIES), None
+    )
+
+
+def _is_instance_declaration(node: Node) -> bool:
+    # static members are class constants, not instance state
+    return node.type == "declaration" and not text(node).lstrip().startswith("static")
+
+
+def _instance_fields(cls: Class) -> set[str]:
+    """Names of the class's non-static fields."""
+    body = _class_body(cls)
+    if body is None:
+        return set()
+    fields = set()
+    for decl in filter(_is_instance_declaration, body.named_children):
+        for n in iter_nodes(decl):
+            ident = next((c for c in n.children if c.type == "identifier"), None)
+            if n.type == "initialized_identifier" and ident is not None:
+                fields.add(text(ident))
+    return fields
+
+
 DEFAULT_TEST_CALLS = frozenset(
     {
         "group",
@@ -247,20 +274,7 @@ class DartAdapter(LanguageAdapter):
         """Bare or `this.`-qualified references to the class's own fields and
         methods in each method body."""
         members = {m.name.rstrip("=") for m in cls.methods if m.kind != "constructor"}
-        body = None
-        if cls.node is not None:
-            body = cls.node.child_by_field_name("body") or next(
-                (c for c in cls.node.named_children if c.type in _BODIES), None
-            )
-        if body is not None:
-            for decl in body.named_children:
-                if decl.type != "declaration":
-                    continue
-                for n in iter_nodes(decl):
-                    if n.type in ("initialized_identifier", "static_final_declaration"):
-                        ident = next((c for c in n.children if c.type == "identifier"), None)
-                        if ident is not None:
-                            members.add(text(ident))
+        members |= _instance_fields(cls)
         refs: dict[str, set[str]] = {}
         for fn in cls.methods:
             names: set[str] = set()

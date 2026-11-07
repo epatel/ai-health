@@ -2,8 +2,8 @@
 
 # aihealth
 
-Code health estimates (1–10, CodeScene-style) for **Python** and **Dart/Flutter**, built as
-feedback for AI coding agents.
+Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter** and
+**Makefiles**, built as feedback for AI coding agents.
 
 - **delta**: did this change make the code healthier or worse? Verdict, score before → after,
   new/worsened smells with `path:line` and fix hints. Exit code 1 when health degraded.
@@ -95,6 +95,24 @@ project's `.claude/settings.json` (use the absolute path to your aihealth instal
   Claude gets one more turn to fix them (or to say why they are intended). It never fires twice
   in a row, so it cannot loop.
 - Both fail open: outside a git repo, for other languages, or on any error they do nothing.
+
+## Makefiles
+
+`Makefile`, `makefile`, `GNUmakefile` and `*.mk` files are scored with the same smells,
+mapped onto make:
+
+- **Rules with a recipe** are the "functions". The recipe is parsed as shell (bash), so long
+  recipes (Large Method), nested `if`/`for` shell logic (Deep Nesting, Cognitive Complexity)
+  and `&&`/`||` chains in conditions are measured on the real Makefile lines.
+- **`define` blocks** are scored as canned shell recipes, or as make templates when they
+  contain make syntax.
+- **Top-level `ifeq`/`ifdef` blocks**, and variables built with `$(if)`, `$(or)`, `$(and)`
+  or `$(foreach)`, are scored for their make-level branching.
+- **Copied recipes** show up as Code Duplication. Fix hints suggest make remedies:
+  pattern rules, `define` + `$(call)`, moving shell into a script file.
+
+Generated files (automake, CMake, qmake output, and in every language anything marked
+"DO NOT EDIT" or "@generated") are skipped.
 
 ## Configuration
 

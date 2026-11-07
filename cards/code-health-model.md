@@ -212,6 +212,38 @@ Tuning further would fit the targets, not the code.
 big file with smells raises its score slightly. Delta still reports any
 new or worsened smell, so this can't hide a regression.
 
+## Makefiles (added after M11)
+
+Units: `rule` (rules with a recipe; the body is the recipe parsed as bash),
+`define`, `conditional` (top-level `ifeq/ifdef` blocks, named by their
+condition) and `variable` (top-level assignments using `$(if/or/and/
+foreach)`). Plain assignments and recipe-less rules are not scored, like
+module-level constants elsewhere. Make `$(if)`/`$(or)`/`$(and)` count like
+ternaries and `$(foreach)` like a loop. Bash `&&`/`||` count as boolean
+operators, but only an if/while condition can be a Complex Conditional, so
+`mkdir -p x && cd x` statements don't trigger it. Smell hints are
+Makefile-specific (adapter `hint()`).
+
+The generic thresholds fit without special cases. On 1,284 hand-written
+Makefiles, 96 % are healthy, the median file scores 10, and recipe LoC
+p90/p99 is 6/37 (limit 70). The common findings are copied recipes (553),
+long recipes (140) and complex shell logic (41). No Makefile-specific smells
+(e.g. missing `.PHONY`) yet.
+
+### Refinements made while adding Makefiles
+
+- Generated files are skipped by scan and delta if the first 1 KB has a
+  marker (automake, CMake, qmake, "DO NOT EDIT/MODIFY", "@generated",
+  "auto-generated"). This matched 27/1,766 site-packages and 23/2,912
+  Flutter files, all genuinely generated.
+- LCOM4 counts only instance state (Python: attributes assigned as
+  `self.x = ...`; Dart: non-static fields) plus method calls. Class
+  constants read through `self` no longer tie methods together, which had
+  flagged stateless hook classes such as `LanguageAdapter`.
+- Condition detection respects a grammar's `condition` field: in bash, an
+  if's body statements are also its direct children.
+- Calibration rerun after these changes: every corpus is within ±0.1.
+
 ## Delta classification
 
 Functions are paired by qualified name (`Class.method`); renamed functions

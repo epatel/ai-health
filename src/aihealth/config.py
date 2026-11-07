@@ -76,6 +76,7 @@ DEFAULT_EXCLUDES: list[str] = [
     "*/site-packages/*",
     "*/__pycache__/*",
     "*/migrations/versions/*",
+    "*/CMakeFiles/*",  # CMake-generated Makefiles
 ]
 
 DEFAULTS: dict[str, Any] = {

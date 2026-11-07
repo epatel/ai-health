@@ -14,7 +14,8 @@ from pathlib import Path
 
 from aihealth.config import Config
 from aihealth.duplication import DuplicationIndex
-from aihealth.lang import SUPPORTED_EXTENSIONS, adapter_for
+from aihealth.lang import adapter_for, is_supported
+from aihealth.lang.base import is_generated
 from aihealth.metrics import function_metrics
 from aihealth.model import Module
 from aihealth.scoring import FileScore, ScoreParams, file_score, project_score
@@ -79,7 +80,7 @@ def discover(root: Path, config: Config) -> list[str]:
     max_bytes = config.section("scan")["max_file_kb"] * 1024
     out = []
     for rel in files:
-        if Path(rel).suffix.lower() not in SUPPORTED_EXTENSIONS:
+        if not is_supported(rel):
             continue
         if is_excluded(rel, config.excludes):
             continue
@@ -167,6 +168,9 @@ def scan(root: str | Path, config: Config) -> ScanResult:
             source = (root / rel).read_bytes()
         except OSError as e:
             skipped.append((rel, str(e)))
+            continue
+        if is_generated(source):
+            skipped.append((rel, "generated"))
             continue
         module = parse(source, rel, config)
         if module is not None:

@@ -23,7 +23,7 @@ from typing import Any, TypedDict
 from aihealth import gitutil
 from aihealth.config import load_config
 from aihealth.delta import DEGRADED, run_delta
-from aihealth.lang import SUPPORTED_EXTENSIONS
+from aihealth.lang import is_supported
 from aihealth.report import ReportOptions, render_delta
 
 POST_EDIT_MAX_FINDINGS = 5
@@ -64,7 +64,7 @@ def _context(event: str, text: str) -> dict:
 def post_edit(payload: HookPayload) -> dict | None:
     """Regressions in the file just edited, or None."""
     path = (payload.get("tool_input") or {}).get("file_path")
-    if not path or Path(path).suffix.lower() not in SUPPORTED_EXTENSIONS:
+    if not path or not is_supported(path):
         return None
     report = _degraded_markdown(_cwd(payload), [path], POST_EDIT_MAX_FINDINGS)
     return _context("PostToolUse", report) if report else None

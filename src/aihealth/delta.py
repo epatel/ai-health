@@ -23,7 +23,8 @@ from aihealth import gitutil
 from aihealth.config import Config
 from aihealth.engine import is_excluded, score_source
 from aihealth.gitutil import ChangedFile, Revisions
-from aihealth.lang import SUPPORTED_EXTENSIONS
+from aihealth.lang import is_supported
+from aihealth.lang.base import is_generated
 from aihealth.scoring import FileScore
 from aihealth.smells import Finding
 
@@ -190,17 +191,20 @@ def _skip_reason(ch: ChangedFile, config: Config) -> str | None:
     """Why a changed file is not scored ("" = silently ignored)."""
     if ch.status == "deleted":
         return ""  # removing code never degrades health
-    if Path(ch.path).suffix.lower() not in SUPPORTED_EXTENSIONS:
+    if not is_supported(ch.path):
         return ""
     if is_excluded(ch.path, config.excludes):
         return "excluded"
     return None
 
 
-def _file_delta(root: Path, ch: ChangedFile, revs: Revisions, config: Config) -> FileDelta | None:
+def _file_delta(root: Path, ch: ChangedFile, revs: Revisions, config: Config) -> FileDelta | str:
+    """The file's delta, or why it was skipped."""
     after = gitutil.read_file(root, revs.head, ch.path)
     if after is None:
-        return None
+        return "unreadable"
+    if is_generated(after):
+        return "generated"
     before = None
     if revs.base is not None and ch.old_path:
         before = gitutil.read_file(root, revs.base, ch.old_path)
@@ -220,11 +224,11 @@ def run_delta(
     result = DeltaResult(str(root), revs.base, revs.head_label, [])
     for ch in gitutil.changed_files(root, revs, rel_paths):
         reason = _skip_reason(ch, config)
-        fd = _file_delta(root, ch, revs, config) if reason is None else None
-        if fd is not None:
-            result.files.append(fd)
-        elif reason != "":
-            result.skipped.append((ch.path, reason or "unreadable"))
+        outcome = _file_delta(root, ch, revs, config) if reason is None else reason
+        if isinstance(outcome, FileDelta):
+            result.files.append(outcome)
+        elif outcome:
+            result.skipped.append((ch.path, outcome))
     result.files.sort(key=lambda f: ({DEGRADED: 0, IMPROVED: 1}.get(f.verdict, 2), f.path))
     return result
 

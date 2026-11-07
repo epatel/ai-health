@@ -6,7 +6,7 @@ from typing import ClassVar
 
 from tree_sitter import Node
 
-from aihealth.lang.base import LanguageAdapter, text, type_leaves
+from aihealth.lang.base import LanguageAdapter, iter_nodes, text, type_leaves
 from aihealth.metrics import Role
 from aihealth.model import Class, Function, Module, Param
 
@@ -58,6 +58,42 @@ def _param_name(child: Node) -> tuple[str, str | None]:
         first = child.named_children[0]
         return text(first).lstrip("*"), first.type if first.type in _SPLATS else None
     return text(child.child_by_field_name("name")), None
+
+
+def _is_self(node: Node | None) -> bool:
+    return node is not None and node.type == "identifier" and text(node) in ("self", "cls")
+
+
+def _self_attr(node: Node) -> str | None:
+    """`x` for an attribute node `self.x` / `cls.x`, else None."""
+    if node.type != "attribute" or not _is_self(node.child_by_field_name("object")):
+        return None
+    return text(node.child_by_field_name("attribute"))
+
+
+def _self_attrs_in(body: Node | None) -> set[str]:
+    names: set[str] = set()
+    stack = list(body.children) if body is not None else []
+    while stack:
+        n = stack.pop()
+        if n.type in ("function_definition", "class_definition"):
+            continue
+        attr = _self_attr(n)
+        if attr:
+            names.add(attr)
+        stack.extend(n.children)
+    return names
+
+
+def _assigned_self_attributes(cls: Class) -> set[str]:
+    """Attributes that are assignment targets (`self.x = ...`, `self.x += ...`)."""
+    found: set[str] = set()
+    for fn in cls.methods:
+        for n in iter_nodes(fn.body):
+            if n.type in ("assignment", "augmented_assignment"):
+                left = n.child_by_field_name("left")
+                found.update(a for t in iter_nodes(left) if (a := _self_attr(t)))
+    return found
 
 
 def _params(params_node: Node | None, is_method: bool) -> list[Param]:
@@ -171,26 +207,17 @@ class PythonAdapter(LanguageAdapter):
         return leaves or None
 
     def member_refs(self, cls: Class) -> dict[str, set[str]]:
-        """`self.x` / `cls.x` attribute names used in each method."""
-        refs: dict[str, set[str]] = {}
-        for fn in cls.methods:
-            names: set[str] = set()
-            stack = list(fn.body.children) if fn.body is not None else []
-            while stack:
-                n = stack.pop()
-                if n.type in ("function_definition", "class_definition"):
-                    continue
-                if n.type == "attribute":
-                    obj = n.child_by_field_name("object")
-                    if (
-                        obj is not None
-                        and obj.type == "identifier"
-                        and text(obj) in ("self", "cls")
-                    ):
-                        names.add(text(n.child_by_field_name("attribute")))
-                stack.extend(n.children)
-            refs[fn.qualname] = names
-        return refs
+        """Per method: the instance fields (attributes assigned as `self.x = ...`
+        somewhere in the class) and methods it uses through `self`/`cls`.
+        Class constants read via `self.X` are not shared *state*, so they don't
+        tie methods together."""
+        raw = self._self_attributes(cls)
+        state = _assigned_self_attributes(cls) | {m.name for m in cls.methods}
+        return {q: names & state for q, names in raw.items()}
+
+    def _self_attributes(self, cls: Class) -> dict[str, set[str]]:
+        """`self.x` / `cls.x` names used per method (nested defs excluded)."""
+        return {fn.qualname: _self_attrs_in(fn.body) for fn in cls.methods}
 
     def _skip_for_loc(self, node: Node) -> bool:
         return node.type == "comment" or _is_docstring(node)

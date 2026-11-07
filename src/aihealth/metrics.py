@@ -129,7 +129,7 @@ def _walk(root: Node, adapter: LanguageAdapter, fn_name: str | None) -> _Totals:
             d = deepen(node, depth)
             for i in reversed(range(node.child_count)):
                 child = node.children[i]
-                if node.field_name_for_child(i) == "alternative":
+                if adapter.is_alternative(node, i):
                     if adapter.role(child) is Role.IF:
                         stack.append((child, level, depth, _ELSE_IF))
                     else:
@@ -187,11 +187,18 @@ _CONDITION_OWNERS = (Role.IF, Role.LOOP, Role.TERNARY, Role.COMPREHENSION)
 
 def _is_condition(node: Node, adapter: LanguageAdapter) -> bool:
     """True when the boolean expression is the condition of a branch or loop
-    (parentheses and `not` between them are looked through)."""
-    parent = node.parent
+    (parentheses and `not` between them are looked through). Where the
+    grammar names the condition (`condition` field) only that child counts:
+    in bash, statements of an if's body are also its direct children."""
+    child, parent = node, node.parent
     while parent is not None and parent.type in adapter.bool_transparent:
-        parent = parent.parent
-    return parent is not None and adapter.role(parent) in _CONDITION_OWNERS
+        child, parent = parent, parent.parent
+    if parent is None or adapter.role(parent) not in _CONDITION_OWNERS:
+        return False
+    named = parent.child_by_field_name("condition")
+    return named is None or any(
+        c.id == child.id for c in parent.children_by_field_name("condition")
+    )
 
 
 def _bool_operators(root: Node, adapter: LanguageAdapter) -> list[str]:

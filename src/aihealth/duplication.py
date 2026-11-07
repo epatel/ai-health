@@ -1,9 +1,11 @@
 """Token-based clone detection within and across files.
 
-Tokens are the leaves of each function body, with literals collapsed to
-their type (so `pad(8)` and `pad(16)` match) and identifiers kept (renamed
-code is not reported, which keeps false positives in repetitive Flutter
-widget code down). Clones never cross a function boundary.
+Tokens come from the language adapter (`adapter.tokens`): by default the
+leaves of the syntax tree, with literals collapsed to their type (so `pad(8)`
+and `pad(16)` match) and identifiers kept (renamed code is not reported,
+which keeps false positives in repetitive Flutter widget code down). Only
+tokens on lines owned by a scored function count, and clones never cross a
+function boundary.
 
 Matching uses winnowing (Schleimer, Wilkerson, Aiken 2003): rolling hashes
 of k-token windows, of which only the minimum in every run of `w` windows
@@ -19,8 +21,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tree_sitter import Node
-
     from aihealth.lang.base import LanguageAdapter
     from aihealth.model import Module
 
@@ -80,12 +80,10 @@ class DuplicationIndex:
             for ln in range(f.start_line, f.end_line + 1):
                 owner_of_line[ln] = idx
         stream = _Stream(module.path, [], [], [], [f.qualname for f in funcs])
-        for node in _leaves(module.root, adapter):
-            line = node.start_point[0] + 1
+        for key, line in adapter.tokens(module.root):
             owner = owner_of_line.get(line)
             if owner is None:
                 continue
-            key = node.type if node.type in adapter.literal_types else f"{node.type}:{node.text!r}"
             tid = self._vocab.setdefault(key, len(self._vocab))
             stream.ids.append(tid)
             stream.lines.append(line)
@@ -154,19 +152,6 @@ class DuplicationIndex:
         if clone.lines < self.min_lines:
             return None
         return (sa, start_a, sb, start_b, length), clone
-
-
-def _leaves(root: Node, adapter: LanguageAdapter):
-    stack = [root]
-    while stack:
-        n = stack.pop()
-        if n.type in adapter.comment_types:
-            continue
-        if n.child_count == 0 or n.type in adapter.literal_types:
-            if n.end_byte > n.start_byte:
-                yield n
-            continue
-        stack.extend(reversed(n.children))
 
 
 def _winnow(stream: _Stream, k: int):

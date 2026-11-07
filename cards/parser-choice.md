@@ -88,3 +88,34 @@ exact node shapes.
 
 Tree-sitter grammar quality blocks a language, or a metric genuinely needs
 type information (e.g. Primitive Obsession on inferred types).
+
+## Makefiles (added after M11)
+
+- Grammar `make` (tree-sitter-language-pack). `rule` > `targets`,
+  `prerequisites` (field `normal`), `recipe` > `recipe_line` > `shell_text`.
+  Recipe shell is opaque text, so recipes are re-parsed with the `bash`
+  grammar. The script is padded with newlines so bash rows equal Makefile
+  rows. Before parsing, `$$` becomes `$`, and `$(...)`/`${...}` (balanced)
+  and automatic variables (`$@ $< $^ ...`) become the word `MAKEVAR`. The
+  `@`/`-`/`+` prefixes are blanked, not removed, to keep columns.
+- Conditionals: `conditional` holds `condition` (an
+  `ifeq/ifneq/ifdef/ifndef_directive`), `consequence`, and then
+  `elsif_directive` / `else_directive` as plain children, not an
+  `alternative` field. Bash `if_statement` likewise has `elif_clause` and
+  `else_clause` children. Adapters say which children are else branches via
+  `is_alternative()`.
+- Make functions: `function_call` with field `function` (`if`, `or`, `and`,
+  `foreach`, `call`, ...); `$(shell ...)` is `shell_function`.
+- Make nodes end at the start of the next line (they own their newline),
+  so a unit's end line drops a final column-0 row.
+- **Grammar gaps:** valid GNU make that tree-sitter-make rejects includes
+  substitution references with `=` (`$(V:1=)`, `$(SO:=.dSYM)`),
+  `obj-$(CONFIG) := x` and `VPATH += :dir`. This affects 17.8 % of 1,284
+  hand-written Makefiles sampled. Recovery is line-local, so the adapter
+  sets `reports_parse_errors = False` and never reports "syntax errors".
+- `define` bodies: make syntax at a line start (directives, `X := ...`,
+  `target:`) means the body is parsed as make; otherwise as bash, falling
+  back to make on a bash error. Bash alone is too permissive to tell them
+  apart: `ifeq (MAKEVAR,debug)` parses without error.
+- Coverage: 2,190 Makefiles found on disk (906 generated and skipped), 0
+  crashes, about 61k LoC/s. 99.2 % of recipe bodies parse as bash.

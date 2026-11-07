@@ -166,7 +166,7 @@ class _Detector:
                 threshold=threshold,
                 severity=severity if severity is not None else _severity(value, threshold, integer),
                 message=message,
-                hint=HINTS[smell],
+                hint=self.adapter.hint(smell) or HINTS[smell],
                 weight=weight,
                 share=round(min(share, 1.0), 4),
             )

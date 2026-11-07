@@ -8,17 +8,29 @@ from typing import TYPE_CHECKING
 
 from aihealth.lang.base import LanguageAdapter
 from aihealth.lang.dart import DartAdapter
+from aihealth.lang.make import MakeAdapter
 from aihealth.lang.python import PythonAdapter
 from aihealth.model import Module
 
 if TYPE_CHECKING:
     from aihealth.config import Config
 
-ADAPTERS: tuple[type[LanguageAdapter], ...] = (PythonAdapter, DartAdapter)
+ADAPTERS: tuple[type[LanguageAdapter], ...] = (PythonAdapter, DartAdapter, MakeAdapter)
 
 _BY_EXT = {ext: cls for cls in ADAPTERS for ext in cls.extensions}
+_BY_NAME = {name: cls for cls in ADAPTERS for name in cls.filenames}
 
 SUPPORTED_EXTENSIONS = frozenset(_BY_EXT)
+
+
+def _adapter_class(path: str | Path) -> type[LanguageAdapter] | None:
+    p = Path(path)
+    return _BY_NAME.get(p.name) or _BY_EXT.get(p.suffix.lower())
+
+
+def is_supported(path: str | Path) -> bool:
+    """Does any adapter handle this file (by exact name or extension)?"""
+    return _adapter_class(path) is not None
 
 
 @cache
@@ -27,8 +39,8 @@ def _instance(cls: type[LanguageAdapter], options: tuple) -> LanguageAdapter:
 
 
 def adapter_for(path: str | Path, config: Config | None = None) -> LanguageAdapter | None:
-    """Adapter for a file path by extension, or None if unsupported."""
-    cls = _BY_EXT.get(Path(path).suffix.lower())
+    """Adapter for a file path by exact name or extension, or None."""
+    cls = _adapter_class(path)
     if cls is None:
         return None
     options = config.adapter_options(cls.language) if config else {}
