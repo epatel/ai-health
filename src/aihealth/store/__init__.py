@@ -13,6 +13,7 @@ from aihealth.store.scans import (
     list_scans,
     project_trend,
     save_scan,
+    smell_summary,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "project_trend",
     "save_scan",
     "schema_version",
+    "smell_summary",
 ]

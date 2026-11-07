@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge, file_link %}
+{% block title %}Overview{% endblock %}
+{% block nav_overview %}active{% endblock %}
+{% block content %}
+<section class="tiles">
+  <div class="tile hero">
+    <div class="tile-label">Project score</div>
+    {% if scan.score is not none %}
+    <div class="hero-number">{{ '%.2f'|format(scan.score) }}</div>
+    {{ badge(scan.score, show_score=False) }}
+    {% else %}<div class="hero-number">n/a</div>{% endif %}
+  </div>
+  <div class="tile">
+    <div class="tile-label">Files</div>
+    <div class="tile-number">{{ scan.file_count }}</div>
+    <div class="band-counts">
+      <span class="badge healthy"><span class="icon" aria-hidden="true">✓</span>{{ counts.healthy }} <span class="band-label">healthy</span></span>
+      <span class="badge warning"><span class="icon" aria-hidden="true">▲</span>{{ counts.warning }} <span class="band-label">warning</span></span>
+      <span class="badge alert"><span class="icon" aria-hidden="true">✕</span>{{ counts.alert }} <span class="band-label">alert</span></span>
+    </div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Lines of code</div>
+    <div class="tile-number">{{ '{:,}'.format(scan.loc) }}</div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Findings</div>
+    <div class="tile-number">{{ findings }}</div>
+  </div>
+  <div class="tile meta">
+    <div class="tile-label">Scan #{{ scan.id }}</div>
+    <div>{{ scan.created_at[:16]|replace('T', ' ') }} UTC</div>
+    <div class="muted">{% if scan.git_branch %}{{ scan.git_branch }} · {% endif %}{{ (scan.git_commit or 'no commit')[:7] }}{% if scan.git_dirty %} · uncommitted changes{% endif %}</div>
+  </div>
+</section>
+
+<section class="grid-2">
+  <div class="card">
+    <h2>Project score over time</h2>
+    {% if trend|length > 1 %}
+    <div class="chart" id="trend-chart" role="img" aria-label="Line chart of project score per scan"></div>
+    <details class="table-view">
+      <summary>Table</summary>
+      <table>
+        <thead><tr><th>Scan</th><th>Date</th><th>Commit</th><th class="num">Score</th></tr></thead>
+        <tbody>
+          {% for t in trend|reverse %}
+          <tr><td><a href="/?scan={{ t.id }}">#{{ t.id }}</a></td><td>{{ t.created_at[:16]|replace('T', ' ') }}</td>
+              <td class="mono">{{ (t.git_commit or '-')[:7] }}</td><td class="num">{{ '%.2f'|format(t.score) if t.score is not none else 'n/a' }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+    {% else %}
+    <p class="muted">The trend appears after the second scan.</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Where the penalty comes from</h2>
+    {% if smells %}
+    <div class="chart" id="smell-chart" role="img" aria-label="Bar chart of total penalty per code smell"></div>
+    <details class="table-view">
+      <summary>Table</summary>
+      <table>
+        <thead><tr><th>Smell</th><th class="num">Findings</th><th class="num">Files</th><th class="num">Penalty</th></tr></thead>
+        <tbody>
+          {% for s in smells %}
+          <tr><td>{{ s.label }}</td><td class="num">{{ s.count }}</td><td class="num">{{ s.files }}</td><td class="num">{{ s.penalty }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+    {% else %}
+    <p class="muted">No code smells found.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Worst files</h2>
+  {% if worst %}
+  <table class="files">
+    <thead><tr><th>Score</th><th>File</th><th class="num">LoC</th><th class="num">Findings</th><th>Main issues</th></tr></thead>
+    <tbody>
+      {% for f in worst %}
+      <tr>
+        <td>{{ badge(f.score) }}</td>
+        <td>{{ file_link(f.path, scan.id) }}</td>
+        <td class="num">{{ f.loc }}</td>
+        <td class="num">{{ f.finding_count }}</td>
+        <td class="muted">{{ top_smells.get(f.path, [])|join(', ') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Every file is free of code smells.</p>
+  {% endif %}
+</section>
+
+<script type="application/json" id="page-data">{{ {"trend": trend, "smells": smells, "scan": scan.id}|tojson }}</script>
+<script>
+  window.addEventListener("DOMContentLoaded", () => {
+    const data = JSON.parse(document.getElementById("page-data").textContent);
+    if (document.getElementById("trend-chart")) {
+      aihealthCharts.trend("trend-chart", data.trend.map((t) => ({
+        label: "#" + t.id, date: t.created_at, commit: t.git_commit, value: t.score,
+        href: "/?scan=" + t.id,
+      })), { current: "#" + data.scan });
+    }
+    if (document.getElementById("smell-chart")) aihealthCharts.smells("smell-chart", data.smells);
+  });
+</script>
+{% endblock %}

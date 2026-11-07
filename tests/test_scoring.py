@@ -199,6 +199,26 @@ def test_primitive_obsession():
     assert "primitive_obsession" not in smells(untyped, "p.py")  # unknown != primitive
 
 
+@pytest.mark.parametrize(
+    ("path", "type_text", "primitive"),
+    [
+        ("a.py", "list[Order]", False),  # a container is judged by its contents
+        ("a.py", "dict[str, int]", True),
+        ("a.py", "Optional[list[str]]", True),
+        ("a.py", "dict[str, Order] | None", False),
+        ("a.py", "list", True),
+        ("a.py", "Callable[[int], str]", None),
+        ("a.dart", "List<Order>", False),
+        ("a.dart", "Map<String, dynamic>?", True),
+        ("a.dart", "Map<String, List<Order>>", False),
+        ("a.dart", "String?", True),
+        ("a.dart", "bool", None),  # neutral
+    ],
+)
+def test_primitive_classification(path, type_text, primitive):
+    assert adapter_for(path).is_primitive(type_text) is primitive
+
+
 def test_large_file():
     src = "\n".join(f"x{i} = {i}" for i in range(1001))
     assert smells(src, "big.py")["large_file"][0].value == 1001

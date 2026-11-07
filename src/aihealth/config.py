@@ -85,7 +85,9 @@ DEFAULTS: dict[str, Any] = {
     "score": {"decay": 10.0},  # see scoring.file_score
     "primitive_obsession": {"min_params": 10},
     "duplication": {"min_tokens": 50, "min_lines": 6, "cross_file": True},
-    "delta": {"tolerance": 0.0},
+    # score drops up to this are ignored when no smell is new/worse: when a file
+    # shrinks, its remaining smelly functions cover a bigger share of it
+    "delta": {"tolerance": 0.1},
     "dart": {"test_closure_calls": None},  # None = built-in list
 }
 

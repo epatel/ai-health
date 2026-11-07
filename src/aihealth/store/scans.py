@@ -201,3 +201,15 @@ def file_trend(conn: sqlite3.Connection, path: str, limit: int = 200) -> list[di
         (path, limit),
     ).fetchall()
     return [dict(r) for r in reversed(rows)]
+
+
+def smell_summary(conn: sqlite3.Connection, scan_id: int) -> list[dict]:
+    """Findings per smell in a scan: count, files affected, total penalty."""
+    rows = conn.execute(
+        "SELECT x.smell, count(*) AS count, count(DISTINCT f.id) AS files,"
+        " round(sum(x.penalty), 2) AS penalty FROM finding x"
+        " JOIN file_score f ON f.id = x.file_id WHERE f.scan_id = ?"
+        " GROUP BY x.smell ORDER BY penalty DESC",
+        (scan_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]

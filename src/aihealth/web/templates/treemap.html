@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Treemap{% endblock %}
+{% block nav_treemap %}active{% endblock %}
+{% block selector_action %}/treemap{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="card-head">
+    <h2>Code health map</h2>
+    <div class="legend" aria-label="Legend">
+      <span class="muted">Area = lines of code · colour = score:</span>
+      <span class="badge healthy"><span class="icon" aria-hidden="true">✓</span><span class="band-label">healthy ≥ 9</span></span>
+      <span class="badge warning"><span class="icon" aria-hidden="true">▲</span><span class="band-label">warning 4–9</span></span>
+      <span class="badge alert"><span class="icon" aria-hidden="true">✕</span><span class="band-label">alert &lt; 4</span></span>
+    </div>
+  </div>
+  <p class="muted">Big red areas are the most code in the worst shape. Click a directory to zoom, a file to open it.</p>
+  <div class="chart chart-tall" id="treemap-chart" role="img" aria-label="Treemap of files by size and code health"></div>
+  <p class="muted">The same files as a table are under <a href="/?scan={{ scan.id }}">Overview → Worst files</a>.</p>
+</section>
+<script type="application/json" id="page-data">{{ {"tree": tree, "scan": scan.id}|tojson }}</script>
+<script>
+  window.addEventListener("DOMContentLoaded", () => {
+    const data = JSON.parse(document.getElementById("page-data").textContent);
+    aihealthCharts.treemap("treemap-chart", data.tree, (path) =>
+      `/file?path=${encodeURIComponent(path)}&scan=${data.scan}`);
+  });
+</script>
+{% endblock %}

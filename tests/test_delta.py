@@ -75,6 +75,14 @@ def test_worsened_and_improved_severity():
     assert [c.kind for c in back] == ["improved"]
 
 
+def test_default_tolerance_never_excuses_new_smells():
+    cfg = Config()
+    assert cfg.section("delta")["tolerance"] == 0.1
+    tiny = NESTED.replace("def f(x):", "def f(x, a, b, c, d):")  # new smell, small drop
+    fd = delta_for_contents("a.py", NESTED.encode(), tiny.encode(), cfg)
+    assert fd.of_kind("new") and fd.verdict == "degraded"
+
+
 def test_trading_smells_without_net_gain_is_degraded():
     # fix nesting but add a 6-arg signature: still a new smell, and if the
     # score doesn't rise the verdict is degraded
@@ -90,11 +98,14 @@ def test_new_file_judged_on_own_findings():
 
 def test_tolerance_absorbs_small_score_drops():
     cfg = Config()
-    # same smell, function grows: share rises -> penalty rises, no new smell
+    # file shrinks around an unchanged smell: its share rises -> penalty rises,
+    # no new or worse smell
     big_before = NESTED.replace("    return x\n", "    return x\n\n" + CLEAN * 20)
     fd = delta_for_contents("a.py", big_before.encode(), NESTED.encode(), cfg)
     assert fd.score_delta < 0 and not fd.of_kind("new", "worsened")
-    assert fd.verdict == "degraded"
+    cfg.data["delta"]["tolerance"] = 0.0  # strict: any drop fails
+    strict = delta_for_contents("a.py", big_before.encode(), NESTED.encode(), cfg)
+    assert strict.verdict == "degraded"
     cfg.data["delta"]["tolerance"] = 5.0
     assert delta_for_contents("a.py", big_before.encode(), NESTED.encode(), cfg).verdict == (
         "unchanged"

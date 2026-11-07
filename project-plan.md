@@ -41,7 +41,7 @@ Status: `todo` / `wip` / `done`.
 | M6 | Output formats | done | `text`, `json`, `markdown` (agent-oriented, concise with refactor hints) |
 | M7 | MCP server | done | stdio server exposing `review_changes`, `score_file`, `scan_project`, `explain_smell`; registered in `.mcp.json` and smoke-tested from Claude Code |
 | M8 | Storage + migrations | done | SQLite at `<repo>/.aihealth/health.db`, `PRAGMA user_version` migration runner, scans persisted |
-| M9 | Dashboard | todo | FastAPI + Jinja: project overview, treemap (size=LoC, colour=score), file view with smells per function, score trend |
+| M9 | Dashboard | done | FastAPI + Jinja: project overview, treemap (size=LoC, colour=score), file view with smells per function, score trend |
 | M10 | Agent loop integration | todo | optional Claude Code hook / skill that runs delta after edits; dogfooded on this repo |
 | M11 | Calibration | todo | run on 2–3 open-source Python and Flutter repos, tune thresholds/weights so scores spread sensibly; record results in the scoring card |
 
@@ -53,8 +53,9 @@ Status: `todo` / `wip` / `done`.
 - **Scoring model:** smell-based penalties, 1–10, LoC-weighted aggregation,
   bands Healthy ≥ 9, Warning 4–9, Alert < 4. See `cards/code-health-model.md`.
 - **Delta gate default:** fail when a touched file's score drops (beyond
-  `delta.tolerance`), or it gains/worsens a smell without a net score
-  gain. New files fail if they have any smell.
+  `delta.tolerance`, default 0.1, which absorbs share artefacts), or it
+  gains/worsens a smell without a net score gain. New files fail if they
+  have any smell.
 - **Storage:** SQLite per analysed repo at `<repo>/.aihealth/health.db`
   (self-gitignored, `--db` to override), dependency-free migration runner
   (standing default). Settled in M8, no central DB.
@@ -110,11 +111,18 @@ M8 done: `store/` with 2 migrations (scan/file_score/finding, then
 function_metric), atomic runner, scan persistence with git and config
 metadata, `aihealth scan --save` and `aihealth history`. 127 tests,
 including rollback of a half-failed migration.
-Next agent: M9 dashboard. Add FastAPI + uvicorn + jinja2 (ask the user to
-run `! make setup`). `aihealth serve --repo PATH` reads `store` queries.
-Pages: overview (latest scan and trend), treemap (size = LoC, colour =
-score), file view (findings and function metrics), and a "scan now"
-button that runs a scan and saves it. Charts via pinned ECharts from CDN.
+M9 done: `web/` dashboard (overview, treemap, file view, scan-now, JSON
+API) with `aihealth serve`. 145 tests. Visually checked in Chrome: dark and
+light mode, and 390 px width with no horizontal overflow. Calibration fixes
+found while building it: generic containers are judged by their contents,
+and the delta tolerance default is 0.1.
+Caution for agents: `aihealth scan X --save` writes `X/.aihealth/`. For
+repos you don't own (e.g. the Flutter SDK), pass `--db` to a scratch path.
+Next agent: M10 agent loop integration. Add an optional Claude Code hook or
+skill that runs `aihealth delta --format markdown` on edited files and
+feeds the result back. Dogfood on this repo. Consider a PostToolUse hook
+on Edit|Write that runs delta for the edited path only and reports via
+stderr / exit 2 only on DEGRADED.
 Note: `pip install` may need user approval in this environment — ask the
 user to run `! make setup` rather than retrying.
 
@@ -123,8 +131,6 @@ user to run `! make setup` rather than retrying.
 - Flutter `build()` methods are long by nature: separate, higher Large
   Method threshold for `build` in widget classes, or rely on the widget-depth
   metric instead? (Proposal: higher threshold + widget-depth smell; confirm in M11.)
-- Delta gate strictness: should a drop of < 0.1 in an already-Alert file
-  fail the agent? (Proposal: yes by default — "leave it no worse".)
 - Scores look harsh on well-maintained code (Flutter material 4.17, all
   Flutter packages 3.29). Calibrate in M11. Candidate fixes: cap the
   penalty per function, higher decay, or normalise file penalty by

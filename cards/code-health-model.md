@@ -190,6 +190,14 @@ sparingly and always with a reason in the comment.
 
 - Boolean expressions inside `assert` (Python `assert`, Dart `assert(...)`)
   don't count as Complex Conditional. They are checks, not branching logic.
+- Generic containers are judged by their type arguments (M9): `list[Order]`
+  / `List<Order>` is a domain type, `dict[str, int]` / `Map<String,
+  dynamic>` stays primitive, and a bare `list` is primitive. Callables are
+  unknown.
+- Delta `tolerance` defaults to 0.1 (M9). When a file shrinks, its
+  unchanged smelly functions cover a bigger share and the score dips
+  slightly with nothing actually worse. New or worsened smells still fail
+  at any tolerance unless the file improves on net.
 - `bool` parameters are neutral for Primitive Obsession (they are flags,
   not hidden domain concepts). Before this fix, CLI modules full of
   `verbose: bool` were flagged.

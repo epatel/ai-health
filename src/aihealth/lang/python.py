@@ -6,7 +6,7 @@ from typing import ClassVar
 
 from tree_sitter import Node
 
-from aihealth.lang.base import LanguageAdapter, text
+from aihealth.lang.base import LanguageAdapter, text, type_leaves
 from aihealth.metrics import Role
 from aihealth.model import Class, Function, Module, Param
 
@@ -160,11 +160,10 @@ class PythonAdapter(LanguageAdapter):
 
     def base_types(self, type_text: str) -> list[str] | None:
         t = type_text.strip().strip("'\"")
-        while t.startswith(("Optional[", "typing.Optional[")) and t.endswith("]"):
-            t = t[t.index("[") + 1 : -1]
-        parts = [p.strip() for p in t.split("|")]
-        bases = [p.split("[", 1)[0].removeprefix("typing.") for p in parts if p and p != "None"]
-        return bases or None
+        if "Callable" in t:
+            return None  # callbacks are not primitive obsession
+        leaves = [x.strip("'\"").removeprefix("typing.") for x in type_leaves(t, "[", "]")]
+        return leaves or None
 
     def member_refs(self, cls: Class) -> dict[str, set[str]]:
         """`self.x` / `cls.x` attribute names used in each method."""

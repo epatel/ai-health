@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block title %}{{ file.path }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/?scan={{ scan_id }}">← Overview</a> · scan #{{ scan_id }}</p>
+<section class="tiles">
+  <div class="tile hero">
+    <div class="tile-label mono">{{ file.path }}</div>
+    <div class="hero-number">{{ '%.2f'|format(file.score) }}</div>
+    {{ badge(file.score, show_score=False) }}
+  </div>
+  <div class="tile"><div class="tile-label">Lines of code</div><div class="tile-number">{{ file.loc }}</div></div>
+  <div class="tile"><div class="tile-label">Findings</div><div class="tile-number">{{ findings|length }}</div></div>
+  <div class="tile"><div class="tile-label">Functions</div><div class="tile-number">{{ functions|length }}</div></div>
+  {% if file.parse_errors %}
+  <div class="tile"><div class="tile-label">Syntax errors</div><div class="tile-number">{{ file.parse_errors }}</div>
+    <div class="muted">score may be partial</div></div>
+  {% endif %}
+</section>
+
+{% if trend|length > 1 %}
+<section class="card">
+  <h2>File score over time</h2>
+  <div class="chart chart-short" id="file-trend" role="img" aria-label="Line chart of this file's score per scan"></div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Findings</h2>
+  {% if findings %}
+  <table class="findings">
+    <thead><tr><th class="num">Line</th><th>Where</th><th>Smell</th><th>Details</th><th class="num">Penalty</th></tr></thead>
+    <tbody>
+      {% for f in findings %}
+      <tr>
+        <td class="num mono">{{ f.line }}</td>
+        <td class="mono">{{ f.symbol or '(file)' }}</td>
+        <td>{{ f.label }}</td>
+        <td>{{ f.message }}<div class="hint">{{ f.hint }}</div></td>
+        <td class="num">{{ '%.2f'|format(f.penalty) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No code smells in this file.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Functions</h2>
+  <p class="muted">Sorted by cognitive complexity. Values over the configured limit are highlighted
+    (lines {{ limits.large_method|int }}, cyclomatic {{ limits.complex_method|int }}, cognitive {{ limits.cognitive_complexity|int }},
+    nesting {{ limits.deep_nesting|int }}, bumps {{ limits.bumpy_road|int }}, args {{ limits.excess_arguments|int }}).</p>
+  <table class="functions">
+    <thead><tr><th>Function</th><th class="num">Line</th><th class="num">LoC</th><th class="num">Cyclomatic</th>
+      <th class="num">Cognitive</th><th class="num">Nesting</th><th class="num">Bumps</th><th class="num">Args</th>
+      {% if file.language == 'dart' %}<th class="num">Widget depth</th>{% endif %}</tr></thead>
+    <tbody>
+      {% for m in functions %}
+      <tr>
+        <td class="mono">{{ m.qualname }}</td>
+        <td class="num">{{ m.line }}</td>
+        <td class="num {{ 'over' if m.loc > limits.large_method }}">{{ m.loc }}</td>
+        <td class="num {{ 'over' if m.cyclomatic > limits.complex_method }}">{{ m.cyclomatic }}</td>
+        <td class="num {{ 'over' if m.cognitive > limits.cognitive_complexity }}">{{ m.cognitive }}</td>
+        <td class="num {{ 'over' if m.max_nesting > limits.deep_nesting }}">{{ m.max_nesting }}</td>
+        <td class="num {{ 'over' if m.bumps > limits.bumpy_road }}">{{ m.bumps }}</td>
+        <td class="num {{ 'over' if m.args > limits.excess_arguments }}">{{ m.args }}</td>
+        {% if file.language == 'dart' %}<td class="num {{ 'over' if m.widget_depth > limits.deep_widget_tree }}">{{ m.widget_depth }}</td>{% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<script type="application/json" id="page-data">{{ {"trend": trend, "scan": scan_id, "path": file.path}|tojson }}</script>
+<script>
+  window.addEventListener("DOMContentLoaded", () => {
+    const data = JSON.parse(document.getElementById("page-data").textContent);
+    if (document.getElementById("file-trend")) {
+      aihealthCharts.trend("file-trend", data.trend.map((t) => ({
+        label: "#" + t.scan_id, date: t.created_at, commit: t.git_commit, value: t.score,
+        href: `/file?path=${encodeURIComponent(data.path)}&scan=${t.scan_id}`,
+      })), { current: "#" + data.scan });
+    }
+  });
+</script>
+{% endblock %}

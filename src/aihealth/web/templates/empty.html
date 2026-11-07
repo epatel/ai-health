@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="empty">
+  <h1>No scans yet</h1>
+  <p>Run a scan of <code>{{ repo_name }}</code> to see its code health. Results are stored in
+    <code>{{ db }}</code>.</p>
+  <form method="post" action="/scan" class="scan-now">
+    <button type="submit" data-busy="Scanning…">Scan now</button>
+  </form>
+  <p class="muted">Or from a terminal: <code>aihealth scan . --save</code></p>
+</section>
+{% endblock %}

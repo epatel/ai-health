@@ -12,7 +12,7 @@ from typing import ClassVar
 
 from tree_sitter import Node
 
-from aihealth.lang.base import LanguageAdapter, iter_nodes, text
+from aihealth.lang.base import LanguageAdapter, iter_nodes, text, type_leaves
 from aihealth.metrics import Role
 from aihealth.model import Class, Function, Module, Param
 
@@ -241,8 +241,7 @@ class DartAdapter(LanguageAdapter):
         t = type_text.strip()
         if t == "<field>" or "Function" in t or t.startswith("("):
             return None  # field-typed, callbacks and records are not primitives
-        base = t.split("<", 1)[0].rstrip("?").strip()
-        return [base] if base else None
+        return type_leaves(t, "<", ">") or None
 
     def member_refs(self, cls: Class) -> dict[str, set[str]]:
         """Bare or `this.`-qualified references to the class's own fields and

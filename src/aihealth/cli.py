@@ -11,15 +11,6 @@ from aihealth.config import ConfigError, load_config
 from aihealth.report import FORMATS, ReportOptions, render_delta, render_history, render_scan
 from aihealth.store.scans import default_db_path
 
-
-def _not_yet(milestone: str):
-    def run(_args: argparse.Namespace) -> int:
-        print(f"not implemented yet (planned in {milestone})", file=sys.stderr)
-        return 2
-
-    return run
-
-
 # --- scan -------------------------------------------------------------------
 
 
@@ -121,6 +112,24 @@ def _cmd_mcp(_args: argparse.Namespace) -> int:
     return 0
 
 
+# --- serve --------------------------------------------------------------------
+
+
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from aihealth.web.app import serve
+
+    repo = Path(args.repo)
+    if not repo.is_dir():
+        print(f"not a directory: {repo}", file=sys.stderr)
+        return 2
+    print(
+        f"aihealth dashboard for {repo.resolve()} on http://{args.host}:{args.port}",
+        file=sys.stderr,
+    )
+    serve(repo, args.db, args.host, args.port)
+    return 0
+
+
 # --- parser -------------------------------------------------------------------
 
 
@@ -175,8 +184,11 @@ def build_parser() -> argparse.ArgumentParser:
     mcp.set_defaults(func=_cmd_mcp)
 
     serve = sub.add_parser("serve", help="run the web dashboard")
-    serve.add_argument("--repo", default=".")
-    serve.set_defaults(func=_not_yet("M9"))
+    serve.add_argument("--repo", default=".", help="repository to show and scan")
+    serve.add_argument("--db", help="history DB (default: <repo>/.aihealth/health.db)")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8765)
+    serve.set_defaults(func=_cmd_serve)
 
     return parser
 

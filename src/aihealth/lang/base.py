@@ -46,6 +46,39 @@ def code_lines(root: Node, skip: Callable[[Node], bool]) -> set[int]:
     return lines
 
 
+def split_top(text: str, sep: str, open_ch: str, close_ch: str) -> list[str]:
+    """Split on ``sep`` outside brackets: `str, dict[str, int]` -> 2 parts."""
+    parts, depth, start = [], 0, 0
+    for i, ch in enumerate(text):
+        if ch == open_ch:
+            depth += 1
+        elif ch == close_ch:
+            depth -= 1
+        elif ch == sep and depth == 0:
+            parts.append(text[start:i])
+            start = i + 1
+    parts.append(text[start:])
+    return [p.strip() for p in parts if p.strip()]
+
+
+def type_leaves(text: str, open_ch: str, close_ch: str) -> list[str]:
+    """Innermost type names: a generic is judged by its arguments, so
+    `list[Order]` -> [Order], `dict[str, int]` -> [str, int], bare `list` ->
+    [list]; unions split, `None` / trailing `?` dropped."""
+    leaves: list[str] = []
+    for part in split_top(text, "|", open_ch, close_ch):
+        part = part.rstrip("?")
+        if part in ("", "None"):
+            continue
+        if open_ch in part and part.endswith(close_ch):
+            name, inner = part.split(open_ch, 1)
+            args = split_top(inner[:-1], ",", open_ch, close_ch)
+            leaves += [x for a in args for x in type_leaves(a, open_ch, close_ch)] or [name]
+        else:
+            leaves.append(part)
+    return leaves
+
+
 def count_errors(root: Node) -> int:
     if not root.has_error:
         return 0

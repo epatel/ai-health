@@ -23,8 +23,8 @@ parsing via tree-sitter, history in SQLite.
   it reports in code you touched.
 - History: `.venv/bin/aihealth scan PATH --save` then `.venv/bin/aihealth history PATH`
   (DB `PATH/.aihealth/health.db`; schema changes = append to `store/migrations.py`)
+- Dashboard: `.venv/bin/aihealth serve --repo PATH [--db DB] [--port 8765]` (http://127.0.0.1:8765)
 - MCP: `.venv/bin/aihealth mcp` (stdio; registered in `.mcp.json`; usage in README.md)
-- Not yet implemented (exits 2): `aihealth serve --repo PATH` (M9)
 
 ## Enforced rules
 

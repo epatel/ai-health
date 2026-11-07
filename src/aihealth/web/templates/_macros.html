@@ -1,0 +1,8 @@
+{% macro badge(score, show_score=True) -%}
+{%- set b = score|band -%}
+<span class="badge {{ b }}"><span class="icon" aria-hidden="true">{% if b == 'healthy' %}✓{% elif b == 'warning' %}▲{% else %}✕{% endif %}</span>{% if show_score %}{{ '%.2f'|format(score) }} {% endif %}<span class="band-label">{{ b }}</span></span>
+{%- endmacro %}
+
+{% macro file_link(path, scan_id) -%}
+<a class="path" href="/file?path={{ path|urlencode }}&amp;scan={{ scan_id }}">{{ path }}</a>
+{%- endmacro %}

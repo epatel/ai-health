@@ -38,6 +38,16 @@ aihealth scan . --save     # store in .aihealth/health.db (self-gitignored)
 aihealth history           # score per saved scan, Δ, config changes
 ```
 
+## Dashboard
+
+```bash
+aihealth serve --repo path/to/repo     # http://127.0.0.1:8765
+```
+
+It shows an overview (score, trend, where the penalty comes from, worst files), a treemap
+(area = lines of code, colour = health), and per-file findings and function metrics. "Scan now"
+runs and saves a scan. Charts load ECharts from a CDN.
+
 ## MCP server (Claude Code and other agents)
 
 Register it for a project (run inside that project; the server analyses its working directory):

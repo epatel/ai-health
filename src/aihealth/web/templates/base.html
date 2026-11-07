@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Code health{% endblock %} · {{ repo_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
+  <script src="{{ url_for('static', path='charts.js') }}" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">aihealth <span class="repo">{{ repo_name }}</span></a>
+    <nav>
+      <a href="/{% if scan %}?scan={{ scan.id }}{% endif %}" class="{% block nav_overview %}{% endblock %}">Overview</a>
+      <a href="/treemap{% if scan %}?scan={{ scan.id }}{% endif %}" class="{% block nav_treemap %}{% endblock %}">Treemap</a>
+    </nav>
+    <div class="actions">
+      {% if scans %}
+      <form method="get" action="{% block selector_action %}/{% endblock %}" class="scan-select">
+        <label for="scan-pick" class="visually-hidden">Scan</label>
+        <select id="scan-pick" name="scan" onchange="this.form.submit()">
+          {% for s in scans %}
+          <option value="{{ s.id }}" {% if scan and s.id == scan.id %}selected{% endif %}>
+            #{{ s.id }} · {{ s.created_at[:16]|replace('T', ' ') }}{% if s.git_commit %} · {{ s.git_commit[:7] }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
+      <form method="post" action="/scan" class="scan-now">
+        <button type="submit" data-busy="Scanning…">Scan now</button>
+      </form>
+    </div>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>aihealth {{ version }} · scores 1–10, LoC-weighted · healthy ≥ 9 · alert &lt; 4</footer>
+  <script>
+    // disable the scan button while a scan runs (it can take a while on big repos)
+    document.querySelectorAll("form.scan-now").forEach((f) =>
+      f.addEventListener("submit", () => {
+        const b = f.querySelector("button");
+        b.disabled = true;
+        b.textContent = b.dataset.busy;
+      })
+    );
+  </script>
+</body>
+</html>
