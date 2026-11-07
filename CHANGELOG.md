@@ -7,7 +7,7 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
-## Unreleased
+## 0.2.1 (2026-11-08)
 
 - Markdown reports keep names from scanned code intact: code spans
   survive backticks (shell blocks are named by their first line), and `|`
