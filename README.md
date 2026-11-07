@@ -71,7 +71,13 @@ aihealth serve --repo path/to/repo     # http://127.0.0.1:8765
 
 It shows an overview (score, trend, where the penalty comes from, worst files), a treemap
 (area = lines of code, colour = health), and per-file findings and function metrics. "Scan now"
-runs and saves a scan. Charts load ECharts from a CDN.
+runs and saves a scan. Charts load ECharts from a CDN (pinned, with an integrity hash).
+
+The dashboard has no authentication and is meant for your own machine (the default
+`--host 127.0.0.1`). It accepts only requests addressed to that host (so another website
+can't read it through DNS rebinding), refuses "Scan now" posts from other sites, and can't
+be framed. `--host 0.0.0.0` makes it reachable from the network; `serve` then prints a
+warning.
 
 ## MCP server (Claude Code and other agents)
 

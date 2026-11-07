@@ -82,11 +82,11 @@ def test_overview_and_file_view(project):
 fastapi = pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
-from aihealth.web.app import create_app
+from aihealth.web.app import allowed_hosts, create_app
 
 
 def client(project: Path) -> TestClient:
-    return TestClient(create_app(project))
+    return TestClient(create_app(project), base_url="http://127.0.0.1:8765")
 
 
 def test_empty_state_and_scan_now(project):
@@ -141,3 +141,40 @@ def test_json_api(project):
     assert len(c.get("/api/trend", params={"path": "pkg/bad.py"}).json()) == 2
     assert c.get("/api/scans/9").status_code == 404
     assert c.get("/static/charts.js").status_code == 200
+
+
+# --- hardening ----------------------------------------------------------------
+
+
+def test_requests_for_other_hosts_are_refused(project):
+    """DNS rebinding: a page on evil.example resolving to 127.0.0.1 sends
+    `Host: evil.example`, and must not read the API."""
+    c = client(project)
+    assert c.get("/api/scans", headers={"host": "evil.example"}).status_code == 400
+    assert c.get("/api/scans", headers={"host": "localhost:8765"}).status_code == 200
+
+
+def test_allowed_hosts():
+    assert allowed_hosts("127.0.0.1") == ["127.0.0.1", "::1", "localhost"]
+    assert "box.lan" in allowed_hosts("box.lan")
+    assert allowed_hosts("0.0.0.0") == ["*"]  # nothing to check against; serve warns
+
+
+def test_scan_now_refuses_cross_site_posts(project):
+    """CSRF: a form on another site posting to the dashboard."""
+    c = client(project)
+    evil = {"origin": "https://evil.example"}
+    assert c.post("/scan", headers=evil, follow_redirects=False).status_code == 403
+    cross = {"sec-fetch-site": "cross-site"}  # a browser that leaves out Origin
+    assert c.post("/scan", headers=cross, follow_redirects=False).status_code == 403
+    assert c.get("/").text.count("No scans yet") == 1  # nothing was scanned
+    own = {"origin": "http://127.0.0.1:8765", "sec-fetch-site": "same-origin"}
+    assert c.post("/scan", headers=own, follow_redirects=False).status_code == 303
+
+
+def test_pages_cannot_be_framed_and_charts_are_pinned(project):
+    r = client(project).get("/")
+    assert r.headers["content-security-policy"] == "frame-ancestors 'none'"
+    assert r.headers["x-frame-options"] == "DENY"
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert 'integrity="sha384-' in r.text and 'crossorigin="anonymous"' in r.text

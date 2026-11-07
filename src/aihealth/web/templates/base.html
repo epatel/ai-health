@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Code health{% endblock %} · {{ repo_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
-  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer
+          integrity="sha384-Mx5lkUEQPM1pOJCwFtUICyX45KNojXbkWdYhkKUKsbv391mavbfoAmONbzkgYPzR"
+          crossorigin="anonymous"></script>
   <script src="{{ url_for('static', path='charts.js') }}" defer></script>
 </head>
 <body>

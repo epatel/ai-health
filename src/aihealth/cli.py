@@ -161,7 +161,7 @@ def _cmd_mcp(_args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
-    from aihealth.web.app import serve
+    from aihealth.web.app import LOOPBACK, serve
 
     repo = Path(args.repo)
     if not repo.is_dir():
@@ -171,6 +171,12 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         f"aihealth dashboard for {repo.resolve()} on http://{args.host}:{args.port}",
         file=sys.stderr,
     )
+    if args.host not in LOOPBACK:
+        print(
+            f"warning: {args.host} is reachable from other machines, and the dashboard has no "
+            "authentication: anyone who can connect can browse the findings and start scans",
+            file=sys.stderr,
+        )
     serve(repo, args.db, args.host, args.port)
     return 0
 

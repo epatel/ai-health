@@ -2,7 +2,13 @@
 
 Pages read the scan history DB (store/); "Scan now" runs a scan of the repo
 and saves it. Everything is server-rendered (Jinja2); charts are ECharts
-from a pinned CDN build, fed with JSON embedded in the page.
+from a pinned CDN build (with a Subresource Integrity hash), fed with JSON
+embedded in the page.
+
+There is no authentication: the dashboard is meant for loopback. Requests
+must name an allowed host (DNS rebinding can't read the API from another
+site), "Scan now" rejects cross-site posts (CSRF), and pages can't be
+framed (clickjacking).
 """
 
 import sqlite3
@@ -14,6 +20,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from aihealth import __version__, store
 from aihealth.config import load_config
@@ -22,12 +29,48 @@ from aihealth.scoring import band
 from aihealth.web import views
 
 HERE = Path(__file__).parent
+LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+ALL_INTERFACES = frozenset({"0.0.0.0", "::", ""})
+SECURITY_HEADERS = {
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "same-origin",
+}
 
 
-def create_app(repo: str | Path, db: str | Path | None = None) -> FastAPI:
+def allowed_hosts(host: str) -> list[str]:
+    """Host header values to accept when serving on ``host``: loopback names
+    and the host itself; anything when bound to all interfaces (no name to
+    check against: `serve` warns about that)."""
+    if host in ALL_INTERFACES:
+        return ["*"]
+    return sorted(LOOPBACK | {host})
+
+
+def same_origin(request: Request) -> bool:
+    """A browser request from the dashboard itself. Browsers send `Origin`
+    on form posts; without it, `Sec-Fetch-Site` still tells a cross-site
+    request. Neither header (curl, scripts): allowed."""
+    origin = request.headers.get("origin")
+    if origin is None:
+        return request.headers.get("sec-fetch-site", "none") in ("same-origin", "none")
+    return origin == f"{request.url.scheme}://{request.headers.get('host', '')}"
+
+
+def create_app(repo: str | Path, db: str | Path | None = None, host: str = "127.0.0.1") -> FastAPI:
     repo = Path(repo).resolve()
     db_path = Path(db) if db else store.default_db_path(repo)
     app = FastAPI(title="aihealth", version=__version__, docs_url=None, redoc_url=None)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts(host))
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        for name, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        return response
+
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.filters["band"] = band
@@ -79,7 +122,9 @@ def create_app(repo: str | Path, db: str | Path | None = None) -> FastAPI:
         return page(request, "file.html", scan_id=scan_id, limits=limits, **data)
 
     @app.post("/scan")
-    def scan_now(c: Conn):
+    def scan_now(request: Request, c: Conn):
+        if not same_origin(request):
+            raise HTTPException(403, "cross-site request")
         config = load_config(repo)
         scan_id = store.save_scan(c, scan(repo, config), config)
         return RedirectResponse(f"/?scan={scan_id}", status_code=303)
@@ -114,4 +159,4 @@ def create_app(repo: str | Path, db: str | Path | None = None) -> FastAPI:
 def serve(repo: str | Path, db: str | Path | None, host: str, port: int) -> None:
     import uvicorn
 
-    uvicorn.run(create_app(repo, db), host=host, port=port, log_level="warning")
+    uvicorn.run(create_app(repo, db, host), host=host, port=port, log_level="warning")

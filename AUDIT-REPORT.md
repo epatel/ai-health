@@ -343,9 +343,9 @@ and zsh adapters.
 
 | # | Finding | Status |
 |---|---|---|
-| 2 | Dashboard CSRF / DNS rebinding | open |
-| 3 | `serve --host 0.0.0.0` without warning | open |
-| 4 | ECharts from a CDN without SRI | open |
+| 2 | Dashboard CSRF / DNS rebinding | fixed |
+| 3 | `serve --host 0.0.0.0` without warning | fixed |
+| 4 | ECharts from a CDN without SRI | fixed |
 | 5 | No file-size limit in delta / hooks / MCP | fixed |
 | 6 | Open-ended dependency versions | fixed (ranges pinned), see below |
 | 7 | No CI | fixed |
@@ -496,3 +496,28 @@ and excluded files); before, only JSON showed them, so a skipped file
 looked like a clean one. `aihealth scan FILE` stays unlimited: a person
 asked for that file. Three tests, one per entry point, fail on the old
 code. 495 tests pass.
+
+### Fixes for 2–4
+
+- **2:** `TrustedHostMiddleware` accepts only `Host` values naming
+  loopback (`127.0.0.1`, `localhost`, `::1`) or the `--host` given, so a
+  rebinding site gets 400. `POST /scan` returns 403 when `Origin` isn't
+  the dashboard's own origin, or, without `Origin`, when `Sec-Fetch-Site`
+  says cross-site; clients that send neither (curl) still work. Every
+  response carries `Content-Security-Policy: frame-ancestors 'none'`,
+  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and
+  `Referrer-Policy: same-origin`, so "Scan now" can't be clickjacked. A
+  full script CSP would need the inline chart scripts moved to files: not
+  done.
+- **3:** `serve` warns on stderr for any host other than loopback. Bound
+  to all interfaces (`0.0.0.0`), any `Host` is accepted, since there is no
+  name to check against; the warning covers that.
+- **4:** the ECharts `<script>` has
+  `integrity="sha384-Mx5lkUEQ…YPzR"` and `crossorigin="anonymous"`, the
+  hash of `echarts@5.5.1/dist/echarts.min.js` (identical from jsDelivr
+  and unpkg).
+- Tests for each check (host refused, cross-site posts refused, headers
+  and SRI present, warning or none per host) fail on the old code. A
+  real `aihealth serve` checked with curl: 200 for its own host, 400 for
+  `Host: evil.example`, 403 for a cross-site post, 303 for a same-origin
+  one. 501 tests pass.
