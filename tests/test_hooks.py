@@ -109,3 +109,9 @@ def test_cli_hook_round_trip(repo):
     )
     assert res.returncode == 0
     assert "DEGRADED" in context(res.stdout, "PostToolUse")
+
+
+def test_post_edit_skips_files_over_max_file_kb(repo):
+    (repo / ".aihealth.toml").write_text("[scan]\nmax_file_kb = 1\n")
+    (repo / "a.py").write_text(NESTED + "# padding\n" * 120)
+    assert hooks.run("post-edit", edit_payload(repo, "a.py")) == ""

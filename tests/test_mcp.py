@@ -142,3 +142,18 @@ def test_explain_missing_phony():
     text = srv.explain_smell("Missing .PHONY")
     assert text.startswith("## Missing .PHONY (`missing_phony`)")
     assert "undeclared phony-looking target" in text
+
+
+def test_tools_refuse_files_over_max_file_kb(repo):
+    (repo / ".aihealth.toml").write_text("[scan]\nmax_file_kb = 1\n")
+    big = NESTED + "# padding\n" * 120
+    (repo / "pkg" / "app.py").write_text(big)
+    with pytest.raises(
+        srv.ToolInputError, match=r"not scored: pkg/app.py \(over scan.max_file_kb: 2 KB > 1 KB\)"
+    ):
+        srv.score_file("pkg/app.py", repo=str(repo))
+    with pytest.raises(srv.ToolInputError, match="max_file_kb"):
+        srv.preview_change("pkg/new.py", big, repo=str(repo))
+    md = srv.review_changes(str(repo))
+    assert "No changed files were scored." in md
+    assert "Not scored: `pkg/app.py` (over scan.max_file_kb: 2 KB > 1 KB)." in md

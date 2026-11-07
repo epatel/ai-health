@@ -95,13 +95,21 @@ def is_excluded(rel_path: str, patterns: Iterable[str]) -> bool:
     return any(fnmatch.fnmatch(c, p) for p in patterns for c in candidates)
 
 
+def too_large(size: int, config: Config) -> str | None:
+    """Why a file of ``size`` bytes isn't scored, or None. `scan.max_file_kb`
+    bounds parse time in scan, delta, the hooks and the MCP tools."""
+    limit_kb = config.section("scan")["max_file_kb"]
+    if size <= limit_kb * 1024:
+        return None
+    return f"over scan.max_file_kb: {-(-size // 1024)} KB > {limit_kb} KB"
+
+
 def discover(root: Path, config: Config) -> list[str]:
     """Supported source files under root (relative posix paths), honouring
     .gitignore when root is inside a git work tree, plus config excludes."""
     files = _git_files(root)
     if files is None:
         files = _walk_files(root)
-    max_bytes = config.section("scan")["max_file_kb"] * 1024
     out = []
     for rel in files:
         head = file_head(root / rel) if may_be_script(rel) else None
@@ -111,7 +119,7 @@ def discover(root: Path, config: Config) -> list[str]:
             continue
         p = root / rel
         try:
-            if not p.is_file() or p.stat().st_size > max_bytes:
+            if not p.is_file() or too_large(p.stat().st_size, config):
                 continue
         except OSError:
             continue

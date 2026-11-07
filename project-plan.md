@@ -159,7 +159,7 @@ docs. Shared code changed only by adding hooks (`grammars`,
 `_grammar_for`, `_prepare` in `lang/base.py`), C-family default excludes
 and three generated-file markers (Qt, bison, flex). Snapshots of every
 earlier language (49,533 files plus 1,217 Makefiles) compare identical.
-Now 492 tests, ruff clean, and this repo scans at 9.94 (60 healthy
+Now 495 tests, ruff clean, and this repo scans at 9.94 (60 healthy
 files, 1 warning).
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,

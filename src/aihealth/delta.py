@@ -21,7 +21,7 @@ from pathlib import Path
 
 from aihealth import gitutil
 from aihealth.config import Config
-from aihealth.engine import is_excluded, score_source
+from aihealth.engine import is_excluded, score_source, too_large
 from aihealth.gitutil import ChangedFile, Revisions
 from aihealth.lang import is_supported, may_be_script
 from aihealth.lang.base import is_generated
@@ -214,7 +214,8 @@ def _file_delta(root: Path, ch: ChangedFile, revs: Revisions, config: Config) ->
     before = None
     if revs.base is not None and ch.old_path:
         before = gitutil.read_file(root, revs.base, ch.old_path)
-    return delta_for_contents(ch, before, after, config)
+    largest = max(len(after), len(before or b""))
+    return too_large(largest, config) or delta_for_contents(ch, before, after, config)
 
 
 def run_delta(

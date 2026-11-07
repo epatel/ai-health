@@ -11,6 +11,7 @@ Example `.aihealth.toml`::
 
     [scan]
     exclude = ["legacy/**"]     # added to the default excludes
+    max_file_kb = 1024          # larger files aren't scored (scan, delta, hooks, MCP)
 
     [dart]
     test_closure_calls = ["group", "test", "testWidgets", "patrolTest"]

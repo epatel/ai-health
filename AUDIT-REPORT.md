@@ -346,7 +346,7 @@ and zsh adapters.
 | 2 | Dashboard CSRF / DNS rebinding | open |
 | 3 | `serve --host 0.0.0.0` without warning | open |
 | 4 | ECharts from a CDN without SRI | open |
-| 5 | No file-size limit in delta / hooks / MCP | open, **more important** (see 13) |
+| 5 | No file-size limit in delta / hooks / MCP | fixed |
 | 6 | Open-ended dependency versions | fixed (ranges pinned), see below |
 | 7 | No CI | fixed |
 | 8 | MCP wiring untested | covered by `test_stdio_server_round_trip` (see below) |
@@ -481,3 +481,18 @@ sleeping), and optionally cap memory with `RLIMIT_AS` on Linux.
   message. That runs `build_server` and `_as_tool_errors` against the
   installed SDK. The coverage figure missed it because the server runs in
   a subprocess.
+
+### Fix for 5
+
+`engine.too_large(size, config)` applies `[scan] max_file_kb` (default
+1 MB) everywhere a file is parsed automatically. `discover` (scan) uses
+it. Delta skips a changed file whose new *or* previous version is over
+the limit, with the reason in `skipped` (scoring the old version is just
+as slow), so the post-edit and stop hooks and MCP `review_changes` skip it
+too. MCP `score_file` and `preview_change` raise a tool error naming the
+limit. Text and markdown delta reports now list skipped files ("Not
+scored: `a.py` (over scan.max_file_kb: 2 KB > 1 KB)", also for generated
+and excluded files); before, only JSON showed them, so a skipped file
+looked like a clean one. `aihealth scan FILE` stays unlimited: a person
+asked for that file. Three tests, one per entry point, fail on the old
+code. 495 tests pass.

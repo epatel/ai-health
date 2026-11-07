@@ -275,10 +275,24 @@ def _score_label(fd: FileDelta) -> str:
 def delta_text(result: DeltaResult, opts: ReportOptions) -> str:
     out = [f"aihealth delta: {_compared(result)}: {result.verdict.upper()}"]
     if not result.files:
-        out.append("no changed supported files")
+        out.append(_nothing_scored(result).lower().rstrip("."))
     for fd in result.files:
         out += _file_delta_text(fd, opts.verbose)
+    out += [f"  not scored: {path} ({reason})" for path, reason in result.skipped]
     return "\n".join(out)
+
+
+def _nothing_scored(result: DeltaResult) -> str:
+    return "No changed files were scored." if result.skipped else "No changed supported files."
+
+
+def _skipped_note(result: DeltaResult) -> list[str]:
+    """Changed files left out (too large, generated, excluded), so a missing
+    file isn't mistaken for a clean one."""
+    if not result.skipped:
+        return []
+    items = ", ".join(f"`{path}` ({reason})" for path, reason in result.skipped)
+    return ["", f"Not scored: {items}."]
 
 
 def _file_delta_text(fd: FileDelta, verbose: bool) -> list[str]:
@@ -319,10 +333,11 @@ _VERDICT_LINE = {
 def delta_markdown(result: DeltaResult, opts: ReportOptions) -> str:
     out = [f"## Code health delta ({_compared(result)})", "", _VERDICT_LINE[result.verdict]]
     if not result.files:
-        return "\n".join([*out, "", "No changed supported files."])
+        return "\n".join([*out, "", _nothing_scored(result), *_skipped_note(result)])
     out += ["", "| File | Before | After | Δ | Verdict |", "|---|---:|---:|---:|---|"]
     out += [_delta_row(fd) for fd in result.files]
     out += _partial_parse_note(result)
+    out += _skipped_note(result)
     out += _regressions_section(result, opts.max_findings)
     out += _improvements_section(result, opts.max_findings)
     return "\n".join(out)

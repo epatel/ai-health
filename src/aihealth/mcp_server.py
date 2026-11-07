@@ -19,7 +19,7 @@ from typing import Literal
 from aihealth import gitutil
 from aihealth.config import DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS, Config, ConfigError, load_config
 from aihealth.delta import DeltaResult, delta_for_contents, run_delta
-from aihealth.engine import project_path, scan, score_source
+from aihealth.engine import project_path, scan, score_source, too_large
 from aihealth.lang import SUPPORTED_LANGUAGES, is_supported
 from aihealth.report import ReportOptions, render_delta, render_file, render_scan
 from aihealth.smells import EXPLANATIONS, HINTS, LABELS
@@ -55,6 +55,12 @@ def _resolve(path: str, repo: str | None) -> tuple[Path, Path, str]:
     absolute = (p if p.is_absolute() else _base_dir(repo) / p).resolve()
     root, rel = project_path(absolute)
     return absolute, root, rel
+
+
+def _check_size(rel: str, size: int, config: Config) -> None:
+    reason = too_large(size, config)
+    if reason:
+        raise ToolInputError(f"not scored: {rel} ({reason})")
 
 
 def _options(max_findings: int, top: int = 10) -> ReportOptions:
@@ -93,7 +99,9 @@ def score_file(
     absolute, root, rel = _resolve(path, repo)
     if not absolute.is_file():
         raise ToolInputError(f"file not found: {absolute}")
-    fs = score_source(absolute.read_bytes(), rel, load_config(root))
+    config = load_config(root)
+    _check_size(rel, absolute.stat().st_size, config)
+    fs = score_source(absolute.read_bytes(), rel, config)
     if fs is None:
         raise ToolInputError(f"unsupported file type (supported: {SUPPORTED_LANGUAGES}): {rel}")
     return render_file(fs, output, _options(max_findings))
@@ -112,9 +120,11 @@ def preview_change(
     absolute, root, rel = _resolve(path, repo)
     config = load_config(root)
     before = absolute.read_bytes() if absolute.is_file() else None
-    if not is_supported(rel, content.encode()):
+    after = content.encode()
+    if not is_supported(rel, after):
         raise ToolInputError(f"unsupported file type (supported: {SUPPORTED_LANGUAGES}): {rel}")
-    fd = delta_for_contents(rel, before, content.encode(), config)
+    _check_size(rel, max(len(after), len(before or b"")), config)
+    fd = delta_for_contents(rel, before, after, config)
     result = DeltaResult(str(root), "current file", "proposed content", [fd])
     return render_delta(result, output, _options(max_findings))
 

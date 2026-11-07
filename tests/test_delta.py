@@ -249,3 +249,21 @@ def test_repo_fsmonitor_command_never_runs(repo, tmp_path_factory, capsys):
     assert "DEGRADED" in hooks.run("post-edit", json.dumps(edit))
     capsys.readouterr()
     assert not marker.exists()
+
+
+# --- size limit ---------------------------------------------------------------
+
+
+def test_files_over_max_file_kb_are_skipped_with_the_reason(repo):
+    config = Config()
+    config.data["scan"]["max_file_kb"] = 1
+    padding = "# padding\n" * 120  # over 1 KB
+    (repo / "app.py").write_text(NESTED + padding)
+    (repo / "keep.py").write_text(NESTED)
+    result = run_delta(repo, config)
+    assert [f.path for f in result.files] == ["keep.py"]
+    assert result.skipped == [("app.py", "over scan.max_file_kb: 2 KB > 1 KB")]
+    # a large previous version is skipped too: scoring it is just as slow
+    git(repo, "commit", "-qam", "big")
+    (repo / "app.py").write_text(CLEAN)
+    assert [p for p, _ in run_delta(repo, config).skipped] == ["app.py"]
