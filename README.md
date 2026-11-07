@@ -19,16 +19,28 @@ healthy ≥ 9, warning 4–9, alert < 4.
 
 ## Install
 
-Needs Python 3.11+ and git 2.24+.
+Needs Python 3.11+ and git 2.24+. The recommended way is into the venv of the project you
+want to check, so nothing is installed globally:
+
+```bash
+cd your-project
+python3 -m venv .venv                      # skip if the project already has one
+.venv/bin/pip install "git+https://github.com/epatel/ai-health"
+.venv/bin/aihealth scan .
+```
+
+Or install it globally, or from a clone to work on aihealth itself:
 
 ```bash
 uv tool install "git+https://github.com/epatel/ai-health"   # or: pipx install "git+..."
 python3 -m venv .venv && .venv/bin/pip install -e .         # from a clone (or: make setup)
 ```
 
-**Full setup** (MCP server, hooks, for you or for a project): [AGENT-INSTALL.md](AGENT-INSTALL.md)
-lists the exact commands and file changes, plus a short prompt that has your agent do the
-same steps.
+The examples below write `aihealth`: that is `.venv/bin/aihealth` with a venv install.
+
+**Full setup** (MCP server, hooks; in a project's venv, for a project, or for you):
+[AGENT-INSTALL.md](AGENT-INSTALL.md) lists the exact commands and file changes, plus a short
+prompt that has your agent do the same steps.
 
 ## CLI
 
@@ -62,11 +74,14 @@ runs and saves a scan. Charts load ECharts from a CDN.
 
 ## MCP server (Claude Code and other agents)
 
-Register it for a project (run inside that project; the server analyses its working directory):
+Register it for a project (run inside that project; the server analyses its working directory).
+With aihealth in the project's venv, add to `.mcp.json` in the repo root:
 
-```bash
-claude mcp add aihealth -- /path/to/ai-health/.venv/bin/aihealth mcp
+```json
+{ "mcpServers": { "aihealth": { "command": ".venv/bin/aihealth", "args": ["mcp"] } } }
 ```
+
+With a global install: `claude mcp add aihealth -- "$(command -v aihealth)" mcp`.
 
 Tools:
 
@@ -83,17 +98,18 @@ All tools return markdown by default (`output: "json"` for machine use).
 ## Automatic feedback in Claude Code (hooks)
 
 Instead of relying on the agent to remember, let Claude Code run aihealth itself. Add to the
-project's `.claude/settings.json` (use the absolute path to your aihealth install):
+project's `.claude/settings.json` (this form uses the project's venv and does nothing when
+aihealth isn't installed there; for a global install see [AGENT-INSTALL.md](AGENT-INSTALL.md#hooks)):
 
 ```json
 {
   "hooks": {
     "PostToolUse": [
       { "matcher": "Edit|Write",
-        "hooks": [{ "type": "command", "command": "/path/to/ai-health/.venv/bin/aihealth hook post-edit" }] }
+        "hooks": [{ "type": "command", "command": "a=\"$CLAUDE_PROJECT_DIR/.venv/bin/aihealth\"; [ -x \"$a\" ] && \"$a\" hook post-edit || true" }] }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "/path/to/ai-health/.venv/bin/aihealth hook stop" }] }
+      { "hooks": [{ "type": "command", "command": "a=\"$CLAUDE_PROJECT_DIR/.venv/bin/aihealth\"; [ -x \"$a\" ] && \"$a\" hook stop || true" }] }
     ]
   }
 }
@@ -230,7 +246,7 @@ functions (`_docker`, starting with `#compdef` or `#autoload`).
   Parse errors aren't reported (the grammar has gaps, such as `$` inside backticks).
 - **zsh parsing**: the zsh grammar is young. Each zsh file is parsed with both the zsh
   and the bash grammar, and the tree that loses fewer lines wins; the zsh grammar runs
-  in a forked child with a one-second CPU limit first, because some input sends it into
+  in a forked child with a time limit first, because some input sends it into
   an endless loop. About 3 % of zsh lines are still unscored (parse errors), and short
   forms (`if [[ x ]] { ... }`, `while x { ... }`) aren't understood.
 

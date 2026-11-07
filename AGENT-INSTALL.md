@@ -1,60 +1,30 @@
 # Set up aihealth
 
 aihealth scores code health (1–10) for Python, Dart/Flutter, Swift, Rust, TypeScript,
-JavaScript, C, C++, Objective-C(++), shell scripts (bash, zsh), Makefiles and CMake, and gives a coding agent feedback on its own changes. Set
-it up **for you** (every project on this machine), **for a project** (config committed for
-the whole team), or **in a project's venv** (installed inside the project, nothing global). Do it by hand with the steps below, or let your agent do the same steps.
+JavaScript, C, C++, Objective-C(++), shell scripts (bash, zsh), Makefiles and CMake, and
+gives a coding agent feedback on its own changes. Set it up **in a project's venv**
+(recommended: installed inside the project, nothing global), **for a project** with a
+global install (config committed for the whole team), or **for you** (every project on
+this machine). Do it by hand with the steps below, or let your agent do the same steps.
 
 ## What changes
 
-| | For you | For a project | In a project's venv |
+| | In a project's venv | For a project | For you |
 |---|---|---|---|
-| CLI | `aihealth` in `~/.local/bin` | each person installs it once (step 1) | `.venv/bin/aihealth` in the project |
-| MCP server | user config, via `claude mcp add` | `.mcp.json` in the repo | `.mcp.json` in the repo |
-| Hooks | `~/.claude/settings.json` | `.claude/settings.json` in the repo | `.claude/settings.json` in the repo |
-| Agent note | none | a section in `CLAUDE.md` | a section in `CLAUDE.md` |
+| CLI | `.venv/bin/aihealth` in the project | `aihealth` in `~/.local/bin`, each person once | `aihealth` in `~/.local/bin` |
+| MCP server | `.mcp.json` in the repo | `.mcp.json` in the repo | user config, via `claude mcp add` |
+| Hooks | `.claude/settings.json` in the repo | `.claude/settings.json` in the repo | `~/.claude/settings.json` |
+| Agent note | a section in `CLAUDE.md` | a section in `CLAUDE.md` | none |
 
 Nothing else is touched. The hooks fail open: outside a git repo, for other languages,
 or when aihealth isn't installed, they do nothing. A project's MCP entry shows as failed
 in `/mcp` for anyone who hasn't installed aihealth yet.
 
-## For you
-
-```bash
-# 1. Install the CLI (needs Python 3.11+; with pipx: pipx install "git+...")
-uv tool install "git+https://github.com/epatel/ai-health"
-aihealth --version       # not found? run `uv tool update-shell`, open a new terminal
-
-# 2. Register the MCP server for all your projects
-claude mcp add --scope user aihealth -- "$(command -v aihealth)" mcp
-```
-
-3. Add the [hooks](#hooks) to `~/.claude/settings.json`.
-
-## For a project
-
-1. Install the CLI as above.
-2. Add to `.mcp.json` in the repo root:
-
-   ```json
-   { "mcpServers": { "aihealth": { "command": "aihealth", "args": ["mcp"] } } }
-   ```
-
-3. Add the [hooks](#hooks) to `.claude/settings.json` in the repo.
-4. Add to `CLAUDE.md`:
-
-   ```markdown
-   ## Code health
-   - Before committing, run `aihealth delta` and fix new or worsened smells it reports
-     in code you touched (exit code 1 = health degraded).
-   - `aihealth scan .` gives an overview of the codebase.
-   ```
-
 ## In a project's venv
 
 aihealth goes into the project's own virtual environment, and the config points at
-`.venv/bin/aihealth`, so nothing is installed globally. Use this when you'd rather not
-install tools globally, or want aihealth's version to be the project's choice.
+`.venv/bin/aihealth`, so nothing is installed globally and the project chooses
+aihealth's version.
 
 ```bash
 # 1. Install into the project's venv (needs Python 3.11+)
@@ -70,8 +40,8 @@ python3 -m venv .venv                # skip if the project already has one
    { "mcpServers": { "aihealth": { "command": ".venv/bin/aihealth", "args": ["mcp"] } } }
    ```
 
-3. Add these hooks to `.claude/settings.json` in the repo instead of the ones under
-   [Hooks](#hooks). They do nothing when the venv has no aihealth:
+3. Add these hooks to `.claude/settings.json` in the repo (merge them, and keep any
+   hooks already there). They do nothing when the venv has no aihealth:
 
    ```json
    {
@@ -89,8 +59,14 @@ python3 -m venv .venv                # skip if the project already has one
    }
    ```
 
-4. Add the `CLAUDE.md` section from [For a project](#for-a-project), with
-   `.venv/bin/aihealth` in place of `aihealth`.
+4. Add to `CLAUDE.md`:
+
+   ```markdown
+   ## Code health
+   - Before committing, run `.venv/bin/aihealth delta` and fix new or worsened smells it
+     reports in code you touched (exit code 1 = health degraded).
+   - `.venv/bin/aihealth scan .` gives an overview of the codebase.
+   ```
 
 Notes:
 
@@ -102,9 +78,36 @@ Notes:
   That path is personal, so then keep the config in your own `~/.claude/settings.json`
   and `claude mcp add --scope user`, not in the repo.
 
+## For a project
+
+1. Install the CLI globally, as in [For you](#for-you) step 1.
+2. Add to `.mcp.json` in the repo root:
+
+   ```json
+   { "mcpServers": { "aihealth": { "command": "aihealth", "args": ["mcp"] } } }
+   ```
+
+3. Add the [hooks](#hooks) to `.claude/settings.json` in the repo.
+4. Add the `CLAUDE.md` section from [In a project's venv](#in-a-projects-venv), with
+   `aihealth` in place of `.venv/bin/aihealth`.
+
+## For you
+
+```bash
+# 1. Install the CLI (needs Python 3.11+; with pipx: pipx install "git+...")
+uv tool install "git+https://github.com/epatel/ai-health"
+aihealth --version       # not found? run `uv tool update-shell`, open a new terminal
+
+# 2. Register the MCP server for all your projects
+claude mcp add --scope user aihealth -- "$(command -v aihealth)" mcp
+```
+
+3. Add the [hooks](#hooks) to `~/.claude/settings.json`.
+
 ## Hooks
 
-Merge these into the settings file and keep any hooks already there.
+For a global install (For a project, For you). Merge these into the settings file and
+keep any hooks already there.
 
 ```json
 {
@@ -122,6 +125,8 @@ Merge these into the settings file and keep any hooks already there.
 }
 ```
 
+What the hooks do (in every variant):
+
 - **post-edit**: after an edit, reports new or worsened smells in that file. Silent
   otherwise.
 - **stop**: before the agent finishes, gives it one more turn if the uncommitted changes
@@ -130,20 +135,15 @@ Merge these into the settings file and keep any hooks already there.
 ## Try it
 
 ```bash
-aihealth scan . --max-findings 5     # project score and the worst files
-aihealth delta                       # do my uncommitted changes degrade health?
+.venv/bin/aihealth scan . --max-findings 5     # project score and the worst files
+.venv/bin/aihealth delta                       # do my uncommitted changes degrade health?
 ```
+
+With a global install, drop the `.venv/bin/`.
 
 ## Let your agent do it
 
 Paste one of these into Claude Code, in the project you want to check:
-
-```text
-Set up aihealth for me, following the "For you" steps in
-https://github.com/epatel/ai-health/blob/main/AGENT-INSTALL.md
-Show me each command and file change before you make it, and merge JSON files
-instead of replacing them. Then run `aihealth scan . --max-findings 5` and summarise it.
-```
 
 ```text
 Set up aihealth in this project's venv, following the "In a project's venv" steps in
@@ -161,17 +161,23 @@ instead of replacing them. Don't commit. Then run `aihealth scan . --max-finding
 and summarise it.
 ```
 
+```text
+Set up aihealth for me, following the "For you" steps in
+https://github.com/epatel/ai-health/blob/main/AGENT-INSTALL.md
+Show me each command and file change before you make it, and merge JSON files
+instead of replacing them. Then run `aihealth scan . --max-findings 5` and summarise it.
+```
+
 The prompts ask the agent to show each command and file change first, so you can check
 it against this page before approving it.
 
 ## Remove
 
 ```bash
-uv tool uninstall aihealth           # or: pipx uninstall aihealth
-claude mcp remove --scope user aihealth
+.venv/bin/pip uninstall aihealth       # in a project's venv
+uv tool uninstall aihealth             # global (or: pipx uninstall aihealth)
+claude mcp remove --scope user aihealth    # if registered for you
 ```
-
-For a project's venv: `.venv/bin/pip uninstall aihealth`.
 
 Then delete the hook entries from the settings file (and, for a project, the
 `.mcp.json` entry and the `CLAUDE.md` section).
