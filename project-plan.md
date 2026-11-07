@@ -7,7 +7,7 @@ its changes (delta mode) and gives humans an overview of where an existing
 codebase needs improvement (scan mode). Scores are on a CodeScene-inspired
 1–10 scale, derived from explainable code smells. Languages: **Python**,
 **Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **TypeScript/TSX**,
-**JavaScript/JSX**, **C**, **C++**, **Objective-C(++)**, **shell scripts**,
+**JavaScript/JSX**, **C**, **C++**, **Objective-C(++)**, **shell scripts** (bash, zsh),
 **Makefiles** and **CMake**
 (more via the adapter layer:
 README "Adding a language").
@@ -54,7 +54,8 @@ Status: `todo` / `wip` / `done`.
 | M17 | CMake adapter | done | `CMakeLists.txt`/`*.cmake` scored (functions, macros, top-level blocks, `AND`/`OR`), all 639 definitions on 956 files, 90 % of 566 hand-written files healthy |
 | M18 | C, C++, Objective-C(++) | done | one adapter, three grammars (`.h` routed by content), source prepared against macros, units recovered from ERROR nodes; Objective-C++ via the objc grammar with `::` rewritten; calibrated on 18 repos |
 | M19 | Shell scripts | done | `.sh`/`.bash` and shebang scripts scored (functions + top-level blocks), bash roles shared with the Makefile adapter, 0 crashes on 5.5k scripts, calibrated on 11 repos |
-| M20 | Next language | todo | which one is the user's call: ask first (see handoff) |
+| M20 | zsh | done | `.zsh`/`.zsh-theme`, zsh shebangs and `#compdef` functions via the shell adapter: zsh grammar guarded against endless loops and compared with the bash tree per file, 0 crashes on 1,158 files, calibrated on 9 repos |
+| M21 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
 
@@ -116,12 +117,24 @@ Status: `todo` / `wip` / `done`.
   functions (plain names) and top-level blocks, as in CMake. `cmd || die`
   guards count (3 % of cognitive points). Parse errors not reported. See
   the shell sections of both cards.
+- **zsh** (M20, user asked for it consolidated with bash): the same
+  `ShellAdapter`, module language `zsh`. The zsh grammar can loop forever,
+  so it runs in a forked child with a 1 s CPU limit first, and each file
+  keeps the zsh or bash tree, whichever loses fewer lines. See the zsh
+  sections of both cards.
 - **Generated Dart files** (`*.g.dart`, `*.freezed.dart`, `*.mocks.dart`)
   excluded by default.
 
 ## Current state / handoff
 
-**2026-11-07, third session.** M19 (shell scripts) is done:
+**2026-11-07, third session.** M20 (zsh) is done: `lang/shell_zsh.py`
+(zsh detection, `prepare_zsh`, the guarded `ZshParser` in
+`ShellAdapter._parsers["zsh"]`), zsh roles/units in `lang/shell.py`,
+registry routing via `is_shell_head`, zsh tests in `tests/test_shell.py`,
+`zsh:` corpora in `scripts/calibrate.py` (same `AIHEALTH_SH_CORPORA`).
+Snapshots: all 6,536 non-zsh shell and Makefile files identical.
+
+Before that, M19 (shell scripts) was done:
 `lang/shell.py`, `tests/test_shell.py`, shebang routing in the registry
 (`is_supported`/`adapter_for` take a `head`; engine, delta, hooks, CLI,
 MCP and `scripts/snapshot.py` pass it), `sh:` corpora in
@@ -152,9 +165,9 @@ server (5 tools), SQLite history with migrations, a dashboard, and
 Claude Code hooks. Scoring is calibrated on 90 corpora, plus
 distribution checks on Makefiles and CMake files.
 
-**Next task (M20): ask the user which language.** Candidates: Go
+**Next task (M21): ask the user which language.** Candidates: Go
 (`if err != nil` needs a calibration decision), Kotlin (Compose maps
-onto widget depth; labelled args like Swift), zsh (needs a grammar).
+onto widget depth; labelled args like Swift).
 Follow README "Adding a language". `lang/cfamily.py` shows several
 grammars in one adapter and source preparation; `lang/swift.py` a grammar
 without an `alternative` field; `lang/rust.py` a wrapped else-if, tests in
@@ -175,8 +188,10 @@ identical). Corpora on this machine, all read-only:
 - Rust: the crates in `~/.cargo/registry/src` (calibrate.py finds the
   newest version of each by name).
 - Shell: shallow clones (bats-core, rbenv, pyenv, n, docker-install,
-  bash-it, Homebrew install, dehydrated, nvm, acme.sh, dokku), set
-  `AIHEALTH_SH_CORPORA` for `calibrate.py --only sh:`.
+  bash-it, Homebrew install, dehydrated, nvm, acme.sh, dokku; zsh:
+  ohmyzsh, prezto, zsh-completions, zsh-z, spaceship-prompt,
+  zsh-autocomplete, powerlevel10k, zinit, zimfw) in one directory, set
+  `AIHEALTH_SH_CORPORA` for `calibrate.py --only sh:` / `--only zsh:`.
 - C / C++ / Objective-C: Pico SDK (`~/Development/pico-sdk`), Flipper
   (`~/Development/flipper/flipperzero-firmware`, skip its `toolchain/`),
   OrcaSlicer `src/`, the Flutter engine, Xcode checkouts; shallow clones

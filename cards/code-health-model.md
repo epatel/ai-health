@@ -576,6 +576,26 @@ nvm's `nvm.sh` holds a 4,000-line `nvm()` dispatcher, and `n` is mostly
 one `bin/n`. acme.sh's 300 DNS-API plugins copy each other's REST helpers
 (duplication is 40 % of its penalty).
 
+zsh (added after M19) uses the same thresholds: zsh repos land in the
+same range (`calibrate.py --only zsh:`, same `AIHEALTH_SH_CORPORA`).
+
+| Corpus | kind | kLoC | project | median file | healthy % | alert LoC % |
+|---|---|---:|---:|---:|---:|---:|
+| ohmyzsh | lib | 52.0 | 7.8 | 10 | 84 | 3 |
+| prezto | lib | 2.2 | 9.4 | 10 | 90 | 0 |
+| zsh-completions | lib | 29.0 | 7.8 | 10 | 74 | 0 |
+| zsh-z | lib | 0.8 | 6.0 | 10 | 50 | 0 |
+| spaceship-prompt | lib | 4.1 | 8.4 | 10 | 90 | 0 |
+| zsh-autocomplete | lib | 1.4 | 9.6 | 10 | 100 | 0 |
+| powerlevel10k | complex | 20.7 | 6.6 | 10 | 65 | 0 |
+| zinit | complex | 9.9 | 7.1 | 10 | 71 | 0 |
+| zimfw | complex | 1.2 | 7.5 | 10 | 50 | 0 |
+
+zsh-z is one 1,600-line `zshz()`; zsh-completions' completion functions
+are long `_arguments` specs (Large Method is a third of its penalty);
+powerlevel10k includes the C++ of its gitstatus daemon, and about a
+quarter of its zsh functions sit in unparsed code.
+
 ## Delta classification
 
 Functions are paired by qualified name (`Class.method`); renamed functions

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -16,6 +15,7 @@ from aihealth.lang.make import MakeAdapter
 from aihealth.lang.python import PythonAdapter
 from aihealth.lang.rust import RustAdapter
 from aihealth.lang.shell import ShellAdapter
+from aihealth.lang.shell_zsh import is_shell_head
 from aihealth.lang.swift import SwiftAdapter
 from aihealth.lang.typescript import TsxAdapter, TypeScriptAdapter
 from aihealth.model import Module
@@ -44,12 +44,12 @@ SUPPORTED_EXTENSIONS = frozenset(_BY_EXT)
 # for messages: keep in sync with ADAPTERS
 SUPPORTED_LANGUAGES = (
     "Python, Dart, Swift, Rust, TypeScript, JavaScript, C, C++, Objective-C(++), "
-    "shell scripts, Makefiles and CMake"
+    "shell scripts (bash, zsh), Makefiles and CMake"
 )
 
-# An extensionless file starting with a sh/bash/dash/ksh shebang is a shell
-# script (`bin/deploy`, rbenv's `libexec/rbenv-init`); zsh isn't bash.
-_SHEBANG = re.compile(rb"#![ \t]*\S*?(?:/|env[ \t]+(?:-\S+[ \t]+)*)(?:ba|da|k)?sh\b")
+# An extensionless file starting with a sh/bash/dash/ksh/zsh shebang is a
+# shell script (`bin/deploy`, rbenv's `libexec/rbenv-init`), and so is a zsh
+# completion or autoload function (`_docker`: `#compdef docker`).
 _HEAD_BYTES = 128
 
 
@@ -77,8 +77,8 @@ def _adapter_class(path: str | Path, head: bytes | None) -> type[LanguageAdapter
 
 
 def _is_shell_script(path: Path, head: bytes | None) -> bool:
-    """Extensionless, with a sh/bash/dash/ksh shebang in ``head``."""
-    return bool(head) and may_be_script(path) and _SHEBANG.match(head) is not None
+    """Extensionless, starting with a shell shebang (``head``)."""
+    return bool(head) and may_be_script(path) and is_shell_head(head)
 
 
 def is_supported(path: str | Path, head: bytes | None = None) -> bool:

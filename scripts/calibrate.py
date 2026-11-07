@@ -154,6 +154,15 @@ CORPORA = [
     ("sh:nvm", SH / "nvm", "complex"),
     ("sh:acme.sh", SH / "acme.sh", "complex"),
     ("sh:dokku", SH / "dokku", "complex"),
+    ("zsh:ohmyzsh", SH / "ohmyzsh", "lib"),
+    ("zsh:prezto", SH / "prezto", "lib"),
+    ("zsh:zsh-completions", SH / "zsh-completions", "lib"),
+    ("zsh:zsh-z", SH / "zsh-z", "lib"),
+    ("zsh:spaceship-prompt", SH / "spaceship-prompt", "lib"),
+    ("zsh:zsh-autocomplete", SH / "zsh-autocomplete", "lib"),
+    ("zsh:powerlevel10k", SH / "powerlevel10k", "complex"),
+    ("zsh:zinit", SH / "zinit", "complex"),
+    ("zsh:zimfw", SH / "zimfw", "complex"),
 ]
 
 
@@ -227,7 +236,7 @@ def corpus_config(name: str) -> Config:
         config.data["scan"]["exclude"] = list(JS_EXCLUDES)
     elif name.startswith(("c:", "cpp:", "objc:", "objcpp:")):
         config.data["scan"]["exclude"] = list(C_EXCLUDES)
-    elif name.startswith("sh:"):
+    elif name.startswith(("sh:", "zsh:")):
         config.data["scan"]["exclude"] = list(SH_EXCLUDES)
     return config
 

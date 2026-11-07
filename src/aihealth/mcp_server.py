@@ -34,7 +34,7 @@ class ToolInputError(ValueError):
 INSTRUCTIONS = """\
 aihealth estimates code health (1-10, CodeScene-style code smells) for Python, Dart/Flutter,
 Swift, Rust, TypeScript, JavaScript, C, C++, Objective-C(++), shell scripts
-(bash/sh), Makefiles and CMake.
+(bash, sh, zsh), Makefiles and CMake.
 - After editing such code, call `review_changes` (working tree vs HEAD). If the verdict \
 is DEGRADED, fix the listed new/worsened smells in the code you touched before finishing.
 - Before writing a large rewrite of a file, `preview_change` scores the proposed content \

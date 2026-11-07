@@ -1,4 +1,7 @@
-"""Shell script adapter (tree-sitter `bash` grammar): `*.sh` and `*.bash`.
+"""Shell script adapter: bash (`*.sh`, `*.bash`, sh/bash/dash/ksh shebangs)
+with the `bash` grammar, zsh (`*.zsh`, `*.zsh-theme`, zsh shebangs,
+`#compdef` / `#autoload` functions) with the `zsh` grammar, guarded and
+compared against bash (see `shell_zsh.py`).
 
 Units, mirroring the CMake adapter:
 - ``function``: `f() { ... }` / `function f { ... }`, wherever it is
@@ -6,8 +9,11 @@ Units, mirroring the CMake adapter:
   functions are global, so they are named plainly (`f`, a redefinition
   `f#2`);
 - ``conditional`` / ``loop`` / ``case``: a top-level `if`, `for`, `while`,
-  `until` or `case` block, named by its first line. Plain top-level
-  commands are not scored, like CMake's.
+  `until` or `case` block (zsh also `repeat`, `select`, `for x (a b)`),
+  named by its first line. Plain top-level commands are not scored, like
+  CMake's;
+- zsh's anonymous functions (`() { ... }`, run where defined) are
+  ``function`` units named `(anonymous)`.
 
 Grammar notes (see cards/parser-choice.md): `elif_clause` / `else_clause`
 are children of `if_statement` without a field; `until` is a
@@ -19,11 +25,13 @@ roles are shared with the Makefile adapter (recipes are parsed as bash).
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import ClassVar
 
 from tree_sitter import Node
 
 from aihealth.lang.base import LanguageAdapter, text, walk_units
+from aihealth.lang.shell_zsh import ZSH_EXTENSIONS, ZshParser, is_zsh_head, prepare_zsh
 from aihealth.metrics import Role
 from aihealth.model import Function, Module
 
@@ -39,6 +47,12 @@ BASH_ROLES: dict[str, Role] = {
     "function_definition": Role.STOP,
     "list": Role.BOOL_EXPR,  # `a && b || c`
     "binary_expression": Role.BOOL_EXPR,  # `[[ a && b ]]` (no ops in arithmetic)
+}
+# zsh-only node types (the zsh grammar keeps bash's names for the rest)
+SHELL_ROLES: dict[str, Role] = BASH_ROLES | {
+    "terse_for_statement": Role.LOOP,  # `for x (a b) { ... }`
+    "repeat_statement": Role.LOOP,
+    "select_statement": Role.LOOP,
 }
 BASH_ALTERNATIVES = frozenset({"elif_clause", "else_clause"})
 BASH_BLOCKS = frozenset({"do_group", "compound_statement"})
@@ -65,7 +79,11 @@ _BLOCKS = {
     "c_style_for_statement": "loop",
     "while_statement": "loop",
     "case_statement": "case",
+    "terse_for_statement": "loop",
+    "repeat_statement": "loop",
+    "select_statement": "loop",
 }
+ANONYMOUS = "(anonymous)"
 _NAME_LIMIT = 60
 # A quoted segment right after a glob in a word (`--only=*' '*)`): the grammar
 # rejects it in a case pattern and loses the rest of the file (nvm's 4,000-line
@@ -122,17 +140,28 @@ def _block_name(block: Node) -> str:
 
 class ShellAdapter(LanguageAdapter):
     language = "bash"
-    extensions = (".sh", ".bash")
-    roles: ClassVar[dict[str, Role]] = BASH_ROLES
+    grammars = ("zsh",)
+    extensions = (".sh", ".bash", *ZSH_EXTENSIONS)
+    roles: ClassVar[dict[str, Role]] = SHELL_ROLES
     # the corpora are working scripts: their parse errors (2 % of files) are
     # grammar gaps, such as `$` inside backticks, not syntax errors
     reports_parse_errors = False
-    block_types = BASH_BLOCKS
+    block_types = BASH_BLOCKS | {"compound_statement_no_always"}
     bool_transparent = BASH_BOOL_TRANSPARENT
     literal_types = frozenset({"string", "raw_string", "ansi_c_string", "number", "heredoc_body"})
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._parsers["zsh"] = ZshParser()
+
+    def _grammar_for(self, source: bytes, path: str) -> str:
+        zsh = Path(path).suffix in ZSH_EXTENSIONS or is_zsh_head(source)
+        return "zsh" if zsh else "bash"
+
     def _prepare(self, source: bytes, language: str) -> bytes:
-        return _GLOB_QUOTE.sub(_underscores, source) if b"*" in source else source
+        if b"*" in source:
+            source = _GLOB_QUOTE.sub(_underscores, source)
+        return prepare_zsh(source) if language == "zsh" else source
 
     # --- metric hooks ------------------------------------------------------------
 
@@ -190,9 +219,9 @@ class ShellAdapter(LanguageAdapter):
 
     def _add_function(self, module: Module, node: Node) -> None:
         body = node.child_by_field_name("body")
-        name = text(node.child_by_field_name("name"))
-        if body is None or not name:
+        if body is None:
             return
+        name = text(node.child_by_field_name("name")) or ANONYMOUS
         module.functions.append(
             Function(
                 name=name,
