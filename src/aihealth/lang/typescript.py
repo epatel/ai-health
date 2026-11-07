@@ -65,37 +65,53 @@ def _name_of(node: Node | None) -> str:
 # --- which function nodes are named units -----------------------------------------------
 
 
-def _object_owner(obj: Node | None) -> str | None:
-    """`api` for an object literal in `const api = {...}`, else None."""
+def _assignment_target(node: Node, assigned: bool) -> str | None:
+    """With ``assigned`` (JavaScript): the target name when ``node`` is the
+    value of `x.y = node`, with `.prototype.` dropped (`Foo.prototype.bar`
+    is `Foo.bar`)."""
+    parent = node.parent if assigned else None
+    if parent is None or parent.type != "assignment_expression":
+        return None
+    left = parent.child_by_field_name("left")
+    return text(left).replace(".prototype.", ".") or None
+
+
+def _object_owner(obj: Node | None, assigned: bool = False) -> str | None:
+    """`api` for an object literal in `const api = {...}` (or, with
+    ``assigned``, `module.exports = {...}`), else None."""
     if obj is None or obj.type != "object":
         return None
-    named = _parent_type(obj) == "variable_declarator"
-    return (_name_of(obj.parent) or None) if named else None
+    if _parent_type(obj) == "variable_declarator":
+        return _name_of(obj.parent) or None
+    return _assignment_target(obj, assigned)
 
 
-def _value_name(fn: Node) -> str | None:
+def _value_name(fn: Node, assigned: bool = False) -> str | None:
     """Name a function expression is bound to, if it is a named unit:
     `const f = () => {}`, a class field `f = () => {}`, `{ f: () => {} }` in
-    a named object, or `export default () => {}`."""
+    a named object, `export default () => {}`, and with ``assigned``
+    (JavaScript) `obj.f = function () {}`."""
     parent = fn.parent
     kind = parent.type if parent is not None else None
     if kind in ("variable_declarator", "public_field_definition"):
         return _name_of(parent) or None
+    if kind == "field_definition":  # JavaScript class field
+        return text(parent.child_by_field_name("property")) or None
     if kind == "export_statement":
         return "default"
     if kind == "pair":
-        owner = _object_owner(parent.parent)
+        owner = _object_owner(parent.parent, assigned)
         key = text(parent.child_by_field_name("key"))
         return f"{owner}.{key}" if owner else None
-    return None
+    return _assignment_target(fn, assigned)
 
 
-def _method_owner(method: Node) -> str | None:
+def _method_owner(method: Node, assigned: bool = False) -> str | None:
     """For a `method_definition`: `''` in a class body (named by the class
     scope), `api` in a named object literal, None in an anonymous object."""
     if _parent_type(method) == "class_body":
         return ""
-    return _object_owner(method.parent)
+    return _object_owner(method.parent, assigned)
 
 
 def _callee(call: Node) -> str:
@@ -136,13 +152,25 @@ def _param(node: Node) -> Param:
     )
 
 
+def _js_param(node: Node) -> Param | None:
+    """A JavaScript parameter: `x`, `x = 1`, `...xs`, `{ a, b }`, `[a, b]`."""
+    if node.type == "assignment_pattern":
+        return Param(name=text(node.child_by_field_name("left")), optional=True)
+    if node.type == "rest_pattern":
+        return Param(name=text(node), variadic=True)
+    if node.type in ("identifier", "object_pattern", "array_pattern"):
+        return Param(name=text(node))
+    return None  # comments
+
+
 def _params(fn: Node) -> list[Param]:
     plist = fn.child_by_field_name("parameters")
     if plist is None:  # `x => x * 2`
         single = fn.child_by_field_name("parameter")
         return [Param(name=text(single))] if single is not None else []
-    params = [_param(p) for p in plist.named_children if p.type in _PARAMS]
-    return [p for p in params if p.name != "this"]  # `this: Window` is not passed
+    params = [_param(p) if p.type in _PARAMS else _js_param(p) for p in plist.named_children]
+    # `this: Window` is not passed
+    return [p for p in params if p is not None and p.name != "this"]
 
 
 # --- roles that depend on context -------------------------------------------------------
@@ -157,15 +185,10 @@ def _jump_role(node: Node) -> Role | None:
     return Role.JUMP_LABEL if node.child_by_field_name("label") is not None else None
 
 
-def _method_role(node: Node) -> Role | None:
-    return Role.STOP if _method_owner(node) is not None else Role.LAMBDA
-
-
 _CONTEXT_ROLES = {
     "binary_expression": _binary_role,
     "break_statement": _jump_role,
     "continue_statement": _jump_role,
-    "method_definition": _method_role,
 }
 
 
@@ -227,6 +250,9 @@ class TypeScriptAdapter(LanguageAdapter):
         }
     )
     neutral_types = frozenset({"boolean"})
+    # functions assigned to a name (`obj.f = function () {}`) are units: on
+    # for JavaScript (CommonJS, prototypes), off here
+    assigned_units: ClassVar[bool] = False
     literal_types = frozenset(
         {"string", "template_string", "number", "regex", "true", "false", "null", "undefined"}
     )
@@ -242,6 +268,9 @@ class TypeScriptAdapter(LanguageAdapter):
     def role(self, node: Node) -> Role | None:
         if node.type in _FUNCTION_VALUES:
             return Role.STOP if self._unit_name(node) is not None else Role.LAMBDA
+        if node.type == "method_definition":
+            owner = _method_owner(node, self.assigned_units)
+            return Role.STOP if owner is not None else Role.LAMBDA
         contextual = _CONTEXT_ROLES.get(node.type)
         return contextual(node) if contextual is not None else self.roles.get(node.type)
 
@@ -280,7 +309,7 @@ class TypeScriptAdapter(LanguageAdapter):
     def _unit_name(self, fn: Node) -> str | None:
         """Name of a function expression scored as its own unit, or None for
         an inline callback."""
-        name = _value_name(fn)
+        name = _value_name(fn, self.assigned_units)
         if name is not None:
             return name
         call = self._test_call(fn)
@@ -326,13 +355,13 @@ class TypeScriptAdapter(LanguageAdapter):
         name = self._unit_name(fn)
         if name is None:
             return False  # inline callback: part of the enclosing function
-        kind = "function" if _value_name(fn) is not None else "test"
+        kind = "function" if _value_name(fn, self.assigned_units) is not None else "test"
         start = fn if kind == "function" else _closure_call(fn)
         self._add_function(scope, fn, (name, kind), start)
         return True
 
     def _add_method(self, scope: ExtractionScope, node: Node) -> bool:
-        owner = _method_owner(node)
+        owner = _method_owner(node, self.assigned_units)
         if owner is None:
             return False  # method of an anonymous object: inline
         if owner:  # a named object literal outside any class

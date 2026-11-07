@@ -23,6 +23,9 @@ Example `.aihealth.toml`::
 
     [typescript]                # .ts and .tsx
     test_closure_calls = ["describe", "it", "test"]
+
+    [javascript]                # .js, .mjs, .cjs and .jsx
+    test_closure_calls = ["describe", "it", "test"]
 """
 
 from __future__ import annotations
@@ -93,6 +96,8 @@ DEFAULT_EXCLUDES: list[str] = [
     "Pods/*",  # CocoaPods
     "DerivedData/*",
     "*.d.ts",  # TypeScript declarations: signatures only
+    "*.min.js",  # minified bundles
+    "*.bundle.js",
     "target/debug/*",  # Cargo build output (build-script generated code)
     "target/release/*",
     "*.docc/*",  # DocC catalogs: tutorial step files repeat each other
@@ -114,6 +119,7 @@ DEFAULTS: dict[str, Any] = {
     # `#[cfg(test)]` modules: left out of scores by default (code-health-model)
     "rust": {"score_test_modules": False},
     "typescript": {"test_closure_calls": None},  # for .ts and .tsx
+    "javascript": {"test_closure_calls": None},
 }
 
 
@@ -142,7 +148,7 @@ class Config:
         return base + list(scan["exclude"])
 
     def adapter_options(self, language: str) -> dict[str, Any]:
-        if language in ("dart", "swift", "typescript", "tsx"):
+        if language in ("dart", "swift", "typescript", "tsx", "javascript"):
             section = "typescript" if language == "tsx" else language
             calls = self.data[section]["test_closure_calls"]
             return {} if calls is None else {"test_calls": frozenset(calls)}

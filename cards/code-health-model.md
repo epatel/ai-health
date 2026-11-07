@@ -440,6 +440,33 @@ converter has a 336-line function; ky's `deepMergeInternal` has
 cyclomatic 61; TypeORM's `PostgresQueryRunner.changeColumn` is 1,035
 lines, and its database drivers copy each other.
 
+## JavaScript (M16)
+
+Same unit rules as TypeScript, plus **assigned functions as units**:
+CommonJS and pre-class code defines functions as `module.exports = {...}`,
+`app.handle = function handle() {...}` or `Foo.prototype.bar = function`.
+Without this, Express-style code would be inline callbacks of top-level
+statements and not scored at all. Parameters are untyped, so Primitive
+Obsession never applies. No JavaScript-specific threshold was needed.
+Calibration corpora exclude tests, `dist/`, `vendor/`, `perf/` and
+`benchmarks/` (`calibrate.py --only js:`, `AIHEALTH_JS_CORPORA`).
+
+| Corpus | kind | kLoC | project | median file | healthy % | alert LoC % |
+|---|---|---:|---:|---:|---:|---:|
+| Express | lib | 1.1 | 8.7 | 10 | 83 | 0 |
+| Preact | lib | 6.1 | 8.4 | 10 | 88 | 0 |
+| axios | lib | 6.6 | 8.1 | 10 | 76 | 0 |
+| lodash | lib | 7.2 | 4.1 | 10 | 89 | 83 |
+| ESLint | complex | 63.6 | 7.6 | 9.1 | 54 | 2 |
+| three.js | complex | 78.5 | 7.3 | 10 | 73 | 14 |
+| webpack | complex | 217.4 | 4.6 | 9.4 | 55 | 45 |
+
+lodash's score is one monolith: `lodash.js` is a single 5,990-line file
+with 135 findings (89 % of the corpus's files are healthy, but this one
+holds 83 % of the lines). webpack's `lib/` contains hand-ported parsers
+and printers (from terser and SWC) of 11–22k lines with functions up to
+2,344 lines; they are real code, not generated.
+
 ## Delta classification
 
 Functions are paired by qualified name (`Class.method`); renamed functions

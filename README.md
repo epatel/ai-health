@@ -3,8 +3,8 @@
 # aihealth
 
 Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter**,
-**Swift/SwiftUI**, **Rust**, **TypeScript/TSX** and **Makefiles**, built as feedback for AI
-coding agents.
+**Swift/SwiftUI**, **Rust**, **TypeScript/TSX**, **JavaScript/JSX** and **Makefiles**, built as
+feedback for AI coding agents.
 
 - **delta**: did this change make the code healthier or worse? Verdict, score before → after,
   new/worsened smells with `path:line` and fix hints. Exit code 1 when health degraded.
@@ -39,7 +39,7 @@ aihealth delta --format markdown    # agent-oriented output (also: text, json)
 
 aihealth scan path/to/repo --format markdown --max-findings 20
 aihealth scan . --fail-under 7      # CI gate on the project score
-aihealth scan src/app.py            # one file (also: Makefile, x.dart, App.swift, main.rs, app.tsx)
+aihealth scan src/app.py            # one file (also: Makefile, x.dart, App.swift, main.rs, app.tsx, app.js)
 ```
 
 ## History
@@ -162,7 +162,16 @@ project's `.claude/settings.json` (use the absolute path to your aihealth instal
   conditional rendering (`{open && <List />}`). `??` and `?.` add nothing.
 - **JSX** (`.tsx`): element nesting is the Deep Widget Tree depth.
 - **Skipped**: `*.d.ts` declaration files and `node_modules/`.
-- JavaScript (`.js`, `.jsx`) is not scored yet.
+
+## JavaScript
+
+`*.js`, `*.mjs`, `*.cjs` and `*.jsx` files are scored like TypeScript (same unit rules,
+same branching, JSX depth in any file), with one addition: functions **assigned** to a
+name are units too, because CommonJS and pre-class code define them that way:
+`module.exports = { format() {} }` (`module.exports.format`), `app.handle = function handle()
+{}` (`app.handle`), `Router.prototype.route = function () {}` (`Router.route`).
+Parameters are untyped, so Primitive Obsession doesn't apply. `*.min.js` and `*.bundle.js`
+are skipped. Flow-annotated JavaScript isn't supported (it parses with errors).
 
 ## Makefiles
 
@@ -213,6 +222,9 @@ score_test_modules = true        # include `#[cfg(test)]` modules (default: fals
 
 [typescript]                     # .ts and .tsx
 test_closure_calls = ["describe", "it", "test"]
+
+[javascript]                     # .js, .mjs, .cjs and .jsx
+test_closure_calls = ["describe", "it", "test"]
 ```
 
 Turn smells off for one file where they are imposed by an interface (e.g. CLI/JSON/MCP
@@ -227,7 +239,8 @@ boundaries) with a comment (strings and docstrings don't count):
 All metrics, smells and scoring are language-neutral. A language is **one adapter file**
 that tells the engine what the syntax tree means, plus tests that pin that meaning. Python
 (`src/aihealth/lang/python.py`), Dart (`lang/dart.py`), Swift (`lang/swift.py`), Rust
-(`lang/rust.py`) and TypeScript (`lang/typescript.py`) are the reference adapters. Copy the one whose language is closer.
+(`lang/rust.py`), TypeScript (`lang/typescript.py`) and JavaScript (`lang/javascript.py`, a
+subclass for a grammar that shares node names) are the reference adapters. Copy the one whose language is closer.
 
 ### How the pieces fit
 

@@ -39,6 +39,8 @@ FLUTTER = Path.home() / "Development/Flutter/flutter/packages"
 PUB = Path.home() / ".pub-cache/hosted/pub.dev"
 # shallow clones of the TypeScript repos below, in one directory
 TS = Path(os.environ.get("AIHEALTH_TS_CORPORA", Path.home() / "Development/ts-corpora"))
+# shallow clones of the JavaScript repos below, in one directory
+JS = Path(os.environ.get("AIHEALTH_JS_CORPORA", Path.home() / "Development/js-corpora"))
 CARGO = Path.home() / ".cargo/registry/src"
 
 
@@ -108,6 +110,13 @@ CORPORA = [
     ("ts:typeorm", TS / "typeorm/packages/typeorm/src", "complex"),
     ("ts:nest-core", TS / "nest/packages/core", "complex"),
     ("ts:excalidraw", TS / "excalidraw/packages/excalidraw", "complex"),
+    ("js:express", JS / "express/lib", "lib"),
+    ("js:axios", JS / "axios/lib", "lib"),
+    ("js:preact", JS / "preact", "lib"),
+    ("js:lodash", JS / "lodash", "lib"),
+    ("js:webpack", JS / "webpack/lib", "complex"),
+    ("js:eslint", JS / "eslint/lib", "complex"),
+    ("js:three.js", JS / "three.js/src", "complex"),
 ]
 
 
@@ -132,12 +141,23 @@ TS_TEST_FILES = [
     "*/tests/*",
     "*/test-d/*",
 ]
+# JavaScript repos: the same, plus built and vendored copies at the root
+JS_EXCLUDES = [
+    *(p.replace(".ts", ".js") for p in TS_TEST_FILES),
+    "test/*",
+    "dist/*",
+    "vendor/*",
+    "perf/*",
+    "benchmarks/*",
+]
 
 
 def corpus_config(name: str) -> Config:
     config = Config()
     if name.startswith("ts:"):
         config.data["scan"]["exclude"] = list(TS_TEST_FILES)
+    elif name.startswith("js:"):
+        config.data["scan"]["exclude"] = list(JS_EXCLUDES)
     return config
 
 

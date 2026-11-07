@@ -49,6 +49,7 @@ def _errors(node) -> list[tuple[int, str]]:
         ("rust", "sample.rs"),
         ("typescript", "sample.ts"),
         ("tsx", "sample.tsx"),
+        ("javascript", "sample.js"),
     ],
 )
 def test_parses_without_errors(lang, fixture):
@@ -216,3 +217,12 @@ def test_typescript_node_types():
 def test_tsx_jsx_node_types():
     types = _types(_parse("tsx", "sample.tsx"))
     assert {"jsx_element", "jsx_self_closing_element", "jsx_expression"} <= types
+
+
+def test_javascript_differs_from_typescript_in_params_and_fields():
+    """JavaScript: bare parameter patterns and `field_definition` class fields
+    (TypeScript wraps parameters in `required_parameter` and names fields
+    `public_field_definition`)."""
+    types = _types(_parse("javascript", "sample.js"))
+    assert {"assignment_pattern", "rest_pattern", "field_definition", "jsx_element"} <= types
+    assert not {"required_parameter", "public_field_definition"} & types

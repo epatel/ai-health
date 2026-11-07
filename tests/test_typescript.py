@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from helpers import check_base_types, findings_of
+from helpers import ECMASCRIPT_EXPECTED, ECMASCRIPT_SONAR, check_base_types, findings_of
 
 from aihealth.config import Config, load_config
 from aihealth.engine import scan
@@ -122,110 +122,10 @@ def test_parameters():
 
 # --- golden metrics ----------------------------------------------------------------
 
-SONAR = """
-function sumOfPrimes(max: number): number {
-    let total = 0;
-    OUT: for (let i = 1; i <= max; ++i) {
-        for (let j = 2; j < i; ++j) {
-            if (i % j === 0) {
-                continue OUT;
-            }
-        }
-        total += i;
-    }
-    return total;
-}
 
-function getWords(n: number): string {
-    switch (n) {
-        case 1: return "one";
-        case 2: return "a couple";
-        case 3: return "a few";
-        default: return "lots";
-    }
-}
-
-function seq(a: boolean, b: boolean, c: boolean, d: boolean, e: boolean, f: boolean) {
-    return a && b && c || d || e && f;
-}
-
-function fact(n: number): number {
-    if (n <= 1) return 1;
-    return n * fact(n - 1);
-}
-
-function elseIf(a: number): number {
-    if (a > 1) {
-        return 1;
-    } else if (a > 0) {
-        return 2;
-    } else {
-        return 3;
-    }
-}
-
-function handlers(): void {
-    try {
-        work();
-    } catch (e) {
-        recover(e);
-    } finally {
-        done();
-    }
-}
-
-function closures(xs: number[]): number[] {
-    return xs.map((x) => {
-        if (x > 0) return x;
-        return -x;
-    });
-}
-
-function nullish(a?: string, b?: string): string {
-    return a ?? b ?? "none";
-}
-
-function ternary(x: number): number {
-    return x > 0 ? 1 : 2;
-}
-
-function loops(n: number): void {
-    let i = 0;
-    outer: while (i < n) {
-        do {
-            i++;
-            break outer;
-        } while (i < 10);
-    }
-}
-
-class Walker {
-    walk(n: number): number {
-        if (n === 0) return 0;
-        return this.walk(n - 1);
-    }
-}
-"""
-
-# qualname, cyclomatic, cognitive, max nesting
-SONAR_EXPECTED = [
-    ("sumOfPrimes", 4, 7, 3),
-    ("getWords", 4, 1, 1),  # `default` is not a path of its own
-    ("seq", 6, 3, 0),
-    ("fact", 2, 2, 1),
-    ("elseIf", 3, 3, 1),  # else-if unwrapped from else_clause
-    ("handlers", 2, 1, 1),  # catch +1; finally adds nothing
-    ("closures", 2, 2, 1),  # the if sits inside an inline callback (+1 nesting)
-    ("nullish", 1, 0, 0),  # `??` is not a boolean operator
-    ("ternary", 2, 1, 0),
-    ("loops", 3, 4, 2),  # while +1, do +2, `break outer` +1
-    ("Walker.walk", 2, 2, 1),  # `this.walk(..)` is recursion
-]
-
-
-@pytest.mark.parametrize(("qualname", "cyc", "cog", "nest"), SONAR_EXPECTED)
+@pytest.mark.parametrize(("qualname", "cyc", "cog", "nest"), ECMASCRIPT_EXPECTED)
 def test_typescript_complexity(qualname, cyc, cog, nest):
-    m = metrics(SONAR)[qualname]
+    m = metrics(ECMASCRIPT_SONAR)[qualname]
     assert (m.cyclomatic, m.cognitive, m.max_nesting) == (cyc, cog, nest)
 
 

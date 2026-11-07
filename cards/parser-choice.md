@@ -233,3 +233,22 @@ type information (e.g. Primitive Obsession on inferred types).
   0.3 % of files with parse errors. All 18,402 function declarations and
   class methods extracted. Of 104k function expressions, 48.6k are named
   units (bound to a name, or test closures) and 55.4k inline callbacks.
+
+## JavaScript (M16)
+
+- Grammar `javascript` (`.js`, `.mjs`, `.cjs`, `.jsx`; JSX is part of the
+  grammar). Node names match the TypeScript grammar, so `JavaScriptAdapter`
+  subclasses `TsxAdapter`. Differences, handled in `lang/typescript.py`
+  where they can't occur in TypeScript (so TypeScript results don't change):
+  parameters are bare patterns (`identifier`, `assignment_pattern`,
+  `rest_pattern`, `object_pattern`, `array_pattern`) instead of
+  `required_parameter`; class fields are `field_definition` (field
+  `property`) instead of `public_field_definition`.
+- Functions assigned to a name (`assignment_expression` field `right`) are
+  units in JavaScript only (`assigned_units`), named by the `left` text with
+  `.prototype.` dropped.
+- Coverage: 22,741 files (Express, axios, lodash, Preact, webpack, ESLint,
+  three.js incl. tests; 1.46M LoC), 0 crashes, 2.8 ms per file. All 26,484
+  declarations and class methods extracted. The 350 files with parse errors
+  (1.5 %) are all test fixtures: webpack hot-update cases with `---`
+  separators and ESLint's deliberately broken inputs.
