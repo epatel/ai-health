@@ -18,8 +18,13 @@ healthy ≥ 9, warning 4–9, alert < 4.
 ## Install
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -e .     # or: make setup
+uv tool install "git+https://github.com/epatel/ai-health"   # or: pipx install "git+..."
+python3 -m venv .venv && .venv/bin/pip install -e .         # from a clone (or: make setup)
 ```
+
+**Let your agent set it up:** [AGENT-INSTALL.md](AGENT-INSTALL.md) has a prompt to paste into
+Claude Code. It installs aihealth for you (every project) or for one project (committed
+config for the team), registers the MCP server and hooks, and runs a first scan.
 
 ## CLI
 
