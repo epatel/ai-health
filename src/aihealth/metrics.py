@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from itertools import pairwise
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from tree_sitter import Node
@@ -98,81 +98,136 @@ class _Totals:
     bool_exprs: list[BoolExpr] = field(default_factory=list)
 
 
-def _walk(root: Node, adapter: LanguageAdapter, fn_name: str | None) -> _Totals:
-    t = _Totals()
-    stack: list[tuple[Node, int, int, int]] = [(root, 0, 0, _NORMAL)]
+class _Frame(NamedTuple):
+    node: Node
+    level: int  # cognitive nesting level (closures raise it too)
+    depth: int  # control-structure nesting depth (max_nesting)
+    mode: int = _NORMAL  # _ELSE_IF / _ELSE when reached as an if's alternative
 
-    def deepen(node: Node, depth: int) -> int:
+
+class _Walker:
+    """One pre-order pass over a function body. Each node's role picks a
+    handler (see ``_HANDLERS``); a handler updates the totals and pushes the
+    children with the nesting they get."""
+
+    def __init__(self, root: Node, adapter: LanguageAdapter, fn_name: str | None) -> None:
+        self.root = root
+        self.adapter = adapter
+        self.fn_name = fn_name
+        self.t = _Totals()
+        self.stack = [_Frame(root, 0, 0)]
+
+    def run(self) -> _Totals:
+        while self.stack:
+            f = self.stack.pop()
+            if f.mode == _ELSE:
+                self._else(f)
+                continue
+            role = self.adapter.role(f.node)
+            if role is Role.STOP and f.node is not self.root:
+                continue  # nested named function: scored on its own
+            _HANDLERS.get(role, _Walker._plain)(self, f)
+        return self.t
+
+    # --- helpers -------------------------------------------------------------
+
+    def _deepen(self, node: Node, depth: int) -> int:
         d = depth + 1
-        if d > t.max_nesting:
-            t.max_nesting, t.nesting_line = d, node.start_point[0] + 1
+        if d > self.t.max_nesting:
+            self.t.max_nesting, self.t.nesting_line = d, node.start_point[0] + 1
         return d
 
-    def push_children(node: Node, level: int, depth: int) -> None:
-        stack.extend((c, level, depth, _NORMAL) for c in reversed(node.children))
+    def _push_children(self, node: Node, level: int, depth: int) -> None:
+        self.stack.extend(_Frame(c, level, depth) for c in reversed(node.children))
 
-    while stack:
-        node, level, depth, mode = stack.pop()
+    def _nested_structure(self, f: _Frame, *, branches: bool) -> None:
+        """+1 + nesting level; children one level deeper in both senses."""
+        self.t.cyclomatic += branches
+        self.t.cognitive += 1 + f.level
+        self._push_children(f.node, f.level + 1, self._deepen(f.node, f.depth))
 
-        if mode == _ELSE:  # else branch: +1, contents nested under the if
-            t.cognitive += 1
-            push_children(node, level + 1, depth)
-            continue
+    # --- handlers, one per role ---------------------------------------------
 
-        role = adapter.role(node)
-        if role is Role.STOP and node is not root:
-            continue
+    def _if(self, f: _Frame) -> None:
+        self.t.cyclomatic += 1
+        self.t.cognitive += 1 if f.mode == _ELSE_IF else 1 + f.level
+        d = self._deepen(f.node, f.depth)
+        for i in reversed(range(f.node.child_count)):
+            self.stack.append(self._if_child(f, i, d))
 
-        if role is Role.IF:
-            t.cyclomatic += 1
-            t.cognitive += 1 if mode == _ELSE_IF else 1 + level
-            d = deepen(node, depth)
-            for i in reversed(range(node.child_count)):
-                child = node.children[i]
-                if adapter.is_alternative(node, i):
-                    if adapter.role(child) is Role.IF:
-                        stack.append((child, level, depth, _ELSE_IF))
-                    else:
-                        stack.append((child, level, d, _ELSE))
-                else:
-                    stack.append((child, level + 1, d, _NORMAL))
-            continue
+    def _if_child(self, f: _Frame, i: int, d: int) -> _Frame:
+        """else-if keeps the if's level and depth; else and the if's own
+        contents sit one level inside it."""
+        child = f.node.children[i]
+        if not self.adapter.is_alternative(f.node, i):
+            return _Frame(child, f.level + 1, d)
+        if self.adapter.role(child) is Role.IF:
+            return _Frame(child, f.level, f.depth, _ELSE_IF)
+        return _Frame(child, f.level, d, _ELSE)
 
-        if role in (Role.LOOP, Role.SWITCH, Role.CATCH):
-            if role is not Role.SWITCH:
-                t.cyclomatic += 1
-            t.cognitive += 1 + level
-            push_children(node, level + 1, deepen(node, depth))
-            continue
+    def _else(self, f: _Frame) -> None:
+        self.t.cognitive += 1
+        self._push_children(f.node, f.level + 1, f.depth)
 
-        if role is Role.TERNARY:
-            t.cyclomatic += 1
-            t.cognitive += 1 + level
-            push_children(node, level + 1, depth)
-            continue
+    def _loop_or_catch(self, f: _Frame) -> None:
+        self._nested_structure(f, branches=True)
 
-        if role is Role.LAMBDA:
-            push_children(node, level + 1, depth)
-            continue
+    def _switch(self, f: _Frame) -> None:
+        self._nested_structure(f, branches=False)  # its case arms add the branches
 
-        if role in (Role.CASE, Role.COMPREHENSION):
-            t.cyclomatic += 1
-        elif role is Role.JUMP_LABEL:
-            t.cognitive += 1
-        elif role is Role.BOOL_EXPR and _is_bool_root(node, adapter):
-            ops = _bool_operators(node, adapter)
-            if ops:
-                t.cyclomatic += len(ops)
-                t.cognitive += 1 + sum(1 for a, b in pairwise(ops) if a != b)
-                t.bool_exprs.append(
-                    BoolExpr(node.start_point[0] + 1, len(ops), _is_condition(node, adapter))
-                )
-        elif fn_name and adapter.is_recursive_call(node, fn_name):
-            t.cognitive += 1
+    def _ternary(self, f: _Frame) -> None:
+        self.t.cyclomatic += 1
+        self.t.cognitive += 1 + f.level
+        self._push_children(f.node, f.level + 1, f.depth)  # no depth: an expression
 
-        push_children(node, level, depth)
+    def _lambda(self, f: _Frame) -> None:
+        self._push_children(f.node, f.level + 1, f.depth)
 
-    return t
+    def _branch(self, f: _Frame) -> None:
+        """Case arm or comprehension for/if: a path, no nesting."""
+        self.t.cyclomatic += 1
+        self._push_children(f.node, f.level, f.depth)
+
+    def _jump_label(self, f: _Frame) -> None:
+        self.t.cognitive += 1
+        self._push_children(f.node, f.level, f.depth)
+
+    def _bool_expr(self, f: _Frame) -> None:
+        if _is_bool_root(f.node, self.adapter):
+            self._record_bool_expr(f.node)
+        self._push_children(f.node, f.level, f.depth)
+
+    def _record_bool_expr(self, node: Node) -> None:
+        ops = _bool_operators(node, self.adapter)
+        if not ops:
+            return
+        self.t.cyclomatic += len(ops)
+        self.t.cognitive += 1 + sum(1 for a, b in pairwise(ops) if a != b)
+        is_condition = _is_condition(node, self.adapter)
+        self.t.bool_exprs.append(BoolExpr(node.start_point[0] + 1, len(ops), is_condition))
+
+    def _plain(self, f: _Frame) -> None:
+        if self.fn_name and self.adapter.is_recursive_call(f.node, self.fn_name):
+            self.t.cognitive += 1
+        self._push_children(f.node, f.level, f.depth)
+
+
+_HANDLERS = {
+    Role.IF: _Walker._if,
+    Role.LOOP: _Walker._loop_or_catch,
+    Role.CATCH: _Walker._loop_or_catch,
+    Role.SWITCH: _Walker._switch,
+    Role.TERNARY: _Walker._ternary,
+    Role.LAMBDA: _Walker._lambda,
+    Role.CASE: _Walker._branch,
+    Role.COMPREHENSION: _Walker._branch,
+    Role.JUMP_LABEL: _Walker._jump_label,
+    Role.BOOL_EXPR: _Walker._bool_expr,
+}
+
+
+def _walk(root: Node, adapter: LanguageAdapter, fn_name: str | None) -> _Totals:
+    return _Walker(root, adapter, fn_name).run()
 
 
 def _is_bool_root(node: Node, adapter: LanguageAdapter) -> bool:
