@@ -20,6 +20,9 @@ Example `.aihealth.toml`::
 
     [rust]
     score_test_modules = true   # include `#[cfg(test)] mod tests` (default: false)
+
+    [typescript]                # .ts and .tsx
+    test_closure_calls = ["describe", "it", "test"]
 """
 
 from __future__ import annotations
@@ -89,6 +92,7 @@ DEFAULT_EXCLUDES: list[str] = [
     ".build/*",  # SwiftPM
     "Pods/*",  # CocoaPods
     "DerivedData/*",
+    "*.d.ts",  # TypeScript declarations: signatures only
     "target/debug/*",  # Cargo build output (build-script generated code)
     "target/release/*",
     "*.docc/*",  # DocC catalogs: tutorial step files repeat each other
@@ -109,6 +113,7 @@ DEFAULTS: dict[str, Any] = {
     "swift": {"test_closure_calls": None},
     # `#[cfg(test)]` modules: left out of scores by default (code-health-model)
     "rust": {"score_test_modules": False},
+    "typescript": {"test_closure_calls": None},  # for .ts and .tsx
 }
 
 
@@ -137,8 +142,9 @@ class Config:
         return base + list(scan["exclude"])
 
     def adapter_options(self, language: str) -> dict[str, Any]:
-        if language in ("dart", "swift"):
-            calls = self.data[language]["test_closure_calls"]
+        if language in ("dart", "swift", "typescript", "tsx"):
+            section = "typescript" if language == "tsx" else language
+            calls = self.data[section]["test_closure_calls"]
             return {} if calls is None else {"test_calls": frozenset(calls)}
         if language == "rust":
             return {"score_test_modules": bool(self.data["rust"]["score_test_modules"])}

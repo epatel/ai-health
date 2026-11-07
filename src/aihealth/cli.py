@@ -8,6 +8,7 @@ from pathlib import Path
 
 from aihealth import __version__
 from aihealth.config import ConfigError, load_config
+from aihealth.lang import SUPPORTED_LANGUAGES
 from aihealth.report import (
     FORMATS,
     ReportOptions,
@@ -69,7 +70,8 @@ def _scan_file(path: Path, args: argparse.Namespace) -> int:
     root, rel = project_path(path)
     if not is_supported(rel):
         print(
-            f"unsupported file type: {rel} (Python, Dart, Swift, Rust, Makefiles)", file=sys.stderr
+            f"unsupported file type: {rel} (supported: {SUPPORTED_LANGUAGES})",
+            file=sys.stderr,
         )
         return 2
     try:
@@ -191,7 +193,7 @@ def _cmd_hook(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="aihealth",
-        description="Code health estimates (1-10) for Python, Dart, Swift, Rust and Makefiles.",
+        description=f"Code health estimates (1-10) for {SUPPORTED_LANGUAGES}.",
     )
     parser.add_argument("--version", action="version", version=f"aihealth {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)

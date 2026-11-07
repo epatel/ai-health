@@ -37,6 +37,8 @@ SITE = (
 )
 FLUTTER = Path.home() / "Development/Flutter/flutter/packages"
 PUB = Path.home() / ".pub-cache/hosted/pub.dev"
+# shallow clones of the TypeScript repos below, in one directory
+TS = Path(os.environ.get("AIHEALTH_TS_CORPORA", Path.home() / "Development/ts-corpora"))
 CARGO = Path.home() / ".cargo/registry/src"
 
 
@@ -96,6 +98,16 @@ CORPORA = [
     ("rust:regex-automata", crate("regex-automata"), "complex"),
     ("rust:hashbrown", crate("hashbrown"), "complex"),
     ("rust:termwiz", crate("termwiz"), "complex"),
+    ("ts:zod", TS / "zod/packages/zod/src", "lib"),
+    ("ts:query-core", TS / "query/packages/query-core/src", "lib"),
+    ("ts:react-query", TS / "query/packages/react-query/src", "lib"),
+    ("ts:trpc-server", TS / "trpc/packages/server/src", "lib"),
+    ("ts:date-fns", TS / "date-fns/pkgs/core/src", "lib"),
+    ("ts:ky", TS / "ky/source", "lib"),
+    ("ts:vite", TS / "vite/packages/vite/src", "complex"),
+    ("ts:typeorm", TS / "typeorm/packages/typeorm/src", "complex"),
+    ("ts:nest-core", TS / "nest/packages/core", "complex"),
+    ("ts:excalidraw", TS / "excalidraw/packages/excalidraw", "complex"),
 ]
 
 
@@ -106,12 +118,35 @@ class FileRec:
     findings: list  # aihealth.smells.Finding
 
 
+# TypeScript repos keep tests inside src/ (up to 91 % of the lines in
+# TanStack Query). Calibration targets library code, as the Python and Dart
+# corpora (which have few tests) do, so test files are left out here. Real
+# scans still score test files in every language.
+TS_TEST_FILES = [
+    "*__tests__/*",
+    "*.test.ts",
+    "*.test.tsx",
+    "*.spec.ts",
+    "*.spec.tsx",
+    "*/test/*",
+    "*/tests/*",
+    "*/test-d/*",
+]
+
+
+def corpus_config(name: str) -> Config:
+    config = Config()
+    if name.startswith("ts:"):
+        config.data["scan"]["exclude"] = list(TS_TEST_FILES)
+    return config
+
+
 def load(name: str, root: Path, cache: Path, rescan: bool) -> list[FileRec]:
     f = cache / (name.replace(":", "_").replace("/", "_") + ".pkl")
     if f.exists() and not rescan:
         return pickle.loads(f.read_bytes())
     t = time.time()
-    result = scan(root, Config())
+    result = scan(root, corpus_config(name))
     recs = [FileRec(fs.path, fs.loc, fs.findings) for fs in result.files]
     f.write_bytes(pickle.dumps(recs))
     print(f"  scanned {name}: {len(recs)} files in {time.time() - t:.1f}s", file=sys.stderr)

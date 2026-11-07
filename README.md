@@ -3,7 +3,8 @@
 # aihealth
 
 Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter**,
-**Swift/SwiftUI**, **Rust** and **Makefiles**, built as feedback for AI coding agents.
+**Swift/SwiftUI**, **Rust**, **TypeScript/TSX** and **Makefiles**, built as feedback for AI
+coding agents.
 
 - **delta**: did this change make the code healthier or worse? Verdict, score before → after,
   new/worsened smells with `path:line` and fix hints. Exit code 1 when health degraded.
@@ -12,7 +13,7 @@ Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter**
 
 Scores come from 13 explainable code smells: Brain Method, Large/Complex Method, Cognitive
 Complexity, Deep Nesting, Bumpy Road, Excess Arguments, Complex Conditional, Deep Widget
-Tree (Flutter, SwiftUI), Large File, Low Cohesion, Primitive Obsession and Code Duplication. Bands:
+Tree (Flutter, SwiftUI, JSX), Large File, Low Cohesion, Primitive Obsession and Code Duplication. Bands:
 healthy ≥ 9, warning 4–9, alert < 4.
 
 ## Install
@@ -38,7 +39,7 @@ aihealth delta --format markdown    # agent-oriented output (also: text, json)
 
 aihealth scan path/to/repo --format markdown --max-findings 20
 aihealth scan . --fail-under 7      # CI gate on the project score
-aihealth scan src/app.py            # one file (also: Makefile, lib/x.dart, App.swift, main.rs)
+aihealth scan src/app.py            # one file (also: Makefile, x.dart, App.swift, main.rs, app.tsx)
 ```
 
 ## History
@@ -146,6 +147,23 @@ project's `.claude/settings.json` (use the absolute path to your aihealth instal
 - Code inside macro invocations (`quote! { }`, `tokio::select! { }`) is opaque to the
   parser and not scored.
 
+## TypeScript
+
+`*.ts`, `*.mts`, `*.cts` and `*.tsx` files are scored with the generic smells.
+
+- **Units**: function declarations, class methods (incl. `constructor`, getters and
+  setters), functions assigned to a name (`const f = () => {}`, class fields like
+  `onClick = () => {}`, methods of a named object literal `const api = { get() {} }`),
+  `export default` functions, and closures passed to `describe` / `it` / `test` /
+  `beforeEach` / … (configurable). Inline callbacks (`xs.map((x) => …)`) stay part of
+  their function. Nested named functions are scored on their own.
+- **Branching**: `else if`, `switch` (`default` is not a path), `catch` (`finally` adds
+  nothing), ternaries, labeled `break`/`continue`, and `&&` / `||`, including JSX
+  conditional rendering (`{open && <List />}`). `??` and `?.` add nothing.
+- **JSX** (`.tsx`): element nesting is the Deep Widget Tree depth.
+- **Skipped**: `*.d.ts` declaration files and `node_modules/`.
+- JavaScript (`.js`, `.jsx`) is not scored yet.
+
 ## Makefiles
 
 `Makefile`, `makefile`, `GNUmakefile` and `*.mk` files are scored with the same smells,
@@ -192,6 +210,9 @@ test_closure_calls = ["describe", "context", "it"]   # default: Quick's full set
 
 [rust]
 score_test_modules = true        # include `#[cfg(test)]` modules (default: false)
+
+[typescript]                     # .ts and .tsx
+test_closure_calls = ["describe", "it", "test"]
 ```
 
 Turn smells off for one file where they are imposed by an interface (e.g. CLI/JSON/MCP
@@ -205,8 +226,8 @@ boundaries) with a comment (strings and docstrings don't count):
 
 All metrics, smells and scoring are language-neutral. A language is **one adapter file**
 that tells the engine what the syntax tree means, plus tests that pin that meaning. Python
-(`src/aihealth/lang/python.py`), Dart (`lang/dart.py`), Swift (`lang/swift.py`) and Rust
-(`lang/rust.py`) are the reference adapters. Copy the one whose language is closer.
+(`src/aihealth/lang/python.py`), Dart (`lang/dart.py`), Swift (`lang/swift.py`), Rust
+(`lang/rust.py`) and TypeScript (`lang/typescript.py`) are the reference adapters. Copy the one whose language is closer.
 
 ### How the pieces fit
 
@@ -290,6 +311,8 @@ I'd do it in this order. Each step has a check before you move on.
   consistent with Dart and Python.
 - **UI trees**: JSX, SwiftUI `body` and Compose `@Composable` functions map onto
   `widget_depth` and the Deep Widget Tree smell.
+- **Tests inside `src/`** (TypeScript `__tests__/`, `*.test.ts`): calibrate on library code
+  only, or the test files' copy-paste dominates the numbers.
 - **Tests in the same file** (Rust `#[cfg(test)] mod tests`): repetitive test code then
   lowers the production file's score. Rust leaves them out by default; check corpora with
   and without them.

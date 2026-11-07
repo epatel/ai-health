@@ -1,4 +1,5 @@
-"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift and Rust code.
+"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift, Rust and
+TypeScript code.
 
 These tests pin the node type names the M2 adapters will rely on, so a
 grammar upgrade that renames them fails loudly here.
@@ -46,6 +47,8 @@ def _errors(node) -> list[tuple[int, str]]:
         ("dart", "flutter_widget.dart"),
         ("swift", "sample.swift"),
         ("rust", "sample.rs"),
+        ("typescript", "sample.ts"),
+        ("tsx", "sample.tsx"),
     ],
 )
 def test_parses_without_errors(lang, fixture):
@@ -191,3 +194,25 @@ def test_rust_else_if_is_wrapped_in_else_clause():
                 inner |= {c.type for c in alt.named_children}
         stack.extend(n.children)
     assert inner == {"if_expression", "block"}
+
+
+TS_NODE_TYPES = """
+function_declaration generator_function_declaration class_declaration
+abstract_class_declaration method_definition public_field_definition
+arrow_function lexical_declaration variable_declarator formal_parameters
+required_parameter optional_parameter statement_block if_statement else_clause
+for_statement for_in_statement while_statement do_statement labeled_statement
+break_statement switch_statement switch_case switch_default try_statement
+catch_clause finally_clause ternary_expression binary_expression call_expression
+member_expression object pair export_statement comment
+"""
+
+
+def test_typescript_node_types():
+    types = _types(_parse("typescript", "sample.ts"))
+    assert set(TS_NODE_TYPES.split()) <= types
+
+
+def test_tsx_jsx_node_types():
+    types = _types(_parse("tsx", "sample.tsx"))
+    assert {"jsx_element", "jsx_self_closing_element", "jsx_expression"} <= types

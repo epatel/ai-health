@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from helpers import check_base_types
 
 from aihealth.config import Config, load_config
 from aihealth.engine import scan, score_source
@@ -313,11 +314,7 @@ impl Into<String> => -
 
 
 def test_base_types():
-    adapter = adapter_for("x.rs")
-    for line in BASE_TYPES.strip().splitlines():
-        type_text, bases = line.rsplit(" => ", 1)
-        expected = None if bases == "-" else bases.split()
-        assert adapter.base_types(type_text) == expected, type_text
+    check_base_types("x.rs", BASE_TYPES)
 
 
 def test_primitive_judgement():

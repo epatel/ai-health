@@ -6,8 +6,8 @@ A code-health tool that gives an AI coding agent fast, actionable feedback on
 its changes (delta mode) and gives humans an overview of where an existing
 codebase needs improvement (scan mode). Scores are on a CodeScene-inspired
 1–10 scale, derived from explainable code smells. Languages: **Python**,
-**Dart (Flutter)**, **Swift (SwiftUI)**, **Rust** and **Makefiles** (more
-via the adapter layer: README "Adding a language").
+**Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **TypeScript/TSX** and
+**Makefiles** (more via the adapter layer: README "Adding a language").
 
 Delivered as three faces over one engine:
 
@@ -46,7 +46,8 @@ Status: `todo` / `wip` / `done`.
 | M12 | Makefile adapter | done | Makefiles scored (rules/recipes via bash, conditionals, defines), Missing .PHONY smell, validated on 2,190 real Makefiles |
 | M13 | Swift adapter | done | Swift scored (types, accessors, `#Preview`, Quick closures, SwiftUI view depth), 99.96 % of 46k bodies on 5.6k files, calibrated on 9 corpora |
 | M14 | Rust adapter | done | Rust scored (impl/trait blocks, let-else, let-chains, labeled loops), `#[cfg(test)]` modules left out by default, 99.99 % of 56k bodies on 4.8k files, calibrated on 13 crates |
-| M15 | Next language | todo | which one is the user's call: ask first (see handoff) |
+| M15 | TypeScript adapter | done | `.ts`/`.mts`/`.cts`/`.tsx` scored, named function values and test closures as units, JSX depth, 100 % of 18k declarations/methods on 12.7k files, calibrated on 10 repos |
+| M16 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
 
@@ -82,29 +83,35 @@ Status: `todo` / `wip` / `done`.
   (`[rust] score_test_modules`), because unit tests share the production
   file; builder setters and traits are not judged for cohesion. See the
   Rust sections of both cards.
+- **TypeScript** (M15): units are declarations, class members, functions
+  bound to a name and test closures; inline callbacks stay in their
+  function. JSX nesting feeds Deep Widget Tree. Calibration corpora
+  exclude test files kept in `src/`. See the TypeScript sections of both
+  cards.
 - **Generated Dart files** (`*.g.dart`, `*.freezed.dart`, `*.mocks.dart`)
   excluded by default.
 
 ## Current state / handoff
 
-**2026-11-07, second session.** M13 (Swift) and M14 (Rust) are done:
-`lang/swift.py`, `lang/rust.py`, `tests/test_swift.py`, `tests/test_rust.py`
+**2026-11-07, second session.** M13 (Swift), M14 (Rust) and M15
+(TypeScript) are done: `lang/swift.py`, `lang/rust.py`, `lang/typescript.py`
+and their tests
 (golden Sonar metrics plus language constructs), spike tests, calibration
 and docs. After an audit (`AUDIT-REPORT.md`), git calls are hardened
 against option injection and a repo's `core.fsmonitor`. Earlier
 languages are unchanged: snapshots of Python, Dart, Swift and Makefile
-output before and after the Rust work compare identical. 296 tests, ruff
-clean, and this repo scans at 9.92 (44 healthy files, 1 warning).
+output before and after each language compare identical. 329 tests, ruff
+clean, and this repo scans at 9.92 (47 healthy files, 1 warning).
 
-**What exists:** an engine for Python, Dart/Flutter, Swift, Rust and
-Makefiles (13 generic smells plus Makefile `missing_phony`). Interfaces:
+**What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
+TypeScript/TSX and Makefiles (13 generic smells plus Makefile `missing_phony`). Interfaces:
 CLI `scan` (dir or file) / `delta` / `history` / `serve` / `mcp` /
 `hook`, an MCP server (5 tools), SQLite history with migrations, a
-dashboard, and Claude Code hooks. Scoring is calibrated on 44 corpora.
+dashboard, and Claude Code hooks. Scoring is calibrated on 54 corpora.
 
-**Next task: another language (M15).** The user picks which, so ask.
-Candidates: TypeScript/JavaScript (biggest reach; JSX maps onto widget
-depth), Go (`if err != nil` needs a calibration decision), Kotlin
+**Next task: another language (M16).** The user picks which, so ask.
+Candidates: JavaScript (cheapest now: the TypeScript adapter with the
+`javascript` grammar), Go (`if err != nil` needs a calibration decision), Kotlin
 (Compose maps onto widget depth; labelled args like Swift), and shell
 scripts (cheapest: the bash role table already exists in
 `lang/make.py`). Follow README "Adding a language". `lang/swift.py` shows
@@ -118,6 +125,9 @@ identical). Corpora on this machine, all read-only:
 - Python: `.venv/lib/python3.12/site-packages`
 - Dart: `~/Development/Flutter/flutter/packages`, `~/.pub-cache/hosted/pub.dev`
 - Makefiles: `~/Development`
+- TypeScript: shallow clones (zod, TanStack Query, tRPC, date-fns, Vite,
+  ky, TypeORM, Excalidraw, Nest), set `AIHEALTH_TS_CORPORA` for
+  `scripts/calibrate.py --only ts:`.
 - Rust: the crates in `~/.cargo/registry/src` (calibrate.py finds the
   newest version of each by name).
 - Swift: shallow clones (Alamofire, swift-argument-parser,

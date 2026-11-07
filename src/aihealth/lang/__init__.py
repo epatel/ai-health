@@ -12,6 +12,7 @@ from aihealth.lang.make import MakeAdapter
 from aihealth.lang.python import PythonAdapter
 from aihealth.lang.rust import RustAdapter
 from aihealth.lang.swift import SwiftAdapter
+from aihealth.lang.typescript import TsxAdapter, TypeScriptAdapter
 from aihealth.model import Module
 
 if TYPE_CHECKING:
@@ -23,12 +24,16 @@ ADAPTERS: tuple[type[LanguageAdapter], ...] = (
     MakeAdapter,
     SwiftAdapter,
     RustAdapter,
+    TypeScriptAdapter,
+    TsxAdapter,
 )
 
 _BY_EXT = {ext: cls for cls in ADAPTERS for ext in cls.extensions}
 _BY_NAME = {name: cls for cls in ADAPTERS for name in cls.filenames}
 
 SUPPORTED_EXTENSIONS = frozenset(_BY_EXT)
+# for messages: keep in sync with ADAPTERS
+SUPPORTED_LANGUAGES = "Python, Dart, Swift, Rust, TypeScript and Makefiles"
 
 
 def _adapter_class(path: str | Path) -> type[LanguageAdapter] | None:

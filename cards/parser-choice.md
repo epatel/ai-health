@@ -201,3 +201,35 @@ type information (e.g. Primitive Obsession on inferred types).
   terminal_pad, 1.31M LoC), 0 crashes, 5.9 ms per file, 0.6 % of files
   with parse errors. 56,262 of 56,267 function bodies extracted
   (99.99 %); the 5 misses are `impl` blocks inside `const _: () = { … }`.
+
+## TypeScript (M15)
+
+- Grammars `typescript` (`.ts`, `.mts`, `.cts`) and `tsx` (`.tsx`) from
+  tree-sitter-language-pack: two adapters, `TsxAdapter` subclasses
+  `TypeScriptAdapter` and adds JSX depth. Zero parse errors in the
+  fixtures (decorators, private `#fields`, parameter properties,
+  generators, `satisfies`-era syntax, optional chaining).
+- Function shapes: `function_declaration`, `generator_function_declaration`,
+  `method_definition` (in `class_body` or an `object`), `arrow_function`,
+  `function_expression`, `generator_function`. Overload signatures and
+  abstract methods have no `body` and are not units.
+- **Else-if is wrapped** as in Rust: `if_statement` field `alternative`
+  is an `else_clause` holding an `if_statement` or a statement;
+  `else_if()` unwraps it.
+- `switch_case` / `switch_default`; `try_statement` with `handler`
+  (`catch_clause`) and `finalizer` (`finally_clause`); labeled loops are
+  `labeled_statement` (field `body`), and `break`/`continue` have a
+  `label` field.
+- `binary_expression` has an `operator` field: `&&`, `||` are boolean;
+  `??` is not. Precedence is correct.
+- Parameters: `required_parameter` / `optional_parameter` (fields
+  `pattern`, `type` = `type_annotation`, `value`), `rest_pattern` for
+  `...rest`; a `this:` parameter is dropped. A single unparenthesised
+  arrow parameter is the `parameter` field.
+- JSX: `jsx_element` (with `jsx_opening_element` / `jsx_closing_element`),
+  `jsx_self_closing_element`, `jsx_expression` for `{...}`.
+- Coverage: 12,667 files (zod, TanStack Query, tRPC, date-fns, Vite, ky,
+  TypeORM, Excalidraw, Nest; 1.22M LoC), 0 crashes, 3.3 ms per file,
+  0.3 % of files with parse errors. All 18,402 function declarations and
+  class methods extracted. Of 104k function expressions, 48.6k are named
+  units (bound to a name, or test closures) and 55.4k inline callbacks.

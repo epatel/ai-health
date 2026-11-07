@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from helpers import findings_of
 
 from aihealth.config import Config, load_config
 from aihealth.engine import scan, score_source
@@ -435,9 +436,7 @@ def test_generated_swift_headers(head):
 def test_deep_view_tree_gets_swiftui_hint():
     views = "".join(f"V{i} {{ " for i in range(10)) + 'Text("x")' + " }" * 10
     src = f"struct S: View {{\n    var body: some View {{\n        {views}\n    }}\n}}\n"
-    found = [
-        f for f in score_source(src.encode(), "x.swift").findings if f.smell == "deep_widget_tree"
-    ]
+    found = findings_of(src, "x.swift", "deep_widget_tree")
     assert found and found[0].value == 11
     assert "View` structs" in found[0].hint
 

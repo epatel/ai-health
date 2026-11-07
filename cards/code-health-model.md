@@ -392,6 +392,54 @@ deliberate duplication, accepted like httpx and TCA. Other generic
 thresholds fit without Rust exceptions. `?` adds no complexity
 (error propagation, like Go's `if err != nil` question in the README).
 
+## TypeScript (M15)
+
+Units and grammar notes are in the parser card. **What counts as a
+function** follows the README guidance: declarations, class members,
+functions bound to a name (`const f = () => {}`, class fields, methods of
+a named object literal, `export default`) and test closures (`describe`,
+`it`, `test`, `beforeEach`, ...; `[typescript] test_closure_calls`) are
+units. Inline callbacks stay part of their function, as closures do
+elsewhere. Nested named functions (a React component's `const onClick =
+() => {...}`) are scored on their own, so a component's size isn't
+inflated by its handlers. No TypeScript-specific threshold was needed.
+
+**JSX** nesting is the Deep Widget Tree depth. On Excalidraw and React
+Query devtools, 325 functions with JSX have depth p50 / p90 / p95 / p99
+of 2 / 4 / 5 / 7; only Excalidraw's 410-line `App.render` (12) exceeds 8.
+`&&` in conditional rendering counts as a boolean operator; `??` and `?.`
+don't (as SonarSource specifies for null-coalescing).
+
+**Calibration corpora exclude test files.** These repos keep tests inside
+`src/` (`__tests__/`, `*.test.ts`): 81–91 % of the lines in TanStack
+Query, 57–61 % in zod and Nest, and nearly all duplication findings were
+in them, which put react-query at 4.2. Calibration targets library code
+(the Python and Dart corpora hold few tests), so `calibrate.py` excludes
+test files for `ts:` corpora. Real scans score test files in every
+language.
+
+**Calibration** (`AIHEALTH_TS_CORPORA=<dir of shallow clones>
+scripts/calibrate.py --only ts:`; test files excluded):
+
+| Corpus | kind | kLoC | project | median file | healthy % | alert LoC % |
+|---|---|---:|---:|---:|---:|---:|
+| react-query | lib | 1.9 | 9.4 | 10 | 78 | 0 |
+| tRPC server | lib | 8.4 | 8.9 | 10 | 82 | 0 |
+| query-core | lib | 5.8 | 8.7 | 9.1 | 52 | 0 |
+| date-fns | lib | 77.3 | 8.7 | 10 | 79 | 6 |
+| ky | lib | 2.4 | 7.1 | 10 | 84 | 0 |
+| zod | lib | 31.1 | 6.6 | 7.9 | 40 | 21 |
+| Nest core | complex | 16.8 | 8.5 | 10 | 83 | 0 |
+| Excalidraw | complex | 79.8 | 7.3 | 10 | 72 | 14 |
+| Vite | complex | 38.6 | 6.7 | 8.9 | 50 | 0 |
+| TypeORM | complex | 75.4 | 5.0 | 10 | 75 | 53 |
+
+The low scores are real complexity: zod's locale files are one giant
+nested `switch` per language (cyclomatic 46–54) and its JSON-schema
+converter has a 336-line function; ky's `deepMergeInternal` has
+cyclomatic 61; TypeORM's `PostgresQueryRunner.changeColumn` is 1,035
+lines, and its database drivers copy each other.
+
 ## Delta classification
 
 Functions are paired by qualified name (`Class.method`); renamed functions
