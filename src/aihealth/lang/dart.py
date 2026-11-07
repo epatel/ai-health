@@ -8,9 +8,12 @@ Grammar quirks handled here (see cards/parser-choice.md):
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from tree_sitter import Node
 
 from aihealth.lang.base import LanguageAdapter, iter_nodes, text
+from aihealth.metrics import Role
 from aihealth.model import Class, Function, Module, Param
 
 _SIGNATURES = {
@@ -118,10 +121,105 @@ def _params(sig: Node) -> list[Param]:
     return out
 
 
+def _is_widgetish_call(args: Node) -> bool:
+    """True if an `arguments` node belongs to `Foo(...)`, `Foo.named(...)`,
+    `const Foo(...)` or `new Foo(...)` with a capitalised type name."""
+    parent = args.parent
+    if parent is None:
+        return False
+    if parent.type in ("const_object_expression", "new_expression"):
+        return True
+    if parent.type != "argument_part" or parent.parent is None:
+        return False
+    selector = parent.parent  # selector > argument_part > arguments
+    prev = selector.prev_sibling
+    if prev is not None and prev.type == "selector":  # Foo.named(...)
+        if not any(c.type == "unconditional_assignable_selector" for c in prev.children):
+            return False
+        prev = prev.prev_sibling
+    if prev is None or prev.type != "identifier":
+        return False
+    name = text(prev).lstrip("_$")
+    return bool(name) and name[0].isupper()
+
+
 class DartAdapter(LanguageAdapter):
     language = "dart"
     extensions = (".dart",)
     comment_types = frozenset({"comment", "documentation_comment"})
+    roles: ClassVar[dict[str, Role]] = {
+        "if_statement": Role.IF,
+        "if_element": Role.IF,
+        "for_statement": Role.LOOP,
+        "while_statement": Role.LOOP,
+        "do_statement": Role.LOOP,
+        "for_element": Role.LOOP,
+        "switch_statement": Role.SWITCH,
+        "switch_expression": Role.SWITCH,
+        "switch_statement_case": Role.CASE,
+        "switch_expression_case": Role.CASE,
+        "conditional_expression": Role.TERNARY,
+        "function_expression": Role.LAMBDA,
+        "local_function_declaration": Role.STOP,
+        "logical_and_expression": Role.BOOL_EXPR,
+        "logical_or_expression": Role.BOOL_EXPR,
+    }
+    bool_transparent = frozenset({"parenthesized_expression", "unary_expression"})
+
+    def role(self, node: Node) -> Role | None:
+        t = node.type
+        if t == "block":
+            parent = node.parent
+            # handler bodies are siblings of catch_clause/on-type inside try
+            if parent is not None and parent.type == "try_statement":
+                body = parent.child_by_field_name("body")
+                if body is None or body.id != node.id:
+                    return Role.CATCH
+            return None
+        if t in ("break_statement", "continue_statement"):
+            return Role.JUMP_LABEL if any(c.type == "identifier" for c in node.children) else None
+        r = self.roles.get(t)
+        if t == "switch_expression_case":
+            pattern = node.named_children[0] if node.named_child_count else None
+            if pattern is not None and text(pattern).strip() == "_":
+                return None  # wildcard arm is the default
+        return r
+
+    def bool_token(self, node: Node) -> str | None:
+        if node.type == "logical_and_operator":
+            return "and"
+        if node.type == "logical_or_operator":
+            return "or"
+        return None
+
+    def is_recursive_call(self, node: Node, fn_name: str) -> bool:
+        if node.type != "identifier" or text(node) != fn_name:
+            return False
+        nxt = node.next_sibling
+        if nxt is None or nxt.type != "selector":
+            return False
+        # `other.fact(...)` puts `fact` inside a selector, so a bare identifier
+        # followed by an argument list is a direct (unqualified) call
+        return any(c.type == "argument_part" for c in nxt.children)
+
+    def unwrap_loop(self, stmt: Node) -> Node | None:
+        if stmt.type == "labeled_statement" and stmt.named_child_count:
+            stmt = stmt.named_children[-1]
+        return super().unwrap_loop(stmt)
+
+    def widget_depth(self, body: Node) -> int:
+        """Deepest nesting of widget-like constructor calls in the body."""
+        best = 0
+        stack = [(body, 0)]
+        while stack:
+            node, depth = stack.pop()
+            if node.type == "arguments" and _is_widgetish_call(node):
+                depth += 1
+                best = max(best, depth)
+            if node.type == "local_function_declaration":
+                continue
+            stack.extend((c, depth) for c in node.children)
+        return best
 
     def _extract(self, module: Module) -> None:
         self._scan_members(module, module.root, cls=None, prefix="")

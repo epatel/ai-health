@@ -43,6 +43,47 @@ Starting thresholds; all overridable in `.aihealth.toml`.
 | Low Cohesion | class | LCOM4 ≥ 3 | split class |
 | Deep Widget Tree | Dart function | widget constructor nesting > 8 in `build()` | extract sub-widgets |
 
+## Metric definitions (implemented in M3)
+
+- **Cyclomatic:** 1 + if/elif/else-if + loops + non-default case arms +
+  catch handlers + ternaries + comprehension for/if (Python) + each `and` /
+  `or` / `&&` / `||`. A `switch` itself adds 0, and `else` adds 0.
+- **Cognitive (SonarSource spec):** +1 + nesting level for if, loop, switch,
+  catch and ternary. Else-if and else add a flat +1. +1 per run of like
+  boolean operators (`a && b || c` = 2). +1 for a labeled break/continue,
+  +1 for a direct recursive call. Closures/lambdas raise the nesting level
+  with no increment of their own. Verified against the white paper's
+  examples (sumOfPrimes = 7, getWords = 1).
+- **Max nesting:** depth of if/loop/switch/catch. Else-if stays at its if's
+  depth. Ternaries and closures do not deepen it, so Flutter callbacks don't
+  inflate it.
+- **Bumps:** top-level body statements whose own nesting depth is ≥ 2. If
+  the body is a single loop (optionally labeled), its statements are used
+  instead.
+- **Condition operators:** per boolean expression root, the count of
+  and/or operators. Parentheses and `not` don't split a root.
+- **Widget depth (Dart):** nesting of capitalised constructor calls
+  (`Foo(`, `Foo.named(`, `const Foo(`). Value objects like `EdgeInsets` count
+  at the leaves.
+- Nested named functions are scored on their own and excluded from their
+  parent. Closures are part of the enclosing function.
+
+### Baseline distributions (M3 run, for calibration)
+
+| Metric | Python site-packages (9k fns) p90 / p99 | Flutter SDK (60k fns) p90 / p99 |
+|---|---|---|
+| LoC | 25 / 73 | 21 / 282 |
+| cyclomatic | 7 / 20 | 3 / 14 |
+| cognitive | 9 / 33 | 2 / 18 |
+| max nesting | 2 / 4 | 1 / 3 |
+| args | 3 / 8 | 2 / 7 |
+| Dart `build()` widget depth | n/a | 6 / 11 |
+| Dart `build()` LoC | n/a | 69 / 219 |
+
+Bumpy Road (≥ 2 bumps): 3.7 % of Python and 0.7 % of Dart functions.
+Dart outliers are test-file `main()` functions whose `group`/`test`
+closures make up thousands of lines.
+
 ## Penalties and score
 
 - Each finding has a severity `s = min(value / threshold, 3)` (how far over).

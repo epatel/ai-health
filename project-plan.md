@@ -35,7 +35,7 @@ Status: `todo` / `wip` / `done`.
 | M0 | Agentic setup (CLAUDE.md, cards, plan, hooks) | done | this file exists, checker passes |
 | M1 | Skeleton + parser spike | done | `.venv`, `pyproject.toml`, `Makefile`, `aihealth --help`, pytest green; tree-sitter parses a real Flutter widget file and a Python module |
 | M2 | Language adapters | done | Python + Dart adapters return a uniform `Module → Class → Function` model with spans, params, body nodes |
-| M3 | Function metrics | todo | LoC, cyclomatic, cognitive, max nesting, bumps, args, complex conditionals, widget-tree depth (Dart) — golden-file tests per language |
+| M3 | Function metrics | done | LoC, cyclomatic, cognitive, max nesting, bumps, args, complex conditionals, widget-tree depth (Dart) — golden-file tests per language |
 | M4 | Smells + scoring | todo | smell detectors, penalty table, file score 1–10, LoC-weighted project score, `.aihealth.toml` overrides, duplication detector |
 | M5 | Delta mode | todo | before/after scoring for working tree, staged, or `base..head`; per-function new/worsened/fixed smells; verdict + exit code |
 | M6 | Output formats | todo | `text`, `json`, `markdown` (agent-oriented, concise with refactor hints) |
@@ -70,10 +70,13 @@ Grammar quirks (sibling signature/body, no call node, unreliable boolean
 precedence) are recorded in `cards/parser-choice.md`.
 M2 done: `model.py` + `lang/{base,python,dart}.py` + registry. 23 tests.
 Verified on the Flutter SDK: every Dart `function_body` is extracted.
-Next agent: M3 metrics. Walk `Function.body` and stop at nested named
-functions, which are scored separately: Python `function_definition` /
-`class_definition`, Dart `local_function_declaration`. Closures DO count
-toward nesting. Count Dart boolean operators by token, not tree shape.
+M3 done: `metrics.py` plus adapter role tables. 50 tests, golden values
+from the SonarSource white paper. Runs over the full Flutter SDK with no
+crashes at about 31k LoC/s for Dart and 83k LoC/s for Python. Baseline
+distributions are in `cards/code-health-model.md`.
+Next agent: M4 smells + scoring + duplication + `.aihealth.toml`, and wire
+`aihealth scan` to print per-file scores. Settle the Dart-test open
+question below first, or make it configurable.
 Note: `pip install` may need user approval in this environment — ask the
 user to run `! make setup` rather than retrying.
 
@@ -84,6 +87,12 @@ user to run `! make setup` rather than retrying.
   metric instead? (Proposal: higher threshold + widget-depth smell; confirm in M11.)
 - Delta gate strictness: should a drop of < 0.1 in an already-Alert file
   fail the agent? (Proposal: yes by default — "leave it no worse".)
+- Dart test files (`test/**/*_test.dart`) put whole suites inside closures
+  passed to `group()`/`test()` in `main()`, so `main` becomes a
+  15k-line "function". Options: (a) treat closures passed to
+  `test`/`group`/`testWidgets`/`setUp` as separate scorable units, (b)
+  exclude test dirs by default, (c) both. (Proposal: (a), since test code
+  health still matters for agents.)
 - Should scan history live in the analysed repo (`.aihealth/`) or a central
   per-user DB for the dashboard to compare repos? (Proposal: per repo, the
   dashboard takes a path.)

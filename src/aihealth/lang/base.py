@@ -8,6 +8,7 @@ from typing import ClassVar
 from tree_sitter import Node
 from tree_sitter_language_pack import get_parser
 
+from aihealth.metrics import Role
 from aihealth.model import Module
 
 
@@ -55,11 +56,50 @@ def count_in_span(lines: set[int], start: int, end: int) -> int:
 
 
 class LanguageAdapter:
-    """Turns source into a :class:`Module`. Subclasses implement ``_extract``."""
+    """Turns source into a :class:`Module` and tells the metric walker what
+    each node means. Subclasses implement ``_extract`` and fill ``roles``;
+    override the hooks below for roles that depend on context."""
 
     language: ClassVar[str]
     extensions: ClassVar[tuple[str, ...]]
     comment_types: ClassVar[frozenset[str]] = frozenset({"comment"})
+    roles: ClassVar[dict[str, Role]] = {}
+    block_types: ClassVar[frozenset[str]] = frozenset({"block"})
+    # nodes between two boolean expressions that don't break the sequence
+    bool_transparent: ClassVar[frozenset[str]] = frozenset({"parenthesized_expression"})
+
+    # --- metric hooks -------------------------------------------------------
+
+    def role(self, node: Node) -> Role | None:
+        return self.roles.get(node.type)
+
+    def bool_token(self, node: Node) -> str | None:
+        """'and' / 'or' if this node is a boolean operator token."""
+        return None
+
+    def is_recursive_call(self, node: Node, fn_name: str) -> bool:
+        return False
+
+    def statements(self, body: Node) -> list[Node]:
+        """Statements directly inside a function/loop body (empty for
+        expression bodies)."""
+        block = body if body.type in self.block_types else None
+        if block is None:
+            block = next((c for c in body.named_children if c.type in self.block_types), None)
+        if block is None:
+            return []
+        return [c for c in block.named_children if c.type not in self.comment_types]
+
+    def unwrap_loop(self, stmt: Node) -> Node | None:
+        """The body of ``stmt`` if it is a loop, else None."""
+        if self.role(stmt) is not Role.LOOP:
+            return None
+        return stmt.child_by_field_name("body")
+
+    def widget_depth(self, body: Node) -> int:
+        return 0
+
+    # --- parsing --------------------------------------------------------------
 
     def __init__(self) -> None:
         self._parser = get_parser(self.language)

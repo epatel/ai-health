@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from tree_sitter import Node
 
 from aihealth.lang.base import LanguageAdapter, text
+from aihealth.metrics import Role
 from aihealth.model import Class, Function, Module, Param
 
 _PARAM_TYPED = {"typed_parameter", "typed_default_parameter"}
@@ -82,6 +85,52 @@ def _params(params_node: Node | None, is_method: bool) -> list[Param]:
 class PythonAdapter(LanguageAdapter):
     language = "python"
     extensions = (".py", ".pyi")
+    roles: ClassVar[dict[str, Role]] = {
+        "if_statement": Role.IF,
+        "elif_clause": Role.IF,  # only reached as an `alternative` -> else-if
+        "for_statement": Role.LOOP,
+        "while_statement": Role.LOOP,
+        "match_statement": Role.SWITCH,
+        "case_clause": Role.CASE,
+        "except_clause": Role.CATCH,
+        "except_group_clause": Role.CATCH,
+        "conditional_expression": Role.TERNARY,
+        "lambda": Role.LAMBDA,
+        "function_definition": Role.STOP,
+        "class_definition": Role.STOP,
+        "decorated_definition": Role.STOP,
+        "for_in_clause": Role.COMPREHENSION,
+        "if_clause": Role.COMPREHENSION,
+        "boolean_operator": Role.BOOL_EXPR,
+    }
+    bool_transparent = frozenset({"parenthesized_expression", "not_operator"})
+
+    def role(self, node: Node) -> Role | None:
+        r = self.roles.get(node.type)
+        if r is Role.CASE:
+            pattern = node.named_children[0] if node.named_child_count else None
+            if pattern is not None and text(pattern).strip() == "_":
+                return None  # `case _:` is the default arm
+        return r
+
+    def bool_token(self, node: Node) -> str | None:
+        if node.type in ("and", "or") and node.parent and node.parent.type == "boolean_operator":
+            return node.type
+        return None
+
+    def is_recursive_call(self, node: Node, fn_name: str) -> bool:
+        if node.type != "call":
+            return False
+        target = node.child_by_field_name("function")
+        if target is None:
+            return False
+        if target.type == "identifier":
+            return text(target) == fn_name
+        if target.type == "attribute":
+            obj = target.child_by_field_name("object")
+            attr = target.child_by_field_name("attribute")
+            return text(obj) in ("self", "cls") and text(attr) == fn_name
+        return False
 
     def _skip_for_loc(self, node: Node) -> bool:
         return node.type == "comment" or _is_docstring(node)
