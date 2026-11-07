@@ -11,7 +11,7 @@ from aihealth.cli import main
 from aihealth.config import Config
 from aihealth.delta import DeltaResult, delta_for_contents
 from aihealth.engine import scan
-from aihealth.report import ReportOptions, render_delta, render_scan
+from aihealth.report import ReportOptions, cell, code, render_delta, render_scan
 
 CLEAN = "def f(x):\n    return x + 1\n"
 SMELLY = (
@@ -192,3 +192,43 @@ def test_scan_single_file_errors_and_skips(git_project, capsys):
 def test_scan_single_file_fail_under(git_project):
     assert main(["scan", str(git_project / "pkg" / "bad.py"), "--fail-under", "9.99"]) == 1
     assert main(["scan", str(git_project / "Makefile"), "--fail-under", "9.99"]) == 0
+
+
+# --- code text in markdown ------------------------------------------------------------
+
+# text | markdown code span
+CODE_SPANS = """
+deploy.sh | `deploy.sh`
+grep `x` | `` grep `x` ``
+a``b | ```a``b```
+`x | `` `x ``
+"""
+
+
+@pytest.mark.parametrize("line", CODE_SPANS.strip().splitlines())
+def test_code_spans_survive_backticks(line):
+    text, expected = line.split(" | ")
+    assert code(text) == expected
+
+
+def test_table_cells_escape_pipes():
+    assert cell(code("a|b.sh")) == "`a\\|b.sh`"
+
+
+NESTED_SH = (
+    "for f in $(ls | grep `echo x`); do\n"
+    + "".join("  " * (i + 1) + f"if [ -n x{i} ]; then\n" for i in range(4))
+    + "echo\n"
+    + "".join("  " * (4 - i) + "fi\n" for i in range(4))
+    + "done\n"
+)
+
+
+def test_markdown_keeps_names_from_scanned_code_intact():
+    """A shell block is named by its first line: backticks and pipes in it
+    (or in a path) must not break code spans or table rows."""
+    md = render_delta(_delta(("a|b.sh", "x=1\n", NESTED_SH)), "markdown")
+    row = next(line for line in md.splitlines() if line.startswith("| `a"))
+    assert row.startswith("| `a\\|b.sh` |")
+    assert row.count(" | ") == 4  # five cells: the escaped pipe doesn't split
+    assert "``for f in $(ls | grep `echo x`)``" in md

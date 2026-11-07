@@ -9,6 +9,7 @@ flood its context.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -131,6 +132,23 @@ def changed_since(prev: dict | None, s: dict, key: str) -> bool:
 
 # --- shared helpers -------------------------------------------------------------
 
+_BACKTICKS = re.compile(r"`+")
+
+
+def code(text: str) -> str:
+    """``text`` as a markdown code span, also when it holds backticks: the
+    fence is one backtick longer than the longest run inside (CommonMark).
+    Names come from scanned code (a shell block is named by its first line)."""
+    text = text.replace("\n", " ")
+    fence = "`" * (max(map(len, _BACKTICKS.findall(text)), default=0) + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{text}{pad}{fence}"
+
+
+def cell(text: str) -> str:
+    """``text`` safe in a table cell: a `|` would split it, even in code."""
+    return text.replace("|", "\\|")
+
 
 def _fmt_score(score: float | None) -> str:
     return "n/a" if score is None else f"{score:.2f} ({band(score)})"
@@ -148,7 +166,7 @@ def _by_penalty(findings: list[Finding]) -> list[Finding]:
 
 
 def _symbol(f: Finding) -> str:
-    return f" `{f.symbol}`" if f.symbol else ""
+    return f" {code(f.symbol)}" if f.symbol else ""
 
 
 def _more(total: int, shown: int, what: str) -> list[str]:
@@ -229,7 +247,7 @@ def scan_markdown(result: ScanResult, opts: ReportOptions) -> str:
     for fs in worst:
         labels = list(dict.fromkeys(f.label for f in _by_penalty(fs.findings)))
         issues = ", ".join(labels[:3]) + (", …" if len(labels) > 3 else "")
-        out.append(f"| {fs.score:.2f} | `{fs.path}` | {fs.loc} | {issues} |")
+        out.append(f"| {fs.score:.2f} | {cell(code(fs.path))} | {fs.loc} | {issues} |")
     targets = _group_by_symbol([f for fs in result.files for f in fs.findings])
     shown = targets[: opts.max_findings]
     out += ["", "### Top refactoring targets", ""]
@@ -304,7 +322,7 @@ def _skipped_note(result: DeltaResult) -> list[str]:
     file isn't mistaken for a clean one."""
     if not result.skipped:
         return []
-    items = ", ".join(f"`{path}` ({reason})" for path, reason in result.skipped)
+    items = ", ".join(f"{code(path)} ({reason})" for path, reason in result.skipped)
     return ["", f"Not scored: {items}."]
 
 
@@ -375,7 +393,8 @@ def _improvements_section(result: DeltaResult, limit: int) -> list[str]:
     shown = good[:limit]
     out = ["", "### Improvements", ""]
     out += [
-        f"- `{ch.finding.path}`{_symbol(ch.finding)}: {ch.kind} {ch.finding.label}" for ch in shown
+        f"- {code(ch.finding.path)}{_symbol(ch.finding)}: {ch.kind} {ch.finding.label}"
+        for ch in shown
     ]
     return out + _more(len(good), len(shown), "improvements")
 
@@ -383,14 +402,15 @@ def _improvements_section(result: DeltaResult, limit: int) -> list[str]:
 def _delta_row(fd: FileDelta) -> str:
     before = "new" if fd.score_before is None else f"{fd.score_before:.2f}"
     delta = "" if fd.score_delta is None else f"{fd.score_delta:+.2f}"
-    return f"| `{fd.path}` | {before} | {fd.score_after:.2f} | {delta} | {fd.verdict} |"
+    return f"| {cell(code(fd.path))} | {before} | {fd.score_after:.2f} | {delta} | {fd.verdict} |"
 
 
 def _partial_parse_note(result: DeltaResult) -> list[str]:
     broken = [fd.path for fd in result.files if fd.after and fd.after.parse_errors]
     if not broken:
         return []
-    return ["", f"⚠ Syntax errors in {', '.join(f'`{p}`' for p in broken)}: scores may be partial."]
+    names = ", ".join(code(p) for p in broken)
+    return ["", f"⚠ Syntax errors in {names}: scores may be partial."]
 
 
 def _change_label(changes: list[Change]):

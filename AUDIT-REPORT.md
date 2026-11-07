@@ -4,7 +4,8 @@
 
 ## Status (v0.2.0)
 
-All 23 findings are fixed or covered. The audit below and its four
+Findings 1–24 are fixed or covered; 25 is a repository setting for the
+owner. The audit below and its four
 re-assessments are kept as the record, in order; this table is the
 current state.
 
@@ -33,6 +34,8 @@ current state.
 | 21 | Only editable installs tested | Low | fixed (wheel job in CI) |
 | 22 | Stale opening summary | Info | fixed (this table) |
 | 23 | Dependabot PRs #1 and #2 predate the wheel job's pins | Info | fixed (rebased, merged) |
+| 24 | Markdown reports break on `|` and backticks from scanned code | Low | fixed |
+| 25 | GitHub's Dependabot security alerts are off | Info | open (repository setting) |
 
 ## Summary
 
@@ -846,4 +849,72 @@ occurrence of their pin (test jobs and the wheel job), and CI passed in
 all five jobs on each. #1 (`setup-python` v7.1.0) was merged. #2
 (`checkout` v7.0.1) then conflicted (its lines are next to #1's), so it
 was rebased once more, passed CI again and was merged.
+
+---
+
+## Sixth re-assessment
+
+**Date:** 2026-11-07 · **Commit:** `97f82a1` (main) · **Range:** the Dependabot
+merges (`checkout` v7.0.1, `setup-python` v7.1.0) and a report update
+
+Little changed, so this round looked at something no earlier round
+covered: how text taken from scanned code reaches the reports.
+
+- **State:** findings 1–23 fixed or covered. The repo scores 10.00 (63
+  of 63 files), and CI passes on `97f82a1` in all five jobs with the v7
+  actions. No open pull requests.
+
+| # | Finding | Severity |
+|---|---|---|
+| 24 | Markdown reports break on `|` and backticks from scanned code | **new**, Low, fixed |
+| 25 | GitHub's Dependabot security alerts are off | **new**, Info |
+
+### 24. Unescaped code text in markdown reports (new, Low)
+
+Shell and CMake top-level blocks are named by their first line, so
+their names often contain `|` and backticks (`` for f in $(ls | grep
+`echo x`) ``). File paths can contain both too. `report.py` puts such
+text into markdown as it is:
+
+- In **code spans** (`` `{symbol}` `` in the finding lines, `` `{path}` ``
+  in the lists), an inner backtick ends the span early. Reproduced:
+  ``**deploy.sh:5** `for f in $(ls | grep `echo x`)`: Deep Nesting``
+  renders as broken code.
+- In **table cells** (the delta table, the scan's worst-files table), a
+  `|` splits the cell even inside backticks. Reproduced: a changed file
+  `a|b/x.sh` gives a row with an extra column.
+
+That output goes to the agent (hooks, MCP) and to people (CLI, PR
+comments). The agent mostly reads it as text, so the damage is to
+legibility and to tables pasted into GitHub, not to scores. HTML
+(dashboard) is escaped by Jinja and isn't affected. **Fix:** one helper
+for code spans that picks a backtick fence longer than any run inside
+(CommonMark), and one for table cells that escapes `|` (and replaces
+newlines), used everywhere `report.py` writes code text, plus tests with
+such names.
+**Fixed:** `report.code(text)` uses a fence one backtick longer than the
+longest run inside (padded when the text starts or ends with one), and
+`report.cell(text)` escapes `|`. They're used for every path and symbol
+`report.py` writes (finding lines, lists, the delta and worst-files
+tables, skipped and syntax-error notes). Tests cover the span rules and a
+delta of `a|b.sh` with a block named `` for f in $(ls | grep `echo x`) ``:
+the row keeps five cells, and the name stays one code span. 517 tests.
+
+Prompt injection through the same text was considered. A block name
+(at most 60 characters) or a path from the scanned repository reaches the
+agent's context through the hooks. But the agent already reads that
+repository's code, so this adds no new exposure. Recorded, not a
+finding.
+
+### 25. Dependabot security alerts are off (new, Info)
+
+`.github/dependabot.yml` keeps the action pins current, but the
+repository's "Dependabot alerts" setting is off (the API answers "Dependabot
+alerts are disabled for this repository"). So nothing would flag a
+published vulnerability in a pinned Python dependency (fastapi, starlette,
+mcp, jinja2, …). The pins are deliberately manual (widening needs a
+snapshot comparison), which makes the alert more useful, not less.
+**Fix:** enable Dependabot alerts (and optionally security updates) in
+the repository's Security settings. That needs the owner; it isn't
+something the code can do.
 
