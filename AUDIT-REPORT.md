@@ -318,3 +318,117 @@ filters from `.gitattributes` plus config are a second route for
 The commands themselves were checked: `claude mcp add|remove --scope user`
 match the current CLI, and the hook command was tested with and without
 aihealth on PATH (exit 0, report passed through when a file degrades).
+
+---
+
+## Re-assessment after M14–M20
+
+**Date:** 2026-11-07 · **Commit:** `35169df` (main) · **Range since the re-audit:**
+Rust, TypeScript, JavaScript, CMake, C/C++/Objective-C(++), shell scripts
+and zsh adapters.
+
+### State
+
+- 12 languages through one adapter layer. `src/` has grown from 5.9k to
+  8.3k lines. 484 tests (was 262), line coverage **96.2 %** (5,095 / 5,295;
+  measured as before with `sys.monitoring`), ruff clean. The repo scores
+  **9.94**: 61 of 62 files healthy, and `smells.py` (8.64) is still the only
+  warning.
+- Every milestone kept the snapshot discipline: earlier languages
+  compared byte-identical before/after (latest: 6,536 shell and Makefile
+  files for zsh, 56,388 files for shell scripts). Each language was
+  calibrated on real repos and checked for crashes on thousands of files.
+- No finding from the first audit was fixed beyond 1 and 11. Two of them
+  (5, 6) matter more now, see below.
+
+| # | Finding | Status |
+|---|---|---|
+| 2 | Dashboard CSRF / DNS rebinding | open |
+| 3 | `serve --host 0.0.0.0` without warning | open |
+| 4 | ECharts from a CDN without SRI | open |
+| 5 | No file-size limit in delta / hooks / MCP | open, **more important** (see 13) |
+| 6 | Open-ended dependency versions | open, **more important** (see below) |
+| 7 | No CI | open |
+| 8 | MCP wiring untested | open (`mcp_server.py` 87.5 % covered) |
+| 9 | Only Python 3.12 tested | open |
+| 10 | `smells.py` refactor; stale test count | open (plan says 468 tests, there are 484) |
+| 12 | `scan` hangs on a named pipe outside git | **new**, Low |
+| 13 | Quadratic source scanning (header routing, `NS_ENUM`, zsh `${`) | **new**, Low–Medium |
+| 14 | zsh parse guard has no wall-clock bound | **new**, Low |
+
+**Finding 6, update.** The declared floors can't run the current code:
+`tree-sitter-language-pack>=0.7` predates the `zsh`, `objc` and `cmake`
+grammars the adapters load at start-up, and the zsh work depends on
+tree-sitter 0.26 behaviour (no `timeout_micros`; `progress_callback`
+segfaults with these grammars). The zsh grammar's endless loops are a
+property of one grammar version: a newer one may fix them or add others.
+Pinning tested ranges (`tree-sitter>=0.26,<0.27`,
+`tree-sitter-language-pack>=1.25,<1.26`) or committing `uv.lock` is now the
+most valuable cheap fix.
+
+### 12. `scan` hangs on a named pipe (new, Low)
+
+Since M19, `engine.discover` reads the first bytes of every extensionless
+file to look for a shebang (`file_head`), **before** its `is_file()`
+check. Opening a FIFO blocks until a writer appears. Reproduced: a
+directory outside git with `bin/pipe` made by `mkfifo` makes
+`aihealth scan DIR` hang forever (killed by `timeout 10`, exit 124).
+Inside a git work tree it is fine: `git ls-files` doesn't list FIFOs.
+`is_supported_file` (hooks, CLI) has the same order. **Fix:** check
+`stat.S_ISREG` (or `is_file()`) before `file_head`, or open with
+`O_NONBLOCK`.
+
+### 13. Quadratic source scanning (new, Low–Medium)
+
+Measured on synthetic input:
+
+| Code | Input | Time |
+|---|---|---:|
+| `cfamily.header_grammar` (`^\s*` under MULTILINE in `_OBJC_MARKERS` / `_CPP_MARKERS`) | `.h` file of 80,000 blank lines (80 KB) | 78.6 s |
+| `cfamily._APPLE_ENUM` (`\(\s*[\w ]+,`) | `NS_ENUM(` + 80,000 spaces | 9.0 s |
+| `shell_zsh.prepare_zsh` (scans to the end of the line for every `${`) | one 40 KB line of `${` | 73.2 s |
+
+Time grows with the square of the input, so a 1 MB file (the scan limit)
+takes hours. Real code doesn't look like this, but a hostile repo, or an
+unlucky generated file, stalls `scan`, `delta` and the post-edit hook,
+which also have no size limit (finding 5). The other preparation regexes
+(`_GLOB_QUOTE`, `_CONDITIONALS`, `_BARE_MACRO`, `_SCOPE`) stayed linear.
+**Fix:** `^[ \t]*` instead of `^\s*`, `\([ \t]*\w[\w ]*,` for the enum
+macro, and match `${`/`}` pairs in one pass per line in `prepare_zsh`.
+Add timing tests with large inputs.
+
+### 14. zsh parse guard without a wall-clock bound (new, Low)
+
+`shell_zsh._finishes` forks a child with `RLIMIT_CPU` = 1 s and waits for
+it with a blocking `waitpid`. A CPU limit doesn't end a child that blocks
+without using CPU. The child only parses, so that would take a lock held
+by another thread at fork time. The MCP server runs tools in an anyio
+worker thread and the dashboard scans in uvicorn's thread pool, so the
+fork does happen in multi-threaded processes. macOS and glibc protect
+`malloc` across fork, and no such hang was seen. A hanging child also
+grows to about 1 GB before the limit ends it. **Fix:** also call
+`signal.alarm(2)` in the child (the default action kills it while
+sleeping), and optionally cap memory with `RLIMIT_AS` on Linux.
+
+### Verified as sound in the new code
+
+- Source preparation keeps byte offsets (tested per adapter), so findings
+  point at the right lines. Names are read from the original source.
+- New adapters' walks are iterative, and parse errors are handled or
+  reported per language as documented in `cards/parser-choice.md`.
+- The zsh guard: the child exits with `os._exit` (no Python cleanup, no
+  duplicated output), is always reaped, and without `fork` (Windows) the
+  bash tree is used. Tested with a real hanging input.
+- Shebang routing reads at most 128 bytes, and only for extensionless
+  files.
+- No new subprocess, SQL or template code. All git calls still go through
+  `gitutil.GIT` with `core.fsmonitor=false`.
+
+### Recommended order
+
+1. Fix 12, 13 and 14: small, local changes with tests.
+2. Pin dependency ranges or add a lockfile (6), and add CI on Python 3.11
+   and 3.12 with the MCP wiring test (7, 9, 8).
+3. Apply `max_file_kb` in delta, hooks and MCP (5).
+4. Dashboard hardening (2–4).
+5. Refactor `smells.py` (10), and update the test count in the plan.
