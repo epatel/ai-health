@@ -132,6 +132,63 @@ class PythonAdapter(LanguageAdapter):
             return text(obj) in ("self", "cls") and text(attr) == fn_name
         return False
 
+    primitive_types = frozenset(
+        {
+            "int",
+            "float",
+            "complex",
+            "str",
+            "bool",
+            "bytes",
+            "bytearray",
+            "dict",
+            "list",
+            "tuple",
+            "set",
+            "frozenset",
+            "Dict",
+            "List",
+            "Tuple",
+            "Set",
+            "FrozenSet",
+            "Any",
+            "object",
+        }
+    )
+    literal_types = frozenset(
+        {"string", "concatenated_string", "integer", "float", "true", "false", "none"}
+    )
+
+    def base_types(self, type_text: str) -> list[str] | None:
+        t = type_text.strip().strip("'\"")
+        while t.startswith(("Optional[", "typing.Optional[")) and t.endswith("]"):
+            t = t[t.index("[") + 1 : -1]
+        parts = [p.strip() for p in t.split("|")]
+        bases = [p.split("[", 1)[0].removeprefix("typing.") for p in parts if p and p != "None"]
+        return bases or None
+
+    def member_refs(self, cls: Class) -> dict[str, set[str]]:
+        """`self.x` / `cls.x` attribute names used in each method."""
+        refs: dict[str, set[str]] = {}
+        for fn in cls.methods:
+            names: set[str] = set()
+            stack = list(fn.body.children) if fn.body is not None else []
+            while stack:
+                n = stack.pop()
+                if n.type in ("function_definition", "class_definition"):
+                    continue
+                if n.type == "attribute":
+                    obj = n.child_by_field_name("object")
+                    if (
+                        obj is not None
+                        and obj.type == "identifier"
+                        and text(obj) in ("self", "cls")
+                    ):
+                        names.add(text(n.child_by_field_name("attribute")))
+                stack.extend(n.children)
+            refs[fn.qualname] = names
+        return refs
+
     def _skip_for_loc(self, node: Node) -> bool:
         return node.type == "comment" or _is_docstring(node)
 
@@ -190,6 +247,7 @@ class PythonAdapter(LanguageAdapter):
             kind="class",
             start_line=outer.start_point[0] + 1,
             end_line=node.end_point[0] + 1,
+            node=node,
         )
         module.classes.append(cls)
         body = node.child_by_field_name("body")

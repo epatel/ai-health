@@ -15,9 +15,11 @@ parsing via tree-sitter, history in SQLite.
 - Setup: `make setup` (creates `.venv`, installs `-e '.[dev]'`)
 - Test: `make test` (one test: `.venv/bin/pytest tests/test_cli.py::test_help_exits_cleanly`)
 - Lint / format: `make lint` · `make fmt`
-- Run: `.venv/bin/aihealth scan PATH` · `.venv/bin/aihealth delta [--staged|--base REV]`
-- MCP: `.venv/bin/aihealth mcp` (stdio) · Dashboard: `.venv/bin/aihealth serve --repo PATH`
-  (subcommands are stubs exiting 2 until their milestone lands)
+- Scan: `.venv/bin/aihealth scan PATH [--format json] [-v] [--fail-under 7]`
+  (config: `PATH/.aihealth.toml`, documented in `src/aihealth/config.py`)
+- Not yet implemented (exit 2 until their milestone lands):
+  `aihealth delta [--staged|--base REV]` (M5) · `aihealth mcp` (M7) ·
+  `aihealth serve --repo PATH` (M9)
 
 ## Enforced rules
 

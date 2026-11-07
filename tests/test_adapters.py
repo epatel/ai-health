@@ -76,9 +76,10 @@ def test_python_params():
 
 def test_python_loc_excludes_docstrings_comments_blank():
     fns = _fns("declarations.py")
-    outer = fns["outer"]
-    # def line, def inner, return y, return inner(...)
-    assert outer.loc == 4
+    # own lines only: `def outer(...)` and `return inner(...)`; inner's two
+    # lines belong to outer.inner
+    assert fns["outer"].loc == 2
+    assert fns["outer.inner"].loc == 2
     # decorator line is part of the function span
     assert fns["Service.build"].loc == 3
     module = parse_file(FIXTURES / "declarations.py")

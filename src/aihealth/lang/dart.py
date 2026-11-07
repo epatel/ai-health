@@ -143,10 +143,148 @@ def _is_widgetish_call(args: Node) -> bool:
     return bool(name) and name[0].isupper()
 
 
+def _is_member_of_other(ident: Node) -> bool:
+    """`other.name` (inside a `.name` selector not preceded by `this`) is a
+    member of another object, not of this class. Named-argument labels
+    (`foo(name: x)`) are not references either."""
+    parent = ident.parent
+    if parent is None:
+        return False
+    if parent.type == "label":
+        return True
+    if parent.type == "unconditional_assignable_selector":
+        sel = parent.parent  # selector, or assignable_expression
+        prev = sel.prev_sibling if sel is not None else None
+        return not (prev is not None and prev.type == "this")
+    return False
+
+
+DEFAULT_TEST_CALLS = frozenset(
+    {
+        "group",
+        "test",
+        "testWidgets",
+        "testGoldens",
+        "blocTest",
+        "setUp",
+        "setUpAll",
+        "tearDown",
+        "tearDownAll",
+    }
+)
+
+
+def _closure_call(fexpr: Node) -> tuple[str, Node] | None:
+    """For `callee('desc', () {...})` return (callee, arguments node)."""
+    arg = fexpr.parent
+    if arg is None or arg.type not in ("argument", "named_argument"):
+        return None
+    args = arg.parent
+    if args is None or args.type != "arguments":
+        return None
+    part = args.parent
+    if part is None or part.type != "argument_part" or part.parent is None:
+        return None
+    prev = part.parent.prev_sibling
+    if prev is None or prev.type != "identifier":
+        return None
+    return text(prev), args
+
+
+def _description(args: Node) -> str:
+    first = next((c for c in args.named_children if c.type == "argument"), None)
+    lit = first.named_children[0] if first is not None and first.named_child_count else None
+    if lit is None or lit.type != "string_literal":
+        return ""
+    desc = " ".join(text(lit).strip("'\"").split())
+    return desc if len(desc) <= 60 else desc[:57] + "..."
+
+
 class DartAdapter(LanguageAdapter):
     language = "dart"
     extensions = (".dart",)
     comment_types = frozenset({"comment", "documentation_comment"})
+
+    def __init__(self, test_calls: frozenset[str] | None = None) -> None:
+        super().__init__()
+        # closures passed to these calls are scored as their own units, so a
+        # test file's `main()` isn't one giant function (see code-health-model)
+        self.test_calls = DEFAULT_TEST_CALLS if test_calls is None else frozenset(test_calls)
+
+    primitive_types = frozenset(
+        {
+            "int",
+            "double",
+            "num",
+            "String",
+            "bool",
+            "List",
+            "Map",
+            "Set",
+            "Iterable",
+            "dynamic",
+            "Object",
+        }
+    )
+    literal_types = frozenset(
+        {
+            "string_literal",
+            "decimal_integer_literal",
+            "decimal_floating_point_literal",
+            "hex_integer_literal",
+            "true",
+            "false",
+            "null_literal",
+        }
+    )
+
+    def base_types(self, type_text: str) -> list[str] | None:
+        t = type_text.strip()
+        if t == "<field>" or "Function" in t or t.startswith("("):
+            return None  # field-typed, callbacks and records are not primitives
+        base = t.split("<", 1)[0].rstrip("?").strip()
+        return [base] if base else None
+
+    def member_refs(self, cls: Class) -> dict[str, set[str]]:
+        """Bare or `this.`-qualified references to the class's own fields and
+        methods in each method body."""
+        members = {m.name.rstrip("=") for m in cls.methods if m.kind != "constructor"}
+        body = None
+        if cls.node is not None:
+            body = cls.node.child_by_field_name("body") or next(
+                (c for c in cls.node.named_children if c.type in _BODIES), None
+            )
+        if body is not None:
+            for decl in body.named_children:
+                if decl.type != "declaration":
+                    continue
+                for n in iter_nodes(decl):
+                    if n.type in ("initialized_identifier", "static_final_declaration"):
+                        ident = next((c for c in n.children if c.type == "identifier"), None)
+                        if ident is not None:
+                            members.add(text(ident))
+        refs: dict[str, set[str]] = {}
+        for fn in cls.methods:
+            names: set[str] = set()
+            stack = list(fn.body.children)
+            while stack:
+                n = stack.pop()
+                if n.type == "local_function_declaration":
+                    continue
+                if n.type == "identifier":
+                    name = text(n)
+                    if name in members and not _is_member_of_other(n):
+                        names.add(name)
+                stack.extend(n.children)
+            refs[fn.qualname] = names
+        return refs
+
+    def _test_unit(self, fexpr: Node) -> tuple[str, Node] | None:
+        call = _closure_call(fexpr)
+        if call is None or call[0] not in self.test_calls:
+            return None
+        return call
+
     roles: ClassVar[dict[str, Role]] = {
         "if_statement": Role.IF,
         "if_element": Role.IF,
@@ -178,6 +316,8 @@ class DartAdapter(LanguageAdapter):
             return None
         if t in ("break_statement", "continue_statement"):
             return Role.JUMP_LABEL if any(c.type == "identifier" for c in node.children) else None
+        if t == "function_expression" and self._test_unit(node) is not None:
+            return Role.STOP
         r = self.roles.get(t)
         if t == "switch_expression_case":
             pattern = node.named_children[0] if node.named_child_count else None
@@ -216,7 +356,9 @@ class DartAdapter(LanguageAdapter):
             if node.type == "arguments" and _is_widgetish_call(node):
                 depth += 1
                 best = max(best, depth)
-            if node.type == "local_function_declaration":
+            if node.type == "local_function_declaration" or (
+                node.type == "function_expression" and self._test_unit(node) is not None
+            ):
                 continue
             stack.extend((c, depth) for c in node.children)
         return best
@@ -258,6 +400,7 @@ class DartAdapter(LanguageAdapter):
             kind=_CONTAINERS[node.type],
             start_line=node.start_point[0] + 1,
             end_line=node.end_point[0] + 1,
+            node=node,
         )
         module.classes.append(cls)
         body = node.child_by_field_name("body") or next(
@@ -294,11 +437,37 @@ class DartAdapter(LanguageAdapter):
         (cls.methods if cls is not None else module.functions).append(fn)
         self._add_local_functions(module, body, f"{qualname}.")
 
+    def _add_test_unit(
+        self, module: Module, fexpr: Node, callee: str, args: Node, prefix: str
+    ) -> None:
+        body = fexpr.child_by_field_name("body")
+        if body is None:
+            return
+        desc = _description(args)
+        name = f'{callee}("{desc}")' if desc else callee
+        fn = Function(
+            name=name,
+            qualname=f"{prefix}{name}",
+            kind="test",
+            start_line=args.parent.parent.prev_sibling.start_point[0] + 1,
+            end_line=fexpr.end_point[0] + 1,
+            params=_params(fexpr),
+            body=body,
+        )
+        module.functions.append(fn)
+        self._add_local_functions(module, body, f"{fn.qualname}.")
+
     def _add_local_functions(self, module: Module, body: Node, prefix: str) -> None:
-        """Local named functions are scored on their own; closures are not."""
+        """Local named functions and test closures are scored on their own;
+        other closures stay part of the enclosing function."""
         stack = list(body.children)
         while stack:
             n = stack.pop()
+            if n.type == "function_expression":
+                unit = self._test_unit(n)
+                if unit is not None:
+                    self._add_test_unit(module, n, unit[0], unit[1], prefix)
+                    continue
             if n.type == "local_function_declaration":
                 lam = next((c for c in n.named_children if c.type == "lambda_expression"), None)
                 if lam is None:

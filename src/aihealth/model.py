@@ -29,8 +29,8 @@ class Param:
 @dataclass
 class Function:
     name: str
-    qualname: str  # "Class.method", "outer.inner", "func"
-    kind: str  # function | method | constructor | getter | setter | operator
+    qualname: str  # "Class.method", "outer.inner", "func"; unique per module
+    kind: str  # function | method | constructor | getter | setter | operator | test
     start_line: int  # 1-based, inclusive
     end_line: int  # 1-based, inclusive
     params: list[Param]
@@ -47,6 +47,7 @@ class Class:
     end_line: int
     methods: list[Function] = field(default_factory=list)
     loc: int = 0
+    node: Node | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass

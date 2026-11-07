@@ -35,10 +35,10 @@ Starting thresholds; all overridable in `.aihealth.toml`.
 | Deep Nesting | function | max nesting ≥ 4 | guard clauses, extract inner block |
 | Bumpy Road | function | ≥ 2 separate blocks of nesting ≥ 2 | extract each bump into a function |
 | Brain Method | function | Large + Complex + Deep Nesting together | decompose; highest weight |
-| Excess Arguments | function | > 4 params (Python excludes `self`/`cls`; Dart named params count 0.5) | introduce parameter object |
-| Complex Conditional | function | ≥ 2 boolean operators in one condition | extract to named predicate |
-| Primitive Obsession | file | > 60% of params across file are untyped/primitive, min 10 params | introduce domain types |
-| Code Duplication | file | clone ≥ 50 tokens / 6 lines, intra- or inter-file | extract shared function |
+| Excess Arguments | function | > 4 params (Python excludes `self`/`cls`; Dart named params count 0.5, `this.x` 0) | introduce parameter object |
+| Complex Conditional | function | ≥ 2 boolean operators in one expression | extract to named predicate |
+| Primitive Obsession | file | > 60% of *typed* params are primitive, min 10 typed params | introduce domain types |
+| Code Duplication | function | clone ≥ 50 tokens / 6 lines, intra- or inter-file | extract shared function |
 | Large File | file | > 1000 LoC | split by responsibility |
 | Low Cohesion | class | LCOM4 ≥ 3 | split class |
 | Deep Widget Tree | Dart function | widget constructor nesting > 8 in `build()` | extract sub-widgets |
@@ -81,20 +81,71 @@ Starting thresholds; all overridable in `.aihealth.toml`.
 | Dart `build()` LoC | n/a | 69 / 219 |
 
 Bumpy Road (≥ 2 bumps): 3.7 % of Python and 0.7 % of Dart functions.
-Dart outliers are test-file `main()` functions whose `group`/`test`
-closures make up thousands of lines.
+Dart outliers were test-file `main()` functions whose `group`/`test`
+closures made up thousands of lines. Resolved in M4 (next section).
 
-## Penalties and score
+## Units of scoring (decided in M4)
 
-- Each finding has a severity `s = min(value / threshold, 3)` (how far over).
-- Penalty = `weight(smell) × s`, scaled by the share of the file's LoC the
-  function covers for function-level smells — a 300-line bad function hurts a
-  file more than a 10-line one.
-- File score = `clamp(10 − Σ penalties, 1, 10)`, rounded to 2 decimals.
-- Project score = Σ(score × LoC) / Σ LoC over scored files.
-- Bands: **Healthy** ≥ 9, **Warning** 4 – < 9, **Alert** < 4.
-- Files with no functions and < 20 LoC score 10 and are excluded from
-  project weighting noise only by their small LoC.
+- A function's LoC counts **its own lines only**. Lines inside nested
+  scored units (Python local defs, Dart local functions, Dart test closures)
+  belong to those units.
+- **Dart test closures are separate units** (decision (a), 2026-11-07):
+  closures passed to `group`, `test`, `testWidgets`, `testGoldens`,
+  `blocTest`, `setUp`, `setUpAll`, `tearDown` and `tearDownAll` become
+  functions of kind `test`, named like `main.group("Counter").test("starts at
+  zero")`. Configure the list with `[dart] test_closure_calls`. Rationale:
+  test code health still matters to agents editing tests, and the
+  alternative (excluding test dirs) hides it.
+- Qualnames are unique per module. Repeats get `#2`, `#3` in source order,
+  so delta can pair functions by name.
+
+## Penalties and score (implemented in M4, `smells.py` + `scoring.py`)
+
+- A smell triggers when `value > threshold`. **Severity** = 1.0 at the
+  first triggering value, +1 per `threshold` units beyond it, capped at 3.
+  So `large_method` 71 → 1.0 and 141 → 2.0; nesting 4 → 1.0 and 5 → 1.33.
+  Ratio thresholds such as primitive obsession use `value / threshold`.
+- **Penalty** = `weight × severity × scale`. File-level smells use scale = 1.
+  Function/class smells use scale = `0.5 + 0.5 × min(1, 4 × share)`, where
+  `share` is the symbol's LoC divided by the file's LoC: a smelly function
+  covering ≥ 25 % of the file counts fully, and a tiny one counts half.
+- **File score** = `10 − 9 × (1 − exp(−P / 10))`, where P is the sum of
+  penalties. It is smooth, never below 1, and each extra smell costs a
+  little less (P = 1 → 9.14, 5 → 6.46, 10 → 4.31, 20 → 2.22). This replaced
+  the planned `clamp(10 − P)`, which hit 1.0 for any file with one Brain
+  Method.
+- **Project score** = Σ(score × LoC) / Σ LoC.
+- **Bands:** Healthy ≥ 9, Warning 4 to < 9, Alert < 4.
+- Default weights: brain_method 2.0, large_file 1.5; large_method,
+  cognitive_complexity, deep_nesting, bumpy_road, low_cohesion and
+  code_duplication 1.0; complex_method, deep_widget_tree and
+  primitive_obsession 0.75; excess_arguments and complex_conditional 0.5.
+  Brain Method is reported *in addition to* its three component smells.
+- Smell details:
+  - Excess Arguments ignores Dart `this.x` / `super.x` field initializers,
+    so Flutter widget constructors aren't flagged.
+  - Primitive Obsession counts only typed parameters. Untyped Python is
+    "unknown", not primitive. Dart callbacks (`Function`) and records are
+    unknown too.
+  - LCOM4 is computed over non-constructor methods that touch at least one
+    member, and needs ≥ 4 such methods.
+  - Duplication: literals normalised, identifiers kept, ≥ 50 tokens and
+    ≥ 6 lines, never crossing a function boundary. Matches are found within
+    a file and, in scan mode, across files (`[duplication] cross_file`).
+    The finding is per function, with severity 1.0 at 6 duplicated lines
+    and +1 per 5 more.
+
+### First full runs (M4, uncalibrated)
+
+| Target | Project score | Healthy / Warning / Alert files |
+|---|---|---|
+| Flutter `material` (88k LoC) | 4.17 | 59 / 82 / 42 |
+| Flutter `packages` (1.3M LoC, incl. tests) | 3.29 | 1055 / 1143 / 696 |
+| this repo (2.5k LoC) | 7.18 | 14 / 6 / 1 |
+
+These look harsh for well-maintained code. Big files collect many
+findings, and exponential decay still sums them all. Calibrate in M11.
+Scan speed is about 12k LoC/s including cross-file duplication.
 
 ## Delta classification
 

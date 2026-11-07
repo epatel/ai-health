@@ -13,5 +13,5 @@ def test_help_exits_cleanly(capsys):
 
 
 def test_stub_commands_report_milestone(capsys):
-    assert main(["scan", "."]) == 2
-    assert "M4" in capsys.readouterr().err
+    assert main(["delta"]) == 2
+    assert "M5" in capsys.readouterr().err

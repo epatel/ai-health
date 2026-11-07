@@ -36,7 +36,7 @@ Status: `todo` / `wip` / `done`.
 | M1 | Skeleton + parser spike | done | `.venv`, `pyproject.toml`, `Makefile`, `aihealth --help`, pytest green; tree-sitter parses a real Flutter widget file and a Python module |
 | M2 | Language adapters | done | Python + Dart adapters return a uniform `Module → Class → Function` model with spans, params, body nodes |
 | M3 | Function metrics | done | LoC, cyclomatic, cognitive, max nesting, bumps, args, complex conditionals, widget-tree depth (Dart) — golden-file tests per language |
-| M4 | Smells + scoring | todo | smell detectors, penalty table, file score 1–10, LoC-weighted project score, `.aihealth.toml` overrides, duplication detector |
+| M4 | Smells + scoring | done | smell detectors, penalty table, file score 1–10, LoC-weighted project score, `.aihealth.toml` overrides, duplication detector |
 | M5 | Delta mode | todo | before/after scoring for working tree, staged, or `base..head`; per-function new/worsened/fixed smells; verdict + exit code |
 | M6 | Output formats | todo | `text`, `json`, `markdown` (agent-oriented, concise with refactor hints) |
 | M7 | MCP server | todo | stdio server exposing `review_changes`, `score_file`, `scan_project`, `explain_smell`; registered in `.mcp.json` and smoke-tested from Claude Code |
@@ -58,6 +58,9 @@ Status: `todo` / `wip` / `done`.
 - **Dashboard:** server-rendered (FastAPI + Jinja), charts via a pinned CDN
   library (ECharts) — no frontend build.
 - **MCP:** official `mcp` Python SDK (FastMCP), stdio transport.
+- **Dart test closures** passed to `group`/`test`/`testWidgets`/`setUp`/…
+  are scored as their own units (option (a), user decision 2026-11-07).
+  Configurable via `[dart] test_closure_calls`.
 - **Generated Dart files** (`*.g.dart`, `*.freezed.dart`, `*.mocks.dart`)
   excluded by default.
 
@@ -74,9 +77,18 @@ M3 done: `metrics.py` plus adapter role tables. 50 tests, golden values
 from the SonarSource white paper. Runs over the full Flutter SDK with no
 crashes at about 31k LoC/s for Dart and 83k LoC/s for Python. Baseline
 distributions are in `cards/code-health-model.md`.
-Next agent: M4 smells + scoring + duplication + `.aihealth.toml`, and wire
-`aihealth scan` to print per-file scores. Settle the Dart-test open
-question below first, or make it configurable.
+M4 done: config, smells (13), LCOM4, primitive obsession, winnowing
+duplication, scoring, `engine.py`, and a working `aihealth scan` (text/json,
+`--top`, `-v`, `--functions`, `--fail-under`, `--config`). 76 tests.
+Dart test closures are separate units (decision (a)). A function's LoC is
+its own lines only. Score formula changed to exponential decay (see
+code-health-model card).
+Dogfooding: this repo scores 7.18. The worst files are `lang/dart.py`
+(`member_refs`, `role`) and `smells.py` (`_Detector.function`). Refactor
+candidates once delta mode exists to verify improvements.
+Next agent: M5 delta mode. `engine.score_source()` already scores
+in-memory content. Delta needs git before/after content, pairing by
+qualname, and new/worsened/fixed classification.
 Note: `pip install` may need user approval in this environment — ask the
 user to run `! make setup` rather than retrying.
 
@@ -87,12 +99,10 @@ user to run `! make setup` rather than retrying.
   metric instead? (Proposal: higher threshold + widget-depth smell; confirm in M11.)
 - Delta gate strictness: should a drop of < 0.1 in an already-Alert file
   fail the agent? (Proposal: yes by default — "leave it no worse".)
-- Dart test files (`test/**/*_test.dart`) put whole suites inside closures
-  passed to `group()`/`test()` in `main()`, so `main` becomes a
-  15k-line "function". Options: (a) treat closures passed to
-  `test`/`group`/`testWidgets`/`setUp` as separate scorable units, (b)
-  exclude test dirs by default, (c) both. (Proposal: (a), since test code
-  health still matters for agents.)
+- Scores look harsh on well-maintained code (Flutter material 4.17, all
+  Flutter packages 3.29). Calibrate in M11. Candidate fixes: cap the
+  penalty per function, higher decay, or normalise file penalty by
+  function count.
 - Should scan history live in the analysed repo (`.aihealth/`) or a central
   per-user DB for the dashboard to compare repos? (Proposal: per repo, the
   dashboard takes a path.)

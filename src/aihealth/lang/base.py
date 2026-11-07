@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator
 from typing import ClassVar
 
@@ -9,7 +10,7 @@ from tree_sitter import Node
 from tree_sitter_language_pack import get_parser
 
 from aihealth.metrics import Role
-from aihealth.model import Module
+from aihealth.model import Class, Function, Module
 
 
 def iter_nodes(node: Node) -> Iterator[Node]:
@@ -53,6 +54,37 @@ def count_errors(root: Node) -> int:
 
 def count_in_span(lines: set[int], start: int, end: int) -> int:
     return sum(1 for ln in lines if start <= ln <= end)
+
+
+def _assign_own_loc(funcs: list[Function], lines: set[int]) -> None:
+    """A function's loc counts its own code lines only: lines inside nested
+    scored functions (local defs, Dart test closures) belong to those."""
+    sorted_lines = sorted(lines)
+    ordered = sorted(funcs, key=lambda f: (f.start_line, -f.end_line))
+    for i, fn in enumerate(ordered):
+        lo = bisect_left(sorted_lines, fn.start_line)
+        hi = bisect_right(sorted_lines, fn.end_line)
+        own = set(sorted_lines[lo:hi])
+        for inner in ordered[i + 1 :]:
+            if inner.start_line > fn.end_line:
+                break
+            if inner.end_line <= fn.end_line and (inner.start_line, inner.end_line) != (
+                fn.start_line,
+                fn.end_line,
+            ):
+                own.difference_update(range(inner.start_line, inner.end_line + 1))
+        fn.loc = len(own)
+
+
+def _make_qualnames_unique(module: Module) -> None:
+    """Suffix repeats (`test("x")` twice, conditional redefinitions) with
+    `#2`, `#3`, ... in source order, so delta can pair functions by name."""
+    seen: dict[str, int] = {}
+    for fn in module.all_functions():
+        n = seen.get(fn.qualname, 0) + 1
+        seen[fn.qualname] = n
+        if n > 1:
+            fn.qualname = f"{fn.qualname}#{n}"
 
 
 class LanguageAdapter:
@@ -99,6 +131,31 @@ class LanguageAdapter:
     def widget_depth(self, body: Node) -> int:
         return 0
 
+    # --- module/class smell hooks ----------------------------------------------
+
+    primitive_types: ClassVar[frozenset[str]] = frozenset()
+    # composite nodes treated as one token (and normalised) for duplication
+    literal_types: ClassVar[frozenset[str]] = frozenset()
+
+    def base_types(self, type_text: str) -> list[str] | None:
+        """Base type names of a declared type, ignoring nullability and
+        generics; None when the type is unknown (untyped / from a field)."""
+        return None
+
+    def is_primitive(self, type_text: str | None) -> bool | None:
+        """True/False for a declared parameter type; None if unknown."""
+        if type_text is None:
+            return None
+        bases = self.base_types(type_text)
+        if not bases:
+            return None
+        return all(b in self.primitive_types for b in bases)
+
+    def member_refs(self, cls: Class) -> dict[str, set[str]]:
+        """Per method qualname: names of the class's own members (fields and
+        methods) it references. Used for LCOM4 cohesion."""
+        return {}
+
     # --- parsing --------------------------------------------------------------
 
     def __init__(self) -> None:
@@ -111,8 +168,8 @@ class LanguageAdapter:
         lines = code_lines(root, self._skip_for_loc)
         module.loc = len(lines)
         self._extract(module)
-        for fn in module.all_functions():
-            fn.loc = count_in_span(lines, fn.start_line, fn.end_line)
+        _make_qualnames_unique(module)
+        _assign_own_loc(module.all_functions(), lines)
         for cls in module.classes:
             cls.loc = count_in_span(lines, cls.start_line, cls.end_line)
         return module
