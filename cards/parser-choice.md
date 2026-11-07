@@ -119,3 +119,51 @@ type information (e.g. Primitive Obsession on inferred types).
   apart: `ifeq (MAKEVAR,debug)` parses without error.
 - Coverage: 2,190 Makefiles found on disk (906 generated and skipped), 0
   crashes, about 61k LoC/s. 99.2 % of recipe bodies parse as bash.
+
+## Swift (M13)
+
+- Grammar `swift` (tree-sitter-language-pack). Parses Swift 6 syntax with
+  zero errors in the fixture: actors, `async`/`throws(E)`, `~Copyable`,
+  `some`/`any`, if/switch expressions, macros (`#Preview`), `#if` blocks
+  (flat `directive` siblings, so they never break a declaration).
+- struct / class / enum / actor / extension are all `class_declaration`,
+  told apart by the `declaration_kind` field. Protocols are
+  `protocol_declaration` (requirements have no body, not units).
+- Units: `function_declaration`, `init_declaration`, `deinit_declaration`
+  (body field `body` = `function_body` > `statements`);
+  `property_declaration` / `subscript_declaration` hold a
+  `computed_property` (a bare getter: `statements` directly, or
+  `computed_getter` / `computed_setter` / `computed_modify`) or a
+  `willset_didset_block` (`willset_clause` / `didset_clause`).
+- The `name` field labels both a parameter's name and its type: the type is
+  the first named child after the `:`, skipping `parameter_modifiers`
+  (`inout`, `@escaping`). `external_name` is the call-site label. Default
+  values are `default_value` *siblings* after their `parameter`.
+- if: no `alternative` field. The else branch is the child after the bare
+  `else` token: an `if_statement` (else-if) or a `{` token followed by
+  `statements`. Marking the `{` as the else branch counts it once, and the
+  `statements` sibling still nests one level inside the if.
+- `break outer` / `continue outer` / `return` / `throw` are all
+  `control_transfer_statement`. A loop label is a `statement_label`
+  *sibling* before the loop, so `statements()` drops it (for Bumpy Road).
+- `switch_entry` with a `default_keyword` child is the default arm
+  (`@unknown default` too).
+- **Precedence is unreliable.** `n > 100 || n == 42` parses as
+  `comparison(n, disjunction(100, …))`, `>=` is an `infix_expression` with
+  a `custom_operator`, and `n * f(x)` is `call((n * f), x)`. So comparison,
+  equality, infix and prefix nodes are `bool_transparent`, operator tokens
+  (`&&`, `||`) are counted rather than nodes, and a callee is the rightmost
+  `rhs` of the call's first child.
+- `!(a || b)` parses as a *call* of `!` with `(a || b)` as its argument.
+- **Grammar gaps:** stdlib-internal syntax (`@_lifetime`, `__owned`,
+  `__consuming`) and a void argument `f(())` produce ERROR nodes. Files
+  with errors: app code 0–2 % (IceCubesApp, SwiftLint, argument-parser,
+  Kingfisher), firebase-ios-sdk 3 %, TCA/vapor 6–7 %, swift-nio 22 %,
+  swift-collections 28 %. Recovery is local and the adapter scans into
+  ERROR nodes for declarations, so `reports_parse_errors` stays on: a
+  real syntax error in app code is worth telling an agent.
+- Coverage: 5,646 files (firebase-ios-sdk, swift-nio, swift-collections,
+  TCA, vapor, SwiftLint, Alamofire, Kingfisher, IceCubesApp, fastlane,
+  Flutter iOS code), 0 crashes, about 8 ms per file. 46,160 of 46,179
+  bodies extracted (99.96 %); the rest are protocol subscript requirements
+  and local computed variables (scored as part of their function).

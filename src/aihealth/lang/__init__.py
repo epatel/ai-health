@@ -10,12 +10,18 @@ from aihealth.lang.base import LanguageAdapter
 from aihealth.lang.dart import DartAdapter
 from aihealth.lang.make import MakeAdapter
 from aihealth.lang.python import PythonAdapter
+from aihealth.lang.swift import SwiftAdapter
 from aihealth.model import Module
 
 if TYPE_CHECKING:
     from aihealth.config import Config
 
-ADAPTERS: tuple[type[LanguageAdapter], ...] = (PythonAdapter, DartAdapter, MakeAdapter)
+ADAPTERS: tuple[type[LanguageAdapter], ...] = (
+    PythonAdapter,
+    DartAdapter,
+    MakeAdapter,
+    SwiftAdapter,
+)
 
 _BY_EXT = {ext: cls for cls in ADAPTERS for ext in cls.extensions}
 _BY_NAME = {name: cls for cls in ADAPTERS for name in cls.filenames}

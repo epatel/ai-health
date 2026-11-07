@@ -2,8 +2,8 @@
 
 # aihealth
 
-Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter** and
-**Makefiles**, built as feedback for AI coding agents.
+Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter**,
+**Swift/SwiftUI** and **Makefiles**, built as feedback for AI coding agents.
 
 - **delta**: did this change make the code healthier or worse? Verdict, score before → after,
   new/worsened smells with `path:line` and fix hints. Exit code 1 when health degraded.
@@ -12,7 +12,7 @@ Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter**
 
 Scores come from 13 explainable code smells: Brain Method, Large/Complex Method, Cognitive
 Complexity, Deep Nesting, Bumpy Road, Excess Arguments, Complex Conditional, Deep Widget
-Tree (Flutter), Large File, Low Cohesion, Primitive Obsession and Code Duplication. Bands:
+Tree (Flutter, SwiftUI), Large File, Low Cohesion, Primitive Obsession and Code Duplication. Bands:
 healthy ≥ 9, warning 4–9, alert < 4.
 
 ## Install
@@ -31,7 +31,7 @@ aihealth delta --format markdown    # agent-oriented output (also: text, json)
 
 aihealth scan path/to/repo --format markdown --max-findings 20
 aihealth scan . --fail-under 7      # CI gate on the project score
-aihealth scan src/app.py            # one file (also: Makefile, lib/x.dart)
+aihealth scan src/app.py            # one file (also: Makefile, lib/x.dart, App.swift)
 ```
 
 ## History
@@ -90,12 +90,32 @@ project's `.claude/settings.json` (use the absolute path to your aihealth instal
 }
 ```
 
-- **post-edit**: after each edit of a Python/Dart file, checks that file against HEAD. Silent
+- **post-edit**: after each edit of a supported file, checks that file against HEAD. Silent
   unless it got worse; then Claude gets the regressions with fix hints next to the edit result.
 - **stop**: when Claude is about to finish, checks all uncommitted changes. If health degraded,
   Claude gets one more turn to fix them (or to say why they are intended). It never fires twice
   in a row, so it cannot loop.
 - Both fail open: outside a git repo, for other languages, or on any error they do nothing.
+
+## Swift
+
+`*.swift` files are scored with the generic smells; nothing is Swift-only.
+
+- **Units**: functions, methods, `init`/`deinit`, operators, subscripts, computed-property
+  getters/setters and `willSet`/`didSet` observers. Local functions and local types are
+  scored on their own; closures stay part of their function. `#Preview { }` blocks and
+  Quick-style `describe`/`context`/`it` closures are units too (configurable).
+- **Types**: struct, class, enum, actor and extension are all classes for Low Cohesion
+  (stored, non-`static` properties are the state).
+- **Parameters** with a call-site label count half for Excess Arguments; `_ x` counts
+  fully.
+- **SwiftUI**: nesting of view calls (`VStack { HStack { Text(...) } }`) is the Deep
+  Widget Tree depth. `body` uses the normal Large Method limit (measured below).
+- **Skipped**: `.build/`, `Pods/`, `DerivedData/`, `*.docc/` (tutorial step files),
+  `*.generated.swift` and SwiftGen/Sourcery output.
+- Very new or stdlib-internal syntax (`@_lifetime`, `__owned`) and `f(())` are not in
+  the grammar yet: such files report "syntax errors", and the rest of the file is still
+  scored.
 
 ## Makefiles
 
@@ -137,6 +157,9 @@ exclude = ["legacy/*"]           # added to defaults (*.g.dart, *.freezed.dart, 
 
 [dart]
 test_closure_calls = ["group", "test", "testWidgets", "patrolTest"]
+
+[swift]
+test_closure_calls = ["describe", "context", "it"]   # default: Quick's full set
 ```
 
 Turn smells off for one file where they are imposed by an interface (e.g. CLI/JSON/MCP
@@ -150,8 +173,8 @@ boundaries) with a comment (strings and docstrings don't count):
 
 All metrics, smells and scoring are language-neutral. A language is **one adapter file**
 that tells the engine what the syntax tree means, plus tests that pin that meaning. Python
-(`src/aihealth/lang/python.py`) and Dart (`lang/dart.py`) are the reference adapters. Copy
-the one whose language is closer.
+(`src/aihealth/lang/python.py`), Dart (`lang/dart.py`) and Swift (`lang/swift.py`) are the
+reference adapters. Copy the one whose language is closer.
 
 ### How the pieces fit
 
@@ -234,6 +257,9 @@ I'd do it in this order. Each step has a check before you move on.
   consistent with Dart and Python.
 - **UI trees**: JSX, SwiftUI `body` and Compose `@Composable` functions map onto
   `widget_depth` and the Deep Widget Tree smell.
+- **Operator precedence**: grammars can nest operators wrongly. Swift's puts `||` inside
+  `a > b`, and parses `n * f(x)` as `(n * f)(x)`. Look through comparison nodes
+  (`bool_transparent`) and look for callees in the rightmost operand, then pin both in tests.
 
 ## License
 

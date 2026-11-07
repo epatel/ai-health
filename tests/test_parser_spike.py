@@ -1,4 +1,4 @@
-"""M1 spike: tree-sitter grammars parse real Python and Dart 3 / Flutter code.
+"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter and Swift code.
 
 These tests pin the node type names the M2 adapters will rely on, so a
 grammar upgrade that renames them fails loudly here.
@@ -41,7 +41,7 @@ def _errors(node) -> list[tuple[int, str]]:
 
 @pytest.mark.parametrize(
     ("lang", "fixture"),
-    [("python", "sample.py"), ("dart", "flutter_widget.dart")],
+    [("python", "sample.py"), ("dart", "flutter_widget.dart"), ("swift", "sample.swift")],
 )
 def test_parses_without_errors(lang, fixture):
     root = _parse(lang, fixture)
@@ -100,3 +100,58 @@ def test_dart_signature_and_body_are_siblings():
         fn = sig if sig.type == "function_signature" else sig.named_children[0]
         names.add(fn.child_by_field_name("name").text.decode())
     assert {"area", "parseEntry", "bump", "createState", "_increment", "build"} <= names
+
+
+def test_swift_node_types():
+    types = _types(_parse("swift", "sample.swift"))
+    expected = {
+        "class_declaration",
+        "protocol_declaration",
+        "function_declaration",
+        "init_declaration",
+        "deinit_declaration",
+        "subscript_declaration",
+        "property_declaration",
+        "computed_property",
+        "computed_getter",
+        "computed_setter",
+        "function_body",
+        "statements",
+        "parameter",
+        "if_statement",
+        "guard_statement",
+        "for_statement",
+        "while_statement",
+        "repeat_while_statement",
+        "switch_statement",
+        "switch_entry",
+        "default_keyword",
+        "do_statement",
+        "catch_block",
+        "ternary_expression",
+        "lambda_literal",
+        "conjunction_expression",
+        "disjunction_expression",
+        "control_transfer_statement",
+        "statement_label",
+        "macro_invocation",
+    }
+    assert expected <= types
+
+
+def test_swift_else_is_a_bare_token_and_kinds_are_a_field():
+    """Swift quirks: no `alternative` field (the else branch follows an
+    `else` token), and struct/class/enum/actor/extension share one node type."""
+    root = _parse("swift", "sample.swift")
+    kinds, else_follows = set(), set()
+    stack = [root]
+    while stack:
+        n = stack.pop()
+        if n.type == "class_declaration":
+            kinds.add(n.child_by_field_name("declaration_kind").type)
+        for a, b in pairwise(n.children):
+            if a.type == "else" and n.type == "if_statement":
+                else_follows.add(b.type)
+        stack.extend(n.children)
+    assert kinds == {"struct", "class", "enum", "actor", "extension"}
+    assert else_follows == {"if_statement", "{"}

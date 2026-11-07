@@ -35,14 +35,14 @@ Starting thresholds; all overridable in `.aihealth.toml`.
 | Deep Nesting | function | max nesting ≥ 4 | guard clauses, extract inner block |
 | Bumpy Road | function | ≥ 2 separate blocks of nesting ≥ 2 | extract each bump into a function |
 | Brain Method | function | Large + Complex + Deep Nesting together | decompose; highest weight |
-| Excess Arguments | function | > 4 params (Python excludes `self`/`cls`; Dart named params count 0.5, `this.x` 0) | introduce parameter object |
+| Excess Arguments | function | > 4 params (Python excludes `self`/`cls`; Dart named params and Swift labelled params count 0.5, `this.x` 0) | introduce parameter object |
 | Complex Conditional | function | ≥ 2 boolean operators in one expression | extract to named predicate |
 | Primitive Obsession | file | > 60% of *typed* params are primitive, min 10 typed params | introduce domain types |
 | Code Duplication | function | clone ≥ 50 tokens / 6 lines, intra- or inter-file | extract shared function |
 | Large File | file | > 1000 LoC | split by responsibility |
 | Low Cohesion | class | LCOM4 ≥ 3 | split class |
 | Missing .PHONY | Makefile file | ≥ 1 phony-looking target not in `.PHONY` (weight 0.5) | declare it in `.PHONY` |
-| Deep Widget Tree | Dart function | widget constructor nesting > 8 in `build()` | extract sub-widgets |
+| Deep Widget Tree | Dart / Swift function | widget / view constructor nesting > 8 | extract sub-widgets / `View` structs |
 
 ## Metric definitions (implemented in M3)
 
@@ -63,9 +63,10 @@ Starting thresholds; all overridable in `.aihealth.toml`.
   instead.
 - **Condition operators:** per boolean expression root, the count of
   and/or operators. Parentheses and `not` don't split a root.
-- **Widget depth (Dart):** nesting of capitalised constructor calls
-  (`Foo(`, `Foo.named(`, `const Foo(`). Value objects like `EdgeInsets` count
-  at the leaves.
+- **Widget depth (Dart, Swift):** nesting of capitalised constructor calls
+  (`Foo(`, `Foo.named(`, `const Foo(`; Swift `VStack { }`, `Text(...)`).
+  Value objects like `EdgeInsets` count at the leaves. Modifier chains
+  (`.padding()`) don't deepen it.
 - Nested named functions are scored on their own and excluded from their
   parent. Closures are part of the enclosing function.
 
@@ -132,11 +133,13 @@ closures made up thousands of lines. Resolved in M4 (next section).
 - Smell details:
   - Excess Arguments ignores Dart `this.x` / `super.x` field initializers,
     so Flutter widget constructors aren't flagged. Named parameters count
-    half: Dart `{…}` params, and (M11) Python keyword-only params after `*`
-    / `*args` plus `**kwargs`. Both are named options at the call site.
+    half: Dart `{…}` params, (M11) Python keyword-only params after `*`
+    / `*args` plus `**kwargs`, and (M13) Swift params with a call-site
+    label (`_ x` counts fully). All are named at the call site.
   - Primitive Obsession counts only typed parameters. Untyped Python is
     "unknown", not primitive. Dart callbacks (`Function`) and records are
-    unknown too.
+    unknown too, as are Swift closures and tuples. Swift `[T]` / `[K: V]`
+    are judged by their element types, like generics.
   - LCOM4 is computed over non-constructor methods that touch at least one
     member, and needs ≥ 4 such methods.
   - Duplication: literals normalised, identifiers kept, ≥ 50 tokens and
@@ -256,6 +259,46 @@ names must be plain words matching `[A-Za-z0-9_][A-Za-z0-9_-]*`.
 - Condition detection respects a grammar's `condition` field: in bash, an
   if's body statements are also its direct children.
 - Calibration rerun after these changes: every corpus is within ±0.1.
+
+## Swift (M13)
+
+Units and grammar notes are in the parser card. The generic thresholds fit
+without a Swift exception.
+
+**SwiftUI.** On IceCubesApp, TCA and Kingfisher, 699 `body` getters have
+LoC p50 / p95 / p97 / p99 of 18 / 80 / 91 / 145, and 6 % exceed the
+70-line limit. Their widget depth is p50 / p95 / p99 2 / 5 / 7, and one
+exceeds 8. SwiftUI code already splits views into small structs and
+properties, so unlike Flutter `build()` (p97 = 120) no higher `body` limit
+was added. A 145-line `body` is worth a finding.
+
+**Excludes added:** `.build/`, `Pods/`, `DerivedData/`, `*.generated.swift`,
+SwiftGen headers, and `*.docc/*`. DocC tutorial step files are
+near-copies of each other by design: they made up 94 % of TCA's penalty
+before the exclude.
+
+**Calibration** (`AIHEALTH_SWIFT_CORPORA=<dir of shallow clones>
+scripts/calibrate.py --only swift:`):
+
+| Corpus | kind | kLoC | project | median file | healthy % | alert LoC % |
+|---|---|---:|---:|---:|---:|---:|
+| Alamofire | lib | 9.4 | 8.5 | 10 | 70 | 0 |
+| swift-argument-parser | lib | 9.9 | 7.7 | 10 | 65 | 10 |
+| swift-collections | lib | 52.6 | 8.8 | 10 | 77 | 0 |
+| Kingfisher | lib | 12.3 | 8.5 | 10 | 77 | 0 |
+| vapor | lib | 14.2 | 9.4 | 10 | 88 | 0 |
+| TCA (Sources) | lib | 14.4 | 6.2 | 10 | 69 | 31 |
+| IceCubesApp | app | 40.1 | 8.7 | 10 | 75 | 0 |
+| swift-nio | complex | 72.5 | 7.1 | 9.7 | 57 | 18 |
+| SwiftLint | complex | 61.9 | 9.7 | 10 | 91 | 0 |
+
+Code Duplication is the top penalty in every Swift corpus (29–78 %). The
+samples are real copy-paste: Alamofire's `DataRequest` and
+`DownloadRequest` response handlers, swift-nio's `NIOFS` and
+`_NIOFileSystem` copies, and TCA's overload families repeated across
+`Binding` / `Bindable` / `UIBindable` plus a 3,669-line
+`Deprecations.swift`. As with Dart, duplication is kept as is, and TCA's
+6.2 is accepted like httpx's.
 
 ## Delta classification
 

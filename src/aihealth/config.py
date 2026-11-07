@@ -14,6 +14,9 @@ Example `.aihealth.toml`::
 
     [dart]
     test_closure_calls = ["group", "test", "testWidgets", "patrolTest"]
+
+    [swift]
+    test_closure_calls = ["describe", "context", "it"]   # Quick-style specs
 """
 
 from __future__ import annotations
@@ -79,6 +82,11 @@ DEFAULT_EXCLUDES: list[str] = [
     "*/__pycache__/*",
     "*/migrations/versions/*",
     "*/CMakeFiles/*",  # CMake-generated Makefiles
+    "*.generated.swift",  # Sourcery / SwiftGen
+    ".build/*",  # SwiftPM
+    "Pods/*",  # CocoaPods
+    "DerivedData/*",
+    "*.docc/*",  # DocC catalogs: tutorial step files repeat each other
 ]
 
 DEFAULTS: dict[str, Any] = {
@@ -93,6 +101,7 @@ DEFAULTS: dict[str, Any] = {
     # shrinks, its remaining smelly functions cover a bigger share of it
     "delta": {"tolerance": 0.1},
     "dart": {"test_closure_calls": None},  # None = built-in list
+    "swift": {"test_closure_calls": None},
 }
 
 
@@ -121,8 +130,8 @@ class Config:
         return base + list(scan["exclude"])
 
     def adapter_options(self, language: str) -> dict[str, Any]:
-        if language == "dart":
-            calls = self.data["dart"]["test_closure_calls"]
+        if language in ("dart", "swift"):
+            calls = self.data[language]["test_closure_calls"]
             return {} if calls is None else {"test_calls": frozenset(calls)}
         return {}
 

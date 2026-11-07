@@ -275,7 +275,7 @@ def _score_label(fd: FileDelta) -> str:
 def delta_text(result: DeltaResult, opts: ReportOptions) -> str:
     out = [f"aihealth delta: {_compared(result)}: {result.verdict.upper()}"]
     if not result.files:
-        out.append("no changed Python/Dart files")
+        out.append("no changed supported files")
     for fd in result.files:
         out += _file_delta_text(fd, opts.verbose)
     return "\n".join(out)
@@ -319,7 +319,7 @@ _VERDICT_LINE = {
 def delta_markdown(result: DeltaResult, opts: ReportOptions) -> str:
     out = [f"## Code health delta ({_compared(result)})", "", _VERDICT_LINE[result.verdict]]
     if not result.files:
-        return "\n".join([*out, "", "No changed Python/Dart files."])
+        return "\n".join([*out, "", "No changed supported files."])
     out += ["", "| File | Before | After | Δ | Verdict |", "|---|---:|---:|---:|---|"]
     out += [_delta_row(fd) for fd in result.files]
     out += _partial_parse_note(result)

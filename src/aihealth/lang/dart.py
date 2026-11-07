@@ -14,7 +14,15 @@ from typing import ClassVar
 
 from tree_sitter import Node
 
-from aihealth.lang.base import ExtractionScope, LanguageAdapter, iter_nodes, text, type_leaves
+from aihealth.lang.base import (
+    ExtractionScope,
+    LanguageAdapter,
+    iter_nodes,
+    member_refs_by_method,
+    text,
+    type_leaves,
+    walk_units,
+)
 from aihealth.metrics import Role
 from aihealth.model import Class, Function, Module, Param
 
@@ -363,9 +371,7 @@ class DartAdapter(LanguageAdapter):
     def member_refs(self, cls: Class) -> dict[str, set[str]]:
         """Bare or `this.`-qualified references to the class's own fields and
         methods in each method body."""
-        members = {m.name.rstrip("=") for m in cls.methods if m.kind != "constructor"}
-        members |= _instance_fields(cls)
-        return {fn.qualname: _member_names_in(fn.body, members) for fn in cls.methods}
+        return member_refs_by_method(cls, _instance_fields(cls), _member_names_in)
 
     def _test_unit(self, fexpr: Node) -> tuple[str, Node] | None:
         call = _closure_call(fexpr)
@@ -538,11 +544,7 @@ class DartAdapter(LanguageAdapter):
     def _add_local_functions(self, scope: ExtractionScope, body: Node) -> None:
         """Local named functions and test closures are scored on their own;
         other closures stay part of the enclosing function."""
-        stack = list(body.children)
-        while stack:
-            n = stack.pop()
-            if not self._add_nested_unit(scope, n):
-                stack.extend(n.children)
+        walk_units(body, lambda n: self._add_nested_unit(scope, n))
 
     def _add_nested_unit(self, scope: ExtractionScope, n: Node) -> bool:
         """Add ``n`` if it is a nested unit; True if it was a unit boundary

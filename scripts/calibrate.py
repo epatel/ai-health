@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import pickle
 import sys
 import time
@@ -36,6 +37,8 @@ SITE = (
 )
 FLUTTER = Path.home() / "Development/Flutter/flutter/packages"
 PUB = Path.home() / ".pub-cache/hosted/pub.dev"
+# shallow clones (`git clone --depth 1`) of the Swift repos below, in one directory
+SWIFT = Path(os.environ.get("AIHEALTH_SWIFT_CORPORA", Path.home() / "Development/swift-corpora"))
 
 # (name, path, expectation) - "lib": well-regarded library code, expected mostly
 # healthy; "complex": large, inherently complex code, expected lower.
@@ -62,6 +65,15 @@ CORPORA = [
     ("dart:flutter.material", FLUTTER / "flutter/lib/src/material", "complex"),
     ("dart:flutter.rendering", FLUTTER / "flutter/lib/src/rendering", "complex"),
     ("dart:flutter_tools", FLUTTER / "flutter_tools/lib", "complex"),
+    ("swift:Alamofire", SWIFT / "Alamofire/Source", "lib"),
+    ("swift:argument-parser", SWIFT / "swift-argument-parser/Sources", "lib"),
+    ("swift:collections", SWIFT / "swift-collections/Sources", "lib"),
+    ("swift:Kingfisher", SWIFT / "Kingfisher/Sources", "lib"),
+    ("swift:vapor", SWIFT / "vapor/Sources", "lib"),
+    ("swift:tca", SWIFT / "swift-composable-architecture/Sources", "lib"),
+    ("swift:IceCubesApp", SWIFT / "IceCubesApp", "complex"),
+    ("swift:nio", SWIFT / "swift-nio/Sources", "complex"),
+    ("swift:SwiftLint", SWIFT / "SwiftLint/Source", "complex"),
 ]
 
 
@@ -203,10 +215,12 @@ def main() -> None:
     ap.add_argument("--rescan", action="store_true")
     ap.add_argument("--variants", default=",".join(VARIANTS))
     ap.add_argument("--mix", action="store_true", help="show the smells driving the penalty")
+    ap.add_argument("--only", default="", help="corpus name prefix, e.g. swift:")
     args = ap.parse_args()
     cache = Path(args.cache)
     cache.mkdir(parents=True, exist_ok=True)
-    data = [(n, kind, load(n, p, cache, args.rescan)) for n, p, kind in CORPORA if p.is_dir()]
+    corpora = [c for c in CORPORA if c[0].startswith(args.only) and c[1].is_dir()]
+    data = [(n, kind, load(n, p, cache, args.rescan)) for n, p, kind in corpora]
     print_table(data, args.variants.split(","), args.mix)
 
 

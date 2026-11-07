@@ -31,8 +31,9 @@ class ToolInputError(ValueError):
 
 
 INSTRUCTIONS = """\
-aihealth estimates code health (1-10, CodeScene-style code smells) for Python and Dart/Flutter.
-- After editing Python/Dart code, call `review_changes` (working tree vs HEAD). If the verdict \
+aihealth estimates code health (1-10, CodeScene-style code smells) for Python, Dart/Flutter,
+Swift and Makefiles.
+- After editing such code, call `review_changes` (working tree vs HEAD). If the verdict \
 is DEGRADED, fix the listed new/worsened smells in the code you touched before finishing.
 - Before writing a large rewrite of a file, `preview_change` scores the proposed content \
 against the current file without touching disk.
@@ -85,14 +86,16 @@ def review_changes(
 def score_file(
     path: str, repo: str | None = None, output: Output = "markdown", max_findings: int = 10
 ) -> str:
-    """Code health score (1-10) and all code smells of one Python or Dart
+    """Code health score (1-10) and all code smells of one supported
     file on disk, grouped per function with fix hints."""
     absolute, root, rel = _resolve(path, repo)
     if not absolute.is_file():
         raise ToolInputError(f"file not found: {absolute}")
     fs = score_source(absolute.read_bytes(), rel, load_config(root))
     if fs is None:
-        raise ToolInputError(f"unsupported file type (supported: Python, Dart, Makefiles): {rel}")
+        raise ToolInputError(
+            f"unsupported file type (supported: Python, Dart, Swift, Makefiles): {rel}"
+        )
     return render_file(fs, output, _options(max_findings))
 
 
@@ -110,7 +113,9 @@ def preview_change(
     config = load_config(root)
     before = absolute.read_bytes() if absolute.is_file() else None
     if score_source(b"", rel, config) is None:
-        raise ToolInputError(f"unsupported file type (supported: Python, Dart, Makefiles): {rel}")
+        raise ToolInputError(
+            f"unsupported file type (supported: Python, Dart, Swift, Makefiles): {rel}"
+        )
     fd = delta_for_contents(rel, before, content.encode(), config)
     result = DeltaResult(str(root), "current file", "proposed content", [fd])
     return render_delta(result, output, _options(max_findings))
@@ -119,7 +124,7 @@ def preview_change(
 def scan_project(
     path: str = ".", output: Output = "markdown", top: int = 10, max_findings: int = 10
 ) -> str:
-    """Code health overview of every Python/Dart file under `path`: project
+    """Code health overview of every supported file under `path`: project
     score (LoC-weighted), worst files, and top refactoring targets."""
     root = _base_dir(path)
     if not root.is_dir():

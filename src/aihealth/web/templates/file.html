@@ -55,7 +55,7 @@
   <table class="functions">
     <thead><tr><th>Function</th><th class="num">Line</th><th class="num">LoC</th><th class="num">Cyclomatic</th>
       <th class="num">Cognitive</th><th class="num">Nesting</th><th class="num">Bumps</th><th class="num">Args</th>
-      {% if file.language == 'dart' %}<th class="num">Widget depth</th>{% endif %}</tr></thead>
+      {% if file.language in ('dart', 'swift') %}<th class="num">Widget depth</th>{% endif %}</tr></thead>
     <tbody>
       {% for m in functions %}
       <tr>
@@ -67,7 +67,7 @@
         <td class="num {{ 'over' if m.max_nesting > limits.deep_nesting }}">{{ m.max_nesting }}</td>
         <td class="num {{ 'over' if m.bumps > limits.bumpy_road }}">{{ m.bumps }}</td>
         <td class="num {{ 'over' if m.args > limits.excess_arguments }}">{{ m.args }}</td>
-        {% if file.language == 'dart' %}<td class="num {{ 'over' if m.widget_depth > limits.deep_widget_tree }}">{{ m.widget_depth }}</td>{% endif %}
+        {% if file.language in ('dart', 'swift') %}<td class="num {{ 'over' if m.widget_depth > limits.deep_widget_tree }}">{{ m.widget_depth }}</td>{% endif %}
       </tr>
       {% endfor %}
     </tbody>
