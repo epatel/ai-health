@@ -122,6 +122,12 @@ Status: `todo` / `wip` / `done`.
   so it runs in a forked child with a 1 s CPU / 3 s wall-clock limit first, and each file
   keeps the zsh or bash tree, whichever loses fewer lines. See the zsh
   sections of both cards.
+- **Dependencies** (after the re-assessment): tree-sitter and the
+  grammar pack pinned to the tested minor version, other runtime
+  dependencies below their next major, ruff to a minor. CI
+  (`.github/workflows/ci.yml`): ruff, tests and the self-scan on Python
+  3.11–3.13 (Linux) and 3.12 (macOS), weekly too. No lockfile: users
+  install with pip, so the ranges are what they get.
 - **Generated Dart files** (`*.g.dart`, `*.freezed.dart`, `*.mocks.dart`)
   excluded by default.
 

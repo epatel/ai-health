@@ -9,17 +9,24 @@ description = "Code health estimates (1-10) for code changes and codebases, as f
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
+# Tested ranges. The parser and grammars are pinned to the tested minor
+# version: a grammar update renames or reshapes nodes, which changes scores
+# silently (unknown node types just get no role), and the zsh workarounds
+# depend on tree-sitter 0.26 behaviour. Widen a range only after the spike
+# tests, the snapshot comparison and calibration pass on the new version
+# (cards/parser-choice.md).
 dependencies = [
-    "tree-sitter>=0.23",
-    "tree-sitter-language-pack>=0.7",
-    "mcp>=2,<3",
-    "fastapi>=0.110",
-    "uvicorn>=0.29",
-    "jinja2>=3.1",
+    "tree-sitter>=0.26,<0.27",
+    "tree-sitter-language-pack>=1.25,<1.26",
+    "mcp>=2.3,<3",
+    "fastapi>=0.110,<1",
+    "uvicorn>=0.29,<1",
+    "jinja2>=3.1,<4",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6", "httpx>=0.27"]
+# ruff pinned to a minor version: new rules or formatting would fail CI
+dev = ["pytest>=8,<10", "ruff>=0.17,<0.18", "httpx>=0.27,<1"]
 
 [project.scripts]
 aihealth = "aihealth.cli:main"

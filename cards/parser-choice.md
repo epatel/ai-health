@@ -81,8 +81,13 @@ Adapter coverage check (M2): on 2,912 Flutter SDK files (1.39M LoC) the
 Dart adapter extracts every `function_body` (60,461), with zero parse
 errors at about 60k LoC/s. Python runs at about 135k LoC/s on site-packages.
 
-Pin grammar versions in `pyproject.toml` before M3 golden tests depend on
-exact node shapes.
+Versions are pinned to the tested minor in `pyproject.toml`
+(`tree-sitter>=0.26,<0.27`, `tree-sitter-language-pack>=1.25,<1.26`): a
+grammar update renames or reshapes nodes, and adapters then degrade
+silently (unknown node types get no role, so complexity drops). Widen a
+range only after the spike tests, a before/after snapshot comparison
+(`scripts/snapshot.py`) and calibration pass on the new version. The
+weekly CI run catches patch releases inside the ranges.
 
 ## When to revisit
 

@@ -347,10 +347,10 @@ and zsh adapters.
 | 3 | `serve --host 0.0.0.0` without warning | open |
 | 4 | ECharts from a CDN without SRI | open |
 | 5 | No file-size limit in delta / hooks / MCP | open, **more important** (see 13) |
-| 6 | Open-ended dependency versions | open, **more important** (see below) |
-| 7 | No CI | open |
-| 8 | MCP wiring untested | open (`mcp_server.py` 87.5 % covered) |
-| 9 | Only Python 3.12 tested | open |
+| 6 | Open-ended dependency versions | fixed (ranges pinned), see below |
+| 7 | No CI | fixed |
+| 8 | MCP wiring untested | covered by `test_stdio_server_round_trip` (see below) |
+| 9 | Only Python 3.12 tested | fixed: CI runs 3.11–3.13 |
 | 10 | `smells.py` refactor; stale test count | `smells.py` open; test count updated |
 | 12 | `scan` hangs on a named pipe outside git | **new**, Low, fixed |
 | 13 | Quadratic source scanning (header routing, `NS_ENUM`, zsh `${`) | **new**, Low–Medium, fixed |
@@ -456,3 +456,28 @@ sleeping), and optionally cap memory with `RLIMIT_AS` on Linux.
 - The three new tests fail on the old code. 492 tests pass, ruff is clean,
   and `aihealth delta` reports no changes in health.
 
+### Fixes for 6–9
+
+- **6:** `pyproject.toml` pins tested ranges: `tree-sitter>=0.26,<0.27`
+  and `tree-sitter-language-pack>=1.25,<1.26` (the tested minor; widening
+  needs the spike tests, a snapshot comparison and calibration),
+  `mcp>=2.3,<3`, and `fastapi`, `uvicorn`, `jinja2` below their next
+  major. Dev tools: `ruff>=0.17,<0.18` so new rules or formatting don't
+  fail CI, `pytest<10`, `httpx<1`. The ranges resolve to exactly the
+  versions tested locally. No lockfile: users install with pip, so the
+  ranges are what they get. Not done: recording the grammar version in
+  saved scans.
+- **7, 9:** `.github/workflows/ci.yml` installs `.[dev]`, then runs ruff
+  (check and format), pytest and `aihealth scan . --fail-under 9` on
+  Python 3.11, 3.12 and 3.13 (ubuntu) and 3.12 (macOS, where the zsh
+  guard's fork behaves differently). It runs on push to main, on pull
+  requests, weekly (patch releases inside the ranges) and by hand.
+  Python 3.11 compatibility was checked statically (ruff's `py311`
+  target, no 3.12-only standard-library calls); CI is the first real
+  3.11 run.
+- **8:** already covered: `test_stdio_server_round_trip` starts
+  `aihealth mcp` over stdio, initialises a client session, lists the tools,
+  calls one and checks that a bad input comes back as an error with its
+  message. That runs `build_server` and `_as_tool_errors` against the
+  installed SDK. The coverage figure missed it because the server runs in
+  a subprocess.

@@ -1,4 +1,5 @@
 <a href="https://claude.ai"><img src="made-with-claude.png" height="32" alt="Made with Claude"></a>
+[![CI](https://github.com/epatel/ai-health/actions/workflows/ci.yml/badge.svg)](https://github.com/epatel/ai-health/actions/workflows/ci.yml)
 
 # aihealth
 

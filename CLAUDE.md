@@ -28,6 +28,8 @@ parsing via tree-sitter, history in SQLite.
 - Behaviour-preserving check: `.venv/bin/python scripts/snapshot.py --out before.json ROOT...`,
   change, `--out after.json`, then `--compare before.json after.json` (snapshots go in a scratch dir)
 - MCP: `.venv/bin/aihealth mcp` (stdio; registered in `.mcp.json`; usage in README.md)
+- CI: `.github/workflows/ci.yml` runs ruff, the tests and `aihealth scan . --fail-under 9` on
+  Python 3.11–3.13 (Linux) and 3.12 (macOS), on push, pull requests and weekly
 
 ## Enforced rules
 
