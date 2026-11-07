@@ -22,9 +22,9 @@ uv tool install "git+https://github.com/epatel/ai-health"   # or: pipx install "
 python3 -m venv .venv && .venv/bin/pip install -e .         # from a clone (or: make setup)
 ```
 
-**Let your agent set it up:** [AGENT-INSTALL.md](AGENT-INSTALL.md) has a prompt to paste into
-Claude Code. It installs aihealth for you (every project) or for one project (committed
-config for the team), registers the MCP server and hooks, and runs a first scan.
+**Full setup** (MCP server, hooks, for you or for a project): [AGENT-INSTALL.md](AGENT-INSTALL.md)
+lists the exact commands and file changes, plus a short prompt that has your agent do the
+same steps.
 
 ## CLI
 
