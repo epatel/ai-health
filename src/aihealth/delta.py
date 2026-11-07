@@ -204,18 +204,38 @@ def _skip_reason(ch: ChangedFile, config: Config) -> str | None:
 
 def _file_delta(root: Path, ch: ChangedFile, revs: Revisions, config: Config) -> FileDelta | str:
     """The file's delta, or why it was skipped."""
+    reason = _precheck(root, ch, revs, config)
+    if reason is not None:
+        return reason
     after = gitutil.read_file(root, revs.head, ch.path)
     if after is None:
         return "unreadable"
-    if not is_supported(ch.path, after):
-        return ""  # an extensionless file without a shell shebang
     if is_generated(after):
         return "generated"
-    before = None
-    if revs.base is not None and ch.old_path:
-        before = gitutil.read_file(root, revs.base, ch.old_path)
-    largest = max(len(after), len(before or b""))
-    return too_large(largest, config) or delta_for_contents(ch, before, after, config)
+    before = gitutil.read_file(root, revs.base, ch.old_path) if _has_before(ch, revs) else None
+    return delta_for_contents(ch, before, after, config)
+
+
+def _not_a_script(root: Path, ch: ChangedFile, revs: Revisions) -> bool:
+    """Extensionless, and its first bytes hold no shell shebang."""
+    head = gitutil.read_head(root, revs.head, ch.path) if may_be_script(ch.path) else None
+    return head is not None and not is_supported(ch.path, head)
+
+
+def _has_before(ch: ChangedFile, revs: Revisions) -> bool:
+    return revs.base is not None and bool(ch.old_path)
+
+
+def _precheck(root: Path, ch: ChangedFile, revs: Revisions, config: Config) -> str | None:
+    """Why the file is skipped, decided before reading it in full: from its
+    size (either version) and, for an extensionless file, its first bytes."""
+    size = gitutil.file_size(root, revs.head, ch.path)
+    if size is None:
+        return "unreadable"
+    if _not_a_script(root, ch, revs):
+        return ""  # an extensionless file without a shell shebang
+    before = gitutil.file_size(root, revs.base, ch.old_path) if _has_before(ch, revs) else None
+    return too_large(max(size, before or 0), config)
 
 
 def run_delta(

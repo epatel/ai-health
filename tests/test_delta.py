@@ -267,3 +267,32 @@ def test_files_over_max_file_kb_are_skipped_with_the_reason(repo):
     git(repo, "commit", "-qam", "big")
     (repo / "app.py").write_text(CLEAN)
     assert [p for p, _ in run_delta(repo, config).skipped] == ["app.py"]
+
+
+def test_sizes_and_heads_are_read_without_the_whole_file(repo):
+    (repo / "app.py").write_text("x = 1\n" * 100)
+    git(repo, "add", "app.py")
+    (repo / "empty").write_text("")
+    for rev in (gitutil.WORKTREE, gitutil.INDEX):
+        assert gitutil.file_size(repo, rev, "app.py") == 600
+        assert gitutil.read_head(repo, rev, "app.py", 10) == b"x = 1\nx = "
+    assert gitutil.file_size(repo, "HEAD", "keep.py") == len(CLEAN)
+    assert gitutil.read_head(repo, "HEAD", "keep.py", 5) == CLEAN[:5].encode()
+    assert gitutil.read_head(repo, gitutil.WORKTREE, "empty") == b""
+    for rev in (gitutil.WORKTREE, gitutil.INDEX, "HEAD"):
+        assert gitutil.file_size(repo, rev, "nope.py") is None
+        assert gitutil.read_head(repo, rev, "nope.py") is None
+
+
+def test_files_over_the_limit_are_never_read_in_full(repo, monkeypatch):
+    config = Config()
+    config.data["scan"]["max_file_kb"] = 1
+    (repo / "app.py").write_text(NESTED + "# padding\n" * 120)
+    (repo / "blob").write_bytes(b"\0binary" * 300)  # extensionless, not a script
+    (repo / "tool").write_text("#!/bin/sh\n" + "# padding\n" * 120)  # a script
+    read = []
+    original = gitutil.read_file
+    monkeypatch.setattr(gitutil, "read_file", lambda *a: read.append(a[2]) or original(*a))
+    result = run_delta(repo, config)
+    assert read == []
+    assert sorted(p for p, _ in result.skipped) == ["app.py", "tool"]  # `blob`: silently

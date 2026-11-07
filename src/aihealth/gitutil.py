@@ -136,16 +136,58 @@ def _parse_name_status(fields: list[str]) -> list[ChangedFile]:
     return result
 
 
+def _blob(rev: str | None, path: str) -> str:
+    """The object name of ``path`` in the index or at a commit."""
+    return f":{path}" if rev == INDEX else f"{_rev(rev)}:{path}"
+
+
 def read_file(root: Path, rev: str | None, path: str) -> bytes | None:
     """Content of ``path`` at ``rev`` (WORKTREE, INDEX or a commit); None if absent."""
     if rev is WORKTREE:
         p = root / path
         return p.read_bytes() if p.is_file() else None
-    spec = f":{path}" if rev == INDEX else f"{_rev(rev)}:{path}"
     res = subprocess.run(
-        [*GIT, "show", "--end-of-options", spec], cwd=root, capture_output=True, check=False
+        [*GIT, "show", "--end-of-options", _blob(rev, path)],
+        cwd=root,
+        capture_output=True,
+        check=False,
     )
     return res.stdout if res.returncode == 0 else None
+
+
+def file_size(root: Path, rev: str | None, path: str) -> int | None:
+    """Size in bytes of ``path`` at ``rev`` without reading it; None if absent."""
+    if rev is WORKTREE:
+        p = root / path
+        return p.stat().st_size if p.is_file() else None
+    res = subprocess.run(
+        [*GIT, "cat-file", "-s", "--end-of-options", _blob(rev, path)],
+        cwd=root,
+        capture_output=True,
+        check=False,
+    )
+    return int(res.stdout) if res.returncode == 0 else None
+
+
+def read_head(root: Path, rev: str | None, path: str, size: int = 128) -> bytes | None:
+    """The first ``size`` bytes of ``path`` at ``rev`` (enough for a shebang),
+    without reading the rest; None if absent."""
+    if rev is WORKTREE:
+        p = root / path
+        if not p.is_file():
+            return None
+        with p.open("rb") as f:
+            return f.read(size)
+    args = [*GIT, "cat-file", "blob", "--end-of-options", _blob(rev, path)]
+    with subprocess.Popen(
+        args, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+    ) as proc:
+        head = proc.stdout.read(size)
+        if head:
+            proc.kill()  # don't make git write the rest
+    if head:
+        return head
+    return b"" if proc.returncode == 0 else None  # an empty file, or no such file
 
 
 def _split(out: bytes) -> list[str]:

@@ -1,0 +1,9 @@
+# Keeps the commit-SHA pins in .github/workflows current (weekly pull
+# requests). Python dependencies are pinned to tested ranges by hand in
+# pyproject.toml: widening them needs a snapshot comparison and calibration.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

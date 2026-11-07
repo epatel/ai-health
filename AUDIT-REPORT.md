@@ -556,8 +556,8 @@ was checked in Node with a stubbed ECharts (no JS tests in the repo).
 | # | Finding | Severity |
 |---|---|---|
 | 15 | `serve --host ::1` refuses every request | **new**, Low, fixed |
-| 16 | Delta reads a changed file whole before the size check | **new**, Info |
-| 17 | CI actions referenced by tag, not commit SHA | **new**, Info |
+| 16 | Delta reads a changed file whole before the size check | **new**, Info, fixed |
+| 17 | CI actions referenced by tag, not commit SHA | **new**, Info, fixed |
 
 ### 15. IPv6 loopback refused by the host check (new, Low)
 
@@ -577,15 +577,23 @@ pass.
 `gitutil.read_file` reads the changed file completely (or `git show`
 returns it) before `too_large` rejects it. Parsing, the slow part, is
 skipped, so a 1 GB file costs memory and about a second, not minutes.
-**Optional fix:** `stat` working-tree files first, and use `git cat-file
--s` for revisions.
+**Fixed:** `gitutil.file_size` (`stat`, or `git cat-file -s` for the index
+and commits) and `gitutil.read_head` (the first 128 bytes; git is stopped
+after them) let delta decide before reading: either version over the
+limit → skipped, and an extensionless file without a shell shebang is
+still ignored silently. Content is read only for files that will be
+scored. A test replaces `read_file` and checks it is never called for an
+oversized file, script or not.
 
 ### 17. CI actions pinned by tag (new, Info)
 
 `actions/checkout@v4` and `actions/setup-python@v5` follow their major
 tags. A compromised tag would run in CI, which holds only a read-only
-token (`permissions: contents: read`) and no secrets. **Optional fix:**
-pin to commit SHAs (Dependabot can keep them current).
+token (`permissions: contents: read`) and no secrets. **Fixed:**
+`actions/checkout@11d5960…` (v4.4.0) and `actions/setup-python@a26af69…`
+(v5.6.0), with the version in a comment, and `.github/dependabot.yml`
+proposes updates weekly. Python dependencies stay pinned by hand,
+since widening them needs a snapshot comparison and calibration.
 
 ### Verified in the recent changes
 
@@ -607,5 +615,5 @@ pin to commit SHAs (Dependabot can keep them current).
 ### Recommended order
 
 1. ~~Fix 15~~ (done).
-2. Optionally 16 and 17.
+2. ~~16 and 17~~ (done). 507 tests pass.
 3. Then the next language (M21) is the user's call.
