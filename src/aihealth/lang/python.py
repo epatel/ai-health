@@ -1,0 +1,148 @@
+"""Python adapter (tree-sitter `python` grammar)."""
+
+from __future__ import annotations
+
+from tree_sitter import Node
+
+from aihealth.lang.base import LanguageAdapter, text
+from aihealth.model import Class, Function, Module, Param
+
+_PARAM_TYPED = {"typed_parameter", "typed_default_parameter"}
+_PARAM_DEFAULT = {"default_parameter", "typed_default_parameter"}
+_SPLATS = {"list_splat_pattern", "dictionary_splat_pattern"}
+
+
+def _unwrap(node: Node) -> Node:
+    """`@decorator def f` is a decorated_definition wrapping the def."""
+    if node.type == "decorated_definition":
+        inner = node.child_by_field_name("definition")
+        if inner is not None:
+            return inner
+    return node
+
+
+def _is_docstring(node: Node) -> bool:
+    """A string that is the first statement of a module, class or function
+    body. Grammar versions differ: newer ones put a bare `string` in the
+    block, older ones wrap it in `expression_statement`."""
+    if node.type == "expression_statement":
+        if node.named_child_count != 1 or node.named_children[0].type not in (
+            "string",
+            "concatenated_string",
+        ):
+            return False
+    elif node.type not in ("string", "concatenated_string"):
+        return False
+    parent = node.parent
+    if parent is None or parent.type not in ("module", "block"):
+        return False
+    if parent.type == "block" and (
+        parent.parent is None
+        or parent.parent.type not in ("function_definition", "class_definition")
+    ):
+        return False
+    first = next((c for c in parent.named_children if c.type != "comment"), None)
+    return first is not None and first.id == node.id
+
+
+def _params(params_node: Node | None, is_method: bool) -> list[Param]:
+    if params_node is None:
+        return []
+    out: list[Param] = []
+    for child in params_node.named_children:
+        if child.type in ("keyword_separator", "positional_separator", "comment"):
+            continue
+        name_node = child.child_by_field_name("name")
+        type_node = child.child_by_field_name("type")
+        variadic = child.type in _SPLATS
+        if child.type == "identifier":
+            name = text(child)
+        elif child.type in _SPLATS:
+            name = text(child).lstrip("*")
+        elif child.type == "typed_parameter":
+            # name is the first named child (identifier or a splat pattern)
+            first = child.named_children[0]
+            variadic = first.type in _SPLATS
+            name = text(first).lstrip("*")
+        else:
+            name = text(name_node)
+        out.append(
+            Param(
+                name=name,
+                type_text=text(type_node) if child.type in _PARAM_TYPED and type_node else None,
+                optional=child.type in _PARAM_DEFAULT,
+                variadic=variadic,
+            )
+        )
+    if is_method and out and out[0].name in ("self", "cls") and not out[0].typed:
+        out = out[1:]
+    return out
+
+
+class PythonAdapter(LanguageAdapter):
+    language = "python"
+    extensions = (".py", ".pyi")
+
+    def _skip_for_loc(self, node: Node) -> bool:
+        return node.type == "comment" or _is_docstring(node)
+
+    def _extract(self, module: Module) -> None:
+        self._walk_block(module, module.root, prefix="", cls=None)
+
+    def _walk_block(self, module: Module, block: Node, prefix: str, cls: Class | None) -> None:
+        for raw in block.named_children:
+            node = _unwrap(raw)
+            if node.type == "function_definition":
+                self._add_function(module, node, raw, prefix, cls)
+            elif node.type == "class_definition":
+                self._add_class(module, node, raw, prefix)
+            elif node.type in ("if_statement", "try_statement", "with_statement"):
+                # defs under `if TYPE_CHECKING:` / try-import fallbacks
+                for sub in node.named_children:
+                    if sub.type == "block":
+                        self._walk_block(module, sub, prefix, cls)
+                    else:
+                        body = sub.child_by_field_name("body") or next(
+                            (c for c in sub.named_children if c.type == "block"), None
+                        )
+                        if body is not None:
+                            self._walk_block(module, body, prefix, cls)
+
+    def _add_function(
+        self, module: Module, node: Node, outer: Node, prefix: str, cls: Class | None
+    ) -> None:
+        name = text(node.child_by_field_name("name"))
+        qualname = f"{prefix}{name}"
+        body = node.child_by_field_name("body")
+        fn = Function(
+            name=name,
+            qualname=qualname,
+            kind="method" if cls is not None else "function",
+            start_line=outer.start_point[0] + 1,
+            end_line=node.end_point[0] + 1,
+            params=_params(node.child_by_field_name("parameters"), cls is not None),
+            body=body,
+            class_name=cls.name if cls else None,
+        )
+        if cls is not None:
+            if name == "__init__":
+                fn.kind = "constructor"
+            cls.methods.append(fn)
+        else:
+            module.functions.append(fn)
+        if body is not None:
+            # nested defs become their own functions; nested classes too
+            self._walk_block(module, body, prefix=f"{qualname}.", cls=None)
+
+    def _add_class(self, module: Module, node: Node, outer: Node, prefix: str) -> None:
+        name = text(node.child_by_field_name("name"))
+        cls = Class(
+            name=f"{prefix}{name}",
+            kind="class",
+            start_line=outer.start_point[0] + 1,
+            end_line=node.end_point[0] + 1,
+        )
+        module.classes.append(cls)
+        body = node.child_by_field_name("body")
+        if body is not None:
+            self._walk_block(module, body, prefix=f"{cls.name}.", cls=cls)

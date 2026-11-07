@@ -59,6 +59,28 @@ Python grammar: functions `function_definition`, classes
 `class_definition`, branches `if_statement`/`elif_clause`, boolean ops
 `boolean_operator`, `match_statement` — no surprises.
 
+More Dart shapes, verified in M2:
+
+- Constructor signatures: `constructor_signature` (name is `Repo` or
+  `Repo.named` from identifier + `.` children), `factory_constructor_signature`
+  (no name field). A constructor with only an initializer list is a
+  `declaration` with no following `function_body`, so it isn't scored, but
+  closures in its initializers can still declare local functions.
+- Abstract methods are `declaration > function_signature` with no body.
+- Local functions: `local_function_declaration > lambda_expression >
+  (function_signature, function_body)`. Closures are `function_expression`
+  and are not scored on their own.
+- `required` is the previous sibling token of a named `formal_parameter`;
+  `this.x` / `super.x` params are `constructor_param` /
+  `super_formal_parameter` (type comes from the field).
+
+Python grammar: newer versions put a docstring as a bare `string` directly
+in the block, not wrapped in `expression_statement`. Handle both.
+
+Adapter coverage check (M2): on 2,912 Flutter SDK files (1.39M LoC) the
+Dart adapter extracts every `function_body` (60,461), with zero parse
+errors at about 60k LoC/s. Python runs at about 135k LoC/s on site-packages.
+
 Pin grammar versions in `pyproject.toml` before M3 golden tests depend on
 exact node shapes.
 

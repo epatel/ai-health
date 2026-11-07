@@ -34,7 +34,7 @@ Status: `todo` / `wip` / `done`.
 |---|---|---|---|
 | M0 | Agentic setup (CLAUDE.md, cards, plan, hooks) | done | this file exists, checker passes |
 | M1 | Skeleton + parser spike | done | `.venv`, `pyproject.toml`, `Makefile`, `aihealth --help`, pytest green; tree-sitter parses a real Flutter widget file and a Python module |
-| M2 | Language adapters | todo | Python + Dart adapters return a uniform `Module → Class → Function` model with spans, params, body nodes |
+| M2 | Language adapters | done | Python + Dart adapters return a uniform `Module → Class → Function` model with spans, params, body nodes |
 | M3 | Function metrics | todo | LoC, cyclomatic, cognitive, max nesting, bumps, args, complex conditionals, widget-tree depth (Dart) — golden-file tests per language |
 | M4 | Smells + scoring | todo | smell detectors, penalty table, file score 1–10, LoC-weighted project score, `.aihealth.toml` overrides, duplication detector |
 | M5 | Delta mode | todo | before/after scoring for working tree, staged, or `base..head`; per-function new/worsened/fixed smells; verdict + exit code |
@@ -68,8 +68,12 @@ planned milestone), Makefile, 7 passing tests. tree-sitter-language-pack's
 Dart grammar handles Dart 3 + Flutter cleanly — no source build needed.
 Grammar quirks (sibling signature/body, no call node, unreliable boolean
 precedence) are recorded in `cards/parser-choice.md`.
-Next agent: M2 — uniform `Module → Class → Function` model + Python and
-Dart adapters under `src/aihealth/lang/`, using the spike fixtures.
+M2 done: `model.py` + `lang/{base,python,dart}.py` + registry. 23 tests.
+Verified on the Flutter SDK: every Dart `function_body` is extracted.
+Next agent: M3 metrics. Walk `Function.body` and stop at nested named
+functions, which are scored separately: Python `function_definition` /
+`class_definition`, Dart `local_function_declaration`. Closures DO count
+toward nesting. Count Dart boolean operators by token, not tree shape.
 Note: `pip install` may need user approval in this environment — ask the
 user to run `! make setup` rather than retrying.
 

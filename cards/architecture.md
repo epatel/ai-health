@@ -32,7 +32,8 @@ Planned package layout (`src/aihealth/`):
 
 | Module | Owns |
 |---|---|
-| `lang/` | One adapter per language. Maps tree-sitter node types to a uniform model: `Module`, `Class`, `Function` (name, span, params with type hints, body node). Decision-point node types and nesting node types live here. |
+| `model.py` | The uniform model: `Module` (path, language, source, tree root, loc, error_count), `Class` (name, kind: class/mixin/extension/enum), `Function` (name, qualname, kind: function/method/constructor/getter/setter/operator, 1-based line span, `Param`s, body node, loc). `Module.all_functions()` lists every scorable function. |
+| `lang/` | One adapter per language (`python.py`, `dart.py`) subclassing `LanguageAdapter` in `base.py`, plus a registry (`adapter_for(path)`, `parse_file`, `parse_source`). Adapters build the model. LoC counting (code lines only, excluding comments and docstrings) is shared in `base.py`. Nested named functions are separate `Function`s with dotted qualnames (`outer.inner`); closures and lambdas stay inside their parent. M3 adds decision-point and nesting node-type sets here. |
 | `metrics.py` | Language-neutral metric computation over the uniform model: LoC, cyclomatic, cognitive complexity, max nesting, bumpy-road bumps, argument count, complex conditionals, widget-tree depth (Dart only, adapter-provided). |
 | `duplication.py` | Token-based clone detection across functions in a file and across files in a scan. |
 | `smells.py` | Thresholds → smell findings (`Finding(path, function, smell, severity, line, detail, hint)`). |
