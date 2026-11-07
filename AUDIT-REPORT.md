@@ -465,8 +465,8 @@ sleeping), and optionally cap memory with `RLIMIT_AS` on Linux.
   major. Dev tools: `ruff>=0.17,<0.18` so new rules or formatting don't
   fail CI, `pytest<10`, `httpx<1`. The ranges resolve to exactly the
   versions tested locally. No lockfile: users install with pip, so the
-  ranges are what they get. Not done: recording the grammar version in
-  saved scans.
+  ranges are what they get. Recording the grammar version in saved
+  scans followed separately (below).
 - **7, 9:** `.github/workflows/ci.yml` installs `.[dev]`, then runs ruff
   (check and format), pytest and `aihealth scan . --fail-under 9` on
   Python 3.11, 3.12 and 3.13 (ubuntu) and 3.12 (macOS, where the zsh
@@ -521,3 +521,16 @@ code. 495 tests pass.
   real `aihealth serve` checked with curl: 200 for its own host, 400 for
   `Host: evil.example`, 403 for a cross-site post, 303 for a same-origin
   one. 501 tests pass.
+
+### Grammar version in saved scans (rest of 6)
+
+Migration 3 adds `scan.parser_versions` (NULL for scans saved before),
+and `save_scan` records the installed versions, e.g. "tree-sitter
+0.26.0, tree-sitter-language-pack 1.25.0". `aihealth history` notes
+"parsers changed: …" next to "config changed", and both dashboard
+trends (project and file) draw a dotted vertical line at that scan, with
+the versions in its tooltip. Going from unknown to a recorded version
+isn't counted as a change. Tests cover the v2 → v3 upgrade (data kept,
+column NULL), the recorded value, and the history note. The chart logic
+was checked in Node with a stubbed ECharts (no JS tests in the repo).
+504 tests pass.

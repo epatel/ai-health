@@ -71,6 +71,11 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX function_metric_file ON function_metric (file_id);
     """,
+    # 3: parser and grammar versions: a grammar update can change scores
+    # without any code change, so history marks where they changed
+    """
+    ALTER TABLE scan ADD COLUMN parser_versions TEXT;  -- NULL for older scans
+    """,
 ]
 
 

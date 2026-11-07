@@ -46,20 +46,48 @@
     return chart;
   }
 
-  // Score per scan: one series, fixed 1-10 axis, dashed band thresholds.
+  // Labels of scans whose parser/grammar versions differ from the scan
+  // before (both known): scores there may move without any code change.
+  function parserChanges(points) {
+    const changed = (p, i) => i > 0 && Boolean(p.parsers) && Boolean(points[i - 1].parsers) &&
+      p.parsers !== points[i - 1].parsers;
+    return new Set(points.filter(changed).map((p) => p.label));
+  }
+
+  function trendTooltip(points, changed) {
+    return (items) => {
+      const p = points[items[0].dataIndex];
+      const when = (p.date || "").slice(0, 16).replace("T", " ");
+      const score = p.value == null ? "n/a" : p.value.toFixed(2) + " (" + band(p.value) + ")";
+      const commit = p.commit ? p.commit.slice(0, 7) + "<br>" : "";
+      const parsers = changed.has(p.label) ? `<br>parsers changed: ${p.parsers}` : "";
+      return `<b>${p.label}</b> · ${when}<br>${commit}score ${score}${parsers}`;
+    };
+  }
+
+  // band thresholds (dashed) and parser changes (dotted, vertical)
+  function trendMarks(t, changed) {
+    const parserLine = (label) => ({
+      xAxis: label, name: "parsers", lineStyle: { type: "dotted", color: t.secondary },
+    });
+    return [
+      { yAxis: 9, name: "healthy ≥ 9" },
+      { yAxis: 4, name: "alert < 4" },
+      ...[...changed].map(parserLine),
+    ];
+  }
+
+  // Score per scan: one series, fixed 1-10 axis, dashed band thresholds,
+  // a dotted vertical line where the parser/grammar versions changed.
   function trend(id, points, opts) {
+    const changed = parserChanges(points);
     const chart = mount(id, (t) => ({
       grid: { left: 36, right: 64, top: 16, bottom: 28 },
       tooltip: {
         ...tooltipBase(t),
         trigger: "axis",
         axisPointer: { type: "line", lineStyle: { color: t.muted } },
-        formatter: (items) => {
-          const p = points[items[0].dataIndex];
-          const when = (p.date || "").slice(0, 16).replace("T", " ");
-          const score = p.value == null ? "n/a" : p.value.toFixed(2) + " (" + band(p.value) + ")";
-          return `<b>${p.label}</b> · ${when}<br>${p.commit ? p.commit.slice(0, 7) + "<br>" : ""}score ${score}`;
-        },
+        formatter: trendTooltip(points, changed),
       },
       xAxis: {
         type: "category",
@@ -83,7 +111,7 @@
           silent: true, symbol: "none",
           lineStyle: { type: "dashed", width: 1, color: t.muted },
           label: { color: t.secondary, fontSize: 11, formatter: "{b}" },
-          data: [{ yAxis: 9, name: "healthy ≥ 9" }, { yAxis: 4, name: "alert < 4" }],
+          data: trendMarks(t, changed),
         },
       }],
     }));

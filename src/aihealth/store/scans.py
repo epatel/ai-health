@@ -7,6 +7,7 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from importlib import metadata
 from pathlib import Path
 
 from aihealth import __version__, gitutil
@@ -42,6 +43,22 @@ def config_hash(config: Config) -> str:
     return hashlib.sha256(blob).hexdigest()[:12]
 
 
+PARSER_PACKAGES = ("tree-sitter", "tree-sitter-language-pack")
+
+
+def parser_versions() -> str:
+    """The installed parser and grammar versions, e.g.
+    "tree-sitter 0.26.0, tree-sitter-language-pack 1.25.0"."""
+    return ", ".join(f"{name} {_installed(name)}" for name in PARSER_PACKAGES)
+
+
+def _installed(name: str) -> str:
+    try:
+        return metadata.version(name)
+    except metadata.PackageNotFoundError:
+        return "unknown"
+
+
 @dataclass
 class GitInfo:
     commit: str | None = None
@@ -69,7 +86,8 @@ def save_scan(
     with conn:  # one transaction: a scan is saved completely or not at all
         cur = conn.execute(
             "INSERT INTO scan (created_at, root, git_commit, git_branch, git_dirty, score, loc,"
-            " file_count, tool_version, config_hash) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            " file_count, tool_version, config_hash, parser_versions)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 datetime.now(UTC).isoformat(timespec="seconds"),
                 result.root,
@@ -81,6 +99,7 @@ def save_scan(
                 len(result.files),
                 __version__,
                 config_hash(config),
+                parser_versions(),
             ),
         )
         scan_id = cur.lastrowid
@@ -186,7 +205,8 @@ def get_file(conn: sqlite3.Connection, scan_id: int, path: str) -> dict | None:
 def project_trend(conn: sqlite3.Connection, limit: int = 200) -> list[dict]:
     """Project score per scan, oldest first."""
     rows = conn.execute(
-        "SELECT id, created_at, git_commit, score, loc, file_count, config_hash FROM"
+        "SELECT id, created_at, git_commit, score, loc, file_count, config_hash,"
+        " parser_versions FROM"
         " (SELECT * FROM scan ORDER BY id DESC LIMIT ?) ORDER BY id",
         (limit,),
     ).fetchall()
@@ -196,7 +216,8 @@ def project_trend(conn: sqlite3.Connection, limit: int = 200) -> list[dict]:
 def file_trend(conn: sqlite3.Connection, path: str, limit: int = 200) -> list[dict]:
     """One file's score per scan it appears in, oldest first."""
     rows = conn.execute(
-        "SELECT s.id AS scan_id, s.created_at, s.git_commit, f.score, f.loc FROM file_score f"
+        "SELECT s.id AS scan_id, s.created_at, s.git_commit, s.parser_versions, f.score, f.loc"
+        " FROM file_score f"
         " JOIN scan s ON s.id = f.scan_id WHERE f.path = ? ORDER BY s.id DESC LIMIT ?",
         (path, limit),
     ).fetchall()

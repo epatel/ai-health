@@ -87,7 +87,11 @@ grammar update renames or reshapes nodes, and adapters then degrade
 silently (unknown node types get no role, so complexity drops). Widen a
 range only after the spike tests, a before/after snapshot comparison
 (`scripts/snapshot.py`) and calibration pass on the new version. The
-weekly CI run catches patch releases inside the ranges.
+weekly CI run catches patch releases inside the ranges. Saved scans record
+the installed versions (`scan.parser_versions`): `aihealth history` notes
+"parsers changed" and the dashboard trend draws a dotted line where they
+differ from the scan before, so a score jump from a grammar update is
+explained.
 
 ## When to revisit
 

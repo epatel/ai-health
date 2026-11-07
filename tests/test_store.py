@@ -182,3 +182,47 @@ def test_cli_custom_db(project, tmp_path, capsys):
     assert main(["scan", str(project), "--save", "--db", str(db)]) == 0
     assert db.is_file() and not (project / ".aihealth").exists()
     assert main(["history", "--db", str(db)]) == 0
+
+
+# --- parser versions ----------------------------------------------------------------
+
+
+def test_upgrade_from_v2_adds_parser_versions(tmp_path):
+    conn = sqlite3.connect(tmp_path / "h.db")
+    migrate(conn, MIGRATIONS[:2])
+    conn.execute(
+        "INSERT INTO scan (created_at, root, loc, file_count, tool_version, config_hash)"
+        " VALUES ('2026-01-01', '/r', 10, 1, '0.0.1', 'abc')"
+    )
+    conn.commit()
+    assert migrate(conn) == len(MIGRATIONS)
+    assert conn.execute("SELECT root, parser_versions FROM scan").fetchone() == ("/r", None)
+
+
+def test_scans_record_parser_versions(project, tmp_path):
+    from importlib import metadata
+
+    conn = connect(tmp_path / "h.db")
+    save_scan(conn, scan(project, Config()), Config(), GitInfo())
+    recorded = list_scans(conn)[0]["parser_versions"]
+    assert recorded == (
+        f"tree-sitter {metadata.version('tree-sitter')}, "
+        f"tree-sitter-language-pack {metadata.version('tree-sitter-language-pack')}"
+    )
+    assert project_trend(conn)[0]["parser_versions"] == recorded
+    assert file_trend(conn, "bad.py")[0]["parser_versions"] == recorded
+
+
+def test_history_notes_parser_changes(project, capsys):
+    for _ in range(4):
+        assert main(["scan", str(project), "--save"]) == 0
+    db = sqlite3.connect(project / ".aihealth" / "health.db")
+    db.execute("UPDATE scan SET parser_versions = NULL WHERE id = 1")  # saved before v3
+    db.execute("UPDATE scan SET parser_versions = 'tree-sitter-language-pack 1.26.0' WHERE id = 4")
+    db.commit()
+    capsys.readouterr()
+    assert main(["history", str(project)]) == 0
+    rows = capsys.readouterr().out.splitlines()[3:]
+    notes = ["parsers changed" in row for row in rows]
+    assert notes == [False, False, False, True]  # unknown -> known is not a change
+    assert "parsers changed: tree-sitter-language-pack 1.26.0" in rows[3]
