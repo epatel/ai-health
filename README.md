@@ -1,3 +1,5 @@
+<a href="https://claude.ai"><img src="made-with-claude.png" height="32" alt="Made with Claude"></a>
+
 # aihealth
 
 Code health estimates (1–10, CodeScene-style) for **Python** and **Dart/Flutter**, built as
