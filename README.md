@@ -31,6 +31,7 @@ aihealth delta --format markdown    # agent-oriented output (also: text, json)
 
 aihealth scan path/to/repo --format markdown --max-findings 20
 aihealth scan . --fail-under 7      # CI gate on the project score
+aihealth scan src/app.py            # one file (also: Makefile, lib/x.dart)
 ```
 
 ## History

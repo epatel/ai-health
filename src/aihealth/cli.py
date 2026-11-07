@@ -8,7 +8,14 @@ from pathlib import Path
 
 from aihealth import __version__
 from aihealth.config import ConfigError, load_config
-from aihealth.report import FORMATS, ReportOptions, render_delta, render_history, render_scan
+from aihealth.report import (
+    FORMATS,
+    ReportOptions,
+    render_delta,
+    render_file,
+    render_history,
+    render_scan,
+)
 from aihealth.store.scans import default_db_path
 
 # --- scan -------------------------------------------------------------------
@@ -24,12 +31,18 @@ def _report_options(args: argparse.Namespace) -> ReportOptions:
 
 
 def _cmd_scan(args: argparse.Namespace) -> int:
+    target = Path(args.path)
+    if target.is_file():
+        return _scan_file(target, args)
+    if target.is_dir():
+        return _scan_dir(target, args)
+    print(f"no such file or directory: {target}", file=sys.stderr)
+    return 2
+
+
+def _scan_dir(root: Path, args: argparse.Namespace) -> int:
     from aihealth.engine import scan
 
-    root = Path(args.path)
-    if not root.is_dir():
-        print(f"not a directory: {root}", file=sys.stderr)
-        return 2
     try:
         config = load_config(root, args.config)
     except ConfigError as e:
@@ -41,6 +54,34 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         _save(result, config, args.db or default_db_path(root))
     below = args.fail_under is not None and (result.score or 10.0) < args.fail_under
     return 1 if below else 0
+
+
+def _scan_file(path: Path, args: argparse.Namespace) -> int:
+    """Score one file on its own (duplication within the file only), with
+    the config of the project it belongs to."""
+    from aihealth.engine import project_path, score_source
+    from aihealth.lang import is_supported
+    from aihealth.lang.base import is_generated
+
+    if args.save:
+        print("error: --save needs a directory (one file is not a project scan)", file=sys.stderr)
+        return 2
+    root, rel = project_path(path)
+    if not is_supported(rel):
+        print(f"unsupported file type: {rel} (Python, Dart, Makefiles)", file=sys.stderr)
+        return 2
+    try:
+        config = load_config(root, args.config)
+    except ConfigError as e:
+        print(f"config error: {e}", file=sys.stderr)
+        return 2
+    source = path.read_bytes()
+    if is_generated(source):
+        print(f"skipped {rel}: generated file", file=sys.stderr)
+        return 0
+    fs = score_source(source, rel, config)
+    print(render_file(fs, args.format, _report_options(args)))
+    return 1 if args.fail_under is not None and fs.score < args.fail_under else 0
 
 
 def _save(result, config, db: Path) -> None:
@@ -153,8 +194,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"aihealth {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    scan = sub.add_parser("scan", help="score every supported file under a path")
-    scan.add_argument("path", nargs="?", default=".")
+    scan = sub.add_parser("scan", help="score a directory tree, or a single file")
+    scan.add_argument("path", nargs="?", default=".", help="directory or file (default: .)")
     scan.add_argument("--format", choices=FORMATS, default="text")
     scan.add_argument("--max-findings", type=int, default=10, help="markdown: findings listed")
     scan.add_argument("--top", type=int, default=10, help="files to list in text output")
@@ -162,7 +203,10 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--functions", action="store_true", help="include function metrics (json)")
     scan.add_argument("--config", help="config file (default: <path>/.aihealth.toml)")
     scan.add_argument(
-        "--fail-under", type=float, metavar="SCORE", help="exit 1 if project score is below"
+        "--fail-under",
+        type=float,
+        metavar="SCORE",
+        help="exit 1 if the (project/file) score is below",
     )
     scan.add_argument("--save", action="store_true", help="store the scan in the history DB")
     scan.add_argument("--db", help="history DB (default: <path>/.aihealth/health.db)")

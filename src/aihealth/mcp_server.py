@@ -19,7 +19,7 @@ from typing import Literal
 from aihealth import gitutil
 from aihealth.config import DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS, Config, ConfigError, load_config
 from aihealth.delta import DeltaResult, delta_for_contents, run_delta
-from aihealth.engine import scan, score_source
+from aihealth.engine import project_path, scan, score_source
 from aihealth.report import ReportOptions, render_delta, render_file, render_scan
 from aihealth.smells import EXPLANATIONS, HINTS, LABELS
 
@@ -46,24 +46,11 @@ def _base_dir(repo: str | None) -> Path:
     return Path(repo).expanduser().resolve() if repo else Path.cwd()
 
 
-def _project_root(start: Path) -> Path:
-    """Git work tree root containing ``start``, else ``start`` (or its dir)."""
-    directory = start if start.is_dir() else start.parent
-    try:
-        return gitutil.repo_root(directory)
-    except gitutil.GitError:
-        return directory
-
-
 def _resolve(path: str, repo: str | None) -> tuple[Path, Path, str]:
     """(absolute file, project root, path relative to root)."""
     p = Path(path).expanduser()
     absolute = (p if p.is_absolute() else _base_dir(repo) / p).resolve()
-    root = _project_root(absolute)
-    try:
-        rel = absolute.relative_to(root).as_posix()
-    except ValueError:
-        rel = absolute.name
+    root, rel = project_path(absolute)
     return absolute, root, rel
 
 
@@ -105,7 +92,7 @@ def score_file(
         raise ToolInputError(f"file not found: {absolute}")
     fs = score_source(absolute.read_bytes(), rel, load_config(root))
     if fs is None:
-        raise ToolInputError(f"unsupported file type (Python/Dart only): {rel}")
+        raise ToolInputError(f"unsupported file type (supported: Python, Dart, Makefiles): {rel}")
     return render_file(fs, output, _options(max_findings))
 
 
@@ -123,7 +110,7 @@ def preview_change(
     config = load_config(root)
     before = absolute.read_bytes() if absolute.is_file() else None
     if score_source(b"", rel, config) is None:
-        raise ToolInputError(f"unsupported file type (Python/Dart only): {rel}")
+        raise ToolInputError(f"unsupported file type (supported: Python, Dart, Makefiles): {rel}")
     fd = delta_for_contents(rel, before, content.encode(), config)
     result = DeltaResult(str(root), "current file", "proposed content", [fd])
     return render_delta(result, output, _options(max_findings))

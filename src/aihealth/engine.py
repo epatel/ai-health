@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from aihealth import gitutil
 from aihealth.config import Config
 from aihealth.duplication import DuplicationIndex
 from aihealth.lang import adapter_for, is_supported
@@ -59,6 +60,29 @@ def _clones(modules: list[Module], config: Config):
     for m in modules:
         index.add(m, adapter_for(m.path, config))
     return index.clones()
+
+
+# --- paths -------------------------------------------------------------------
+
+
+def project_root(path: Path) -> Path:
+    """Git work tree root containing ``path``, else the directory itself (or
+    the file's directory). Config (`.aihealth.toml`) is read from here."""
+    directory = path if path.is_dir() else path.parent
+    try:
+        return gitutil.repo_root(directory)
+    except gitutil.GitError:
+        return directory
+
+
+def project_path(path: str | Path) -> tuple[Path, str]:
+    """(project root, path relative to it) for a file anywhere on disk."""
+    absolute = Path(path).expanduser().resolve()
+    root = project_root(absolute)
+    try:
+        return root, absolute.relative_to(root).as_posix()
+    except ValueError:
+        return root, absolute.name
 
 
 # --- tree scan ----------------------------------------------------------------

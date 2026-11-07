@@ -50,10 +50,12 @@ def render_delta(result: DeltaResult, fmt: str, opts: ReportOptions | None = Non
 
 
 def render_file(fs: FileScore, fmt: str, opts: ReportOptions | None = None) -> str:
-    """One file's score and findings (MCP score_file)."""
+    """One file's score and findings (`aihealth scan FILE`, MCP score_file)."""
     opts = opts or ReportOptions()
     if fmt == "json":
         return json.dumps(fs.to_dict(with_functions=opts.functions), indent=2)
+    if fmt == "text":
+        return file_text(fs, opts)
     out = [
         f"## {fs.path}: {_fmt_score(fs.score)}",
         "",
@@ -148,6 +150,28 @@ def _worst_files(result: ScanResult, top: int):
     return [f for f in files if f.findings][:top]
 
 
+def _finding_lines(findings: list[Finding], verbose: bool, indent: int) -> list[str]:
+    """Text lines for findings, worst first; top 5 unless verbose."""
+    ordered = _by_penalty(findings)
+    shown = ordered if verbose else ordered[:5]
+    pad = " " * indent
+    out = [f"{pad}L{f.line:<5} {f.label}: {f.message}" for f in shown]
+    if len(ordered) > len(shown):
+        out.append(f"{pad}... {len(ordered) - len(shown)} more (use -v)")
+    return out
+
+
+def file_text(fs: FileScore, opts: ReportOptions) -> str:
+    out = [
+        f"aihealth scan {fs.path}",
+        f"file score: {_fmt_score(fs.score)}  ({fs.loc} LoC, {len(fs.findings)} findings)",
+    ]
+    if fs.parse_errors:
+        out.append(f"! {fs.parse_errors} syntax error(s): results may be partial")
+    out += _finding_lines(fs.findings, opts.verbose, indent=2)
+    return "\n".join(out)
+
+
 def scan_text(result: ScanResult, opts: ReportOptions) -> str:
     counts = _band_counts(result)
     out = [
@@ -164,11 +188,7 @@ def scan_text(result: ScanResult, opts: ReportOptions) -> str:
     out += ["", f"worst {len(worst)} files:"]
     for fs in worst:
         out += ["", f"  {fs.score:5.2f}  {fs.path}  ({fs.loc} LoC)"]
-        findings = _by_penalty(fs.findings)
-        shown = findings if opts.verbose else findings[:5]
-        out += [f"         L{f.line:<5} {f.label}: {f.message}" for f in shown]
-        if len(findings) > len(shown):
-            out.append(f"         ... {len(findings) - len(shown)} more (use -v)")
+        out += _finding_lines(fs.findings, opts.verbose, indent=9)
     return "\n".join(out)
 
 
