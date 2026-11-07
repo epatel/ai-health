@@ -148,6 +148,27 @@ def _make_qualnames_unique(module: Module) -> None:
 
 
 @dataclass(frozen=True)
+class ExtractionScope:
+    """Where an adapter's extracted functions go and how they are named:
+    the module, the enclosing class (methods) and the qualname prefix."""
+
+    module: Module
+    cls: Class | None = None
+    prefix: str = ""
+
+    def add(self, fn: Function) -> None:
+        (self.cls.methods if self.cls is not None else self.module.functions).append(fn)
+
+    def nested(self, owner: str) -> ExtractionScope:
+        """Scope for units nested in ``owner`` (local functions, closures)."""
+        return ExtractionScope(self.module, None, f"{owner}.")
+
+    def in_class(self, cls: Class) -> ExtractionScope:
+        """Scope for the members of ``cls`` (its name becomes the prefix)."""
+        return ExtractionScope(self.module, cls, f"{cls.name}.")
+
+
+@dataclass(frozen=True)
 class LanguageSmell:
     """A language-specific smell measurement; it becomes a Finding when
     ``value`` exceeds the smell's configured threshold."""

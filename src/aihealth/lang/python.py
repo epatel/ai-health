@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import ClassVar
 
 from tree_sitter import Node
 
-from aihealth.lang.base import LanguageAdapter, iter_nodes, text, type_leaves
+from aihealth.lang.base import ExtractionScope, LanguageAdapter, iter_nodes, text, type_leaves
 from aihealth.metrics import Role
 from aihealth.model import Class, Function, Module, Param
 
@@ -24,27 +25,30 @@ def _unwrap(node: Node) -> Node:
     return node
 
 
-def _is_docstring(node: Node) -> bool:
-    """A string that is the first statement of a module, class or function
-    body. Grammar versions differ: newer ones put a bare `string` in the
-    block, older ones wrap it in `expression_statement`."""
+_STRINGS = ("string", "concatenated_string")
+
+
+def _is_string_statement(node: Node) -> bool:
+    """A lone string statement. Grammar versions differ: newer ones put a
+    bare `string` in the block, older ones wrap it in `expression_statement`."""
     if node.type == "expression_statement":
-        if node.named_child_count != 1 or node.named_children[0].type not in (
-            "string",
-            "concatenated_string",
-        ):
-            return False
-    elif node.type not in ("string", "concatenated_string"):
+        return node.named_child_count == 1 and node.named_children[0].type in _STRINGS
+    return node.type in _STRINGS
+
+
+def _holds_docstring(parent: Node | None) -> bool:
+    """A module, or the body block of a function or class."""
+    if parent is None or parent.type == "module":
+        return parent is not None
+    owner = parent.parent if parent.type == "block" else None
+    return owner is not None and owner.type in ("function_definition", "class_definition")
+
+
+def _is_docstring(node: Node) -> bool:
+    """A string that is the first statement of a module, class or function body."""
+    if not _is_string_statement(node) or not _holds_docstring(node.parent):
         return False
-    parent = node.parent
-    if parent is None or parent.type not in ("module", "block"):
-        return False
-    if parent.type == "block" and (
-        parent.parent is None
-        or parent.parent.type not in ("function_definition", "class_definition")
-    ):
-        return False
-    first = next((c for c in parent.named_children if c.type != "comment"), None)
+    first = next((c for c in node.parent.named_children if c.type != "comment"), None)
     return first is not None and first.id == node.id
 
 
@@ -58,6 +62,12 @@ def _param_name(child: Node) -> tuple[str, str | None]:
         first = child.named_children[0]
         return text(first).lstrip("*"), first.type if first.type in _SPLATS else None
     return text(child.child_by_field_name("name")), None
+
+
+def _is_bool_keyword(node: Node) -> bool:
+    """The `and`/`or` token of a boolean_operator."""
+    in_bool_op = node.parent is not None and node.parent.type == "boolean_operator"
+    return node.type in ("and", "or") and in_bool_op
 
 
 def _is_self(node: Node | None) -> bool:
@@ -96,31 +106,64 @@ def _assigned_self_attributes(cls: Class) -> set[str]:
     return found
 
 
+def _param(child: Node, keyword_only: bool) -> tuple[Param, str | None]:
+    """One parameter, and its splat node type (or None)."""
+    name, splat = _param_name(child)
+    type_node = child.child_by_field_name("type") if child.type in _PARAM_TYPED else None
+    param = Param(
+        name=name,
+        type_text=text(type_node) if type_node else None,
+        named=keyword_only or splat == "dictionary_splat_pattern",
+        optional=child.type in _PARAM_DEFAULT,
+        variadic=splat is not None,
+    )
+    return param, splat
+
+
+def _starts_with_self(params: list[Param]) -> bool:
+    """An untyped leading `self`/`cls`, which callers never pass."""
+    return bool(params) and params[0].name in ("self", "cls") and not params[0].typed
+
+
+_SEPARATORS = ("keyword_separator", "positional_separator", "comment")
+
+
 def _params(params_node: Node | None, is_method: bool) -> list[Param]:
     if params_node is None:
         return []
     out: list[Param] = []
     keyword_only = False  # after `*` or `*args`: named at every call site
     for child in params_node.named_children:
-        if child.type == "keyword_separator":
-            keyword_only = True
-        if child.type in ("keyword_separator", "positional_separator", "comment"):
+        keyword_only = keyword_only or child.type == "keyword_separator"
+        if child.type in _SEPARATORS:
             continue
-        name, splat = _param_name(child)
-        type_node = child.child_by_field_name("type")
-        out.append(
-            Param(
-                name=name,
-                type_text=text(type_node) if child.type in _PARAM_TYPED and type_node else None,
-                named=keyword_only or splat == "dictionary_splat_pattern",
-                optional=child.type in _PARAM_DEFAULT,
-                variadic=splat is not None,
-            )
-        )
+        param, splat = _param(child, keyword_only)
+        out.append(param)
         keyword_only = keyword_only or splat == "list_splat_pattern"
-    if is_method and out and out[0].name in ("self", "cls") and not out[0].typed:
-        out = out[1:]
-    return out
+    return out[1:] if is_method and _starts_with_self(out) else out
+
+
+_COMPOUND = ("if_statement", "try_statement", "with_statement")
+
+
+def _compound_bodies(node: Node) -> Iterator[Node]:
+    """The blocks of an if/try/with statement, in order: its own block and
+    those of its elif/else/except/finally clauses."""
+    for sub in node.named_children:
+        if sub.type == "block":
+            yield sub
+            continue
+        body = sub.child_by_field_name("body") or next(
+            (c for c in sub.named_children if c.type == "block"), None
+        )
+        if body is not None:
+            yield body
+
+
+def _function_kind(name: str, in_class: bool) -> str:
+    if not in_class:
+        return "function"
+    return "constructor" if name == "__init__" else "method"
 
 
 class PythonAdapter(LanguageAdapter):
@@ -155,9 +198,7 @@ class PythonAdapter(LanguageAdapter):
         return r
 
     def bool_token(self, node: Node) -> str | None:
-        if node.type in ("and", "or") and node.parent and node.parent.type == "boolean_operator":
-            return node.type
-        return None
+        return node.type if _is_bool_keyword(node) else None
 
     def is_recursive_call(self, node: Node, fn_name: str) -> bool:
         if node.type != "call":
@@ -223,63 +264,54 @@ class PythonAdapter(LanguageAdapter):
         return node.type == "comment" or _is_docstring(node)
 
     def _extract(self, module: Module) -> None:
-        self._walk_block(module, module.root, prefix="", cls=None)
+        self._walk_block(ExtractionScope(module), module.root)
 
-    def _walk_block(self, module: Module, block: Node, prefix: str, cls: Class | None) -> None:
+    def _walk_block(self, scope: ExtractionScope, block: Node) -> None:
         for raw in block.named_children:
-            node = _unwrap(raw)
-            if node.type == "function_definition":
-                self._add_function(module, node, raw, prefix, cls)
-            elif node.type == "class_definition":
-                self._add_class(module, node, raw, prefix)
-            elif node.type in ("if_statement", "try_statement", "with_statement"):
-                # defs under `if TYPE_CHECKING:` / try-import fallbacks
-                for sub in node.named_children:
-                    if sub.type == "block":
-                        self._walk_block(module, sub, prefix, cls)
-                    else:
-                        body = sub.child_by_field_name("body") or next(
-                            (c for c in sub.named_children if c.type == "block"), None
-                        )
-                        if body is not None:
-                            self._walk_block(module, body, prefix, cls)
+            self._add_statement(scope, raw)
 
-    def _add_function(
-        self, module: Module, node: Node, outer: Node, prefix: str, cls: Class | None
-    ) -> None:
+    def _add_statement(self, scope: ExtractionScope, raw: Node) -> None:
+        node = _unwrap(raw)
+        if node.type == "function_definition":
+            self._add_function(scope, node, raw)
+        elif node.type == "class_definition":
+            self._add_class(scope, node, raw)
+        elif node.type in _COMPOUND:
+            # defs under `if TYPE_CHECKING:` / try-import fallbacks
+            for body in _compound_bodies(node):
+                self._walk_block(scope, body)
+
+    def _add_function(self, scope: ExtractionScope, node: Node, outer: Node) -> None:
         name = text(node.child_by_field_name("name"))
-        qualname = f"{prefix}{name}"
+        qualname = f"{scope.prefix}{name}"
         body = node.child_by_field_name("body")
-        fn = Function(
-            name=name,
-            qualname=qualname,
-            kind="method" if cls is not None else "function",
-            start_line=outer.start_point[0] + 1,
-            end_line=node.end_point[0] + 1,
-            params=_params(node.child_by_field_name("parameters"), cls is not None),
-            body=body,
-            class_name=cls.name if cls else None,
+        cls = scope.cls
+        scope.add(
+            Function(
+                name=name,
+                qualname=qualname,
+                kind=_function_kind(name, in_class=cls is not None),
+                start_line=outer.start_point[0] + 1,
+                end_line=node.end_point[0] + 1,
+                params=_params(node.child_by_field_name("parameters"), cls is not None),
+                body=body,
+                class_name=cls.name if cls else None,
+            )
         )
-        if cls is not None:
-            if name == "__init__":
-                fn.kind = "constructor"
-            cls.methods.append(fn)
-        else:
-            module.functions.append(fn)
         if body is not None:
             # nested defs become their own functions; nested classes too
-            self._walk_block(module, body, prefix=f"{qualname}.", cls=None)
+            self._walk_block(scope.nested(qualname), body)
 
-    def _add_class(self, module: Module, node: Node, outer: Node, prefix: str) -> None:
+    def _add_class(self, scope: ExtractionScope, node: Node, outer: Node) -> None:
         name = text(node.child_by_field_name("name"))
         cls = Class(
-            name=f"{prefix}{name}",
+            name=f"{scope.prefix}{name}",
             kind="class",
             start_line=outer.start_point[0] + 1,
             end_line=node.end_point[0] + 1,
             node=node,
         )
-        module.classes.append(cls)
+        scope.module.classes.append(cls)
         body = node.child_by_field_name("body")
         if body is not None:
-            self._walk_block(module, body, prefix=f"{cls.name}.", cls=cls)
+            self._walk_block(scope.in_class(cls), body)

@@ -9,13 +9,12 @@ Grammar quirks handled here (see cards/parser-choice.md):
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
 from itertools import pairwise
 from typing import ClassVar
 
 from tree_sitter import Node
 
-from aihealth.lang.base import LanguageAdapter, iter_nodes, text, type_leaves
+from aihealth.lang.base import ExtractionScope, LanguageAdapter, iter_nodes, text, type_leaves
 from aihealth.metrics import Role
 from aihealth.model import Class, Function, Module, Param
 
@@ -318,22 +317,6 @@ def _is_function_body(node: Node | None) -> bool:
     return node is not None and node.type == "function_body"
 
 
-@dataclass(frozen=True)
-class _Scope:
-    """Where extracted functions go and how they are named."""
-
-    module: Module
-    cls: Class | None = None
-    prefix: str = ""
-
-    def add(self, fn: Function) -> None:
-        (self.cls.methods if self.cls is not None else self.module.functions).append(fn)
-
-    def nested(self, owner: str) -> _Scope:
-        """Scope for units nested in ``owner`` (local functions, test closures)."""
-        return _Scope(self.module, None, f"{owner}.")
-
-
 class DartAdapter(LanguageAdapter):
     language = "dart"
     extensions = (".dart",)
@@ -471,14 +454,14 @@ class DartAdapter(LanguageAdapter):
     # --- extraction ---------------------------------------------------------------------
 
     def _extract(self, module: Module) -> None:
-        self._scan_members(_Scope(module), module.root)
+        self._scan_members(ExtractionScope(module), module.root)
 
-    def _scan_members(self, scope: _Scope, parent: Node) -> None:
+    def _scan_members(self, scope: ExtractionScope, parent: Node) -> None:
         # each member with its next sibling (a function body follows its signature)
         for node, nxt in pairwise([*parent.named_children, None]):
             self._add_member(scope, node, nxt)
 
-    def _add_member(self, scope: _Scope, node: Node, nxt: Node | None) -> None:
+    def _add_member(self, scope: ExtractionScope, node: Node, nxt: Node | None) -> None:
         """A container, a function (signature + body sibling), or a body-less
         declaration whose initializer closures may hold local functions."""
         if node.type in _CONTAINERS:
@@ -510,9 +493,9 @@ class DartAdapter(LanguageAdapter):
         module.classes.append(cls)
         body = _class_body(cls)
         if body is not None:
-            self._scan_members(_Scope(module, cls, f"{cls.name}."), body)
+            self._scan_members(ExtractionScope(module).in_class(cls), body)
 
-    def _add_function(self, scope: _Scope, sig: Node, outer: Node, body: Node) -> None:
+    def _add_function(self, scope: ExtractionScope, sig: Node, outer: Node, body: Node) -> None:
         kind = _SIGNATURES[sig.type]
         name = _name(sig)
         if kind == "function" and scope.cls is not None:
@@ -533,7 +516,7 @@ class DartAdapter(LanguageAdapter):
         )
         self._add_local_functions(scope.nested(qualname), body)
 
-    def _add_test_unit(self, scope: _Scope, fexpr: Node, call: tuple[str, Node]) -> None:
+    def _add_test_unit(self, scope: ExtractionScope, fexpr: Node, call: tuple[str, Node]) -> None:
         callee, args = call
         body = fexpr.child_by_field_name("body")
         if body is None:
@@ -552,7 +535,7 @@ class DartAdapter(LanguageAdapter):
         scope.add(fn)
         self._add_local_functions(scope.nested(fn.qualname), body)
 
-    def _add_local_functions(self, scope: _Scope, body: Node) -> None:
+    def _add_local_functions(self, scope: ExtractionScope, body: Node) -> None:
         """Local named functions and test closures are scored on their own;
         other closures stay part of the enclosing function."""
         stack = list(body.children)
@@ -561,7 +544,7 @@ class DartAdapter(LanguageAdapter):
             if not self._add_nested_unit(scope, n):
                 stack.extend(n.children)
 
-    def _add_nested_unit(self, scope: _Scope, n: Node) -> bool:
+    def _add_nested_unit(self, scope: ExtractionScope, n: Node) -> bool:
         """Add ``n`` if it is a nested unit; True if it was a unit boundary
         (its insides are then handled by that unit, not the caller)."""
         if n.type == "function_expression":
