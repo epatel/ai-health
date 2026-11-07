@@ -42,7 +42,7 @@ Status: `todo` / `wip` / `done`.
 | M7 | MCP server | done | stdio server exposing `review_changes`, `score_file`, `scan_project`, `explain_smell`; registered in `.mcp.json` and smoke-tested from Claude Code |
 | M8 | Storage + migrations | done | SQLite at `<repo>/.aihealth/health.db`, `PRAGMA user_version` migration runner, scans persisted |
 | M9 | Dashboard | done | FastAPI + Jinja: project overview, treemap (size=LoC, colour=score), file view with smells per function, score trend |
-| M10 | Agent loop integration | todo | optional Claude Code hook / skill that runs delta after edits; dogfooded on this repo |
+| M10 | Agent loop integration | done | optional Claude Code hook / skill that runs delta after edits; dogfooded on this repo |
 | M11 | Calibration | todo | run on 2–3 open-source Python and Flutter repos, tune thresholds/weights so scores spread sensibly; record results in the scoring card |
 
 ## Decisions
@@ -118,11 +118,17 @@ found while building it: generic containers are judged by their contents,
 and the delta tolerance default is 0.1.
 Caution for agents: `aihealth scan X --save` writes `X/.aihealth/`. For
 repos you don't own (e.g. the Flutter SDK), pass `--db` to a scratch path.
-Next agent: M10 agent loop integration. Add an optional Claude Code hook or
-skill that runs `aihealth delta --format markdown` on edited files and
-feeds the result back. Dogfood on this repo. Consider a PostToolUse hook
-on Edit|Write that runs delta for the edited path only and reports via
-stderr / exit 2 only on DEGRADED.
+M10 done: `hooks.py` + `aihealth hook post-edit|stop`, wired in this repo
+(`.claude/hooks/post-edit.sh` = format + health, `.claude/hooks/stop.sh`),
+and a README section for other projects. 154 tests. Verified live: a
+smelly Write produced the regression report as PostToolUse context, and
+fixing it made the hook go silent. Calibration: Complex Conditional now
+counts only branch/loop conditions.
+Next agent: M11 calibration. Run on 2-3 open-source Python and Flutter
+repos (use `--db` in a scratch dir and never write into foreign repos).
+Compare score spreads (Flutter material was 4.17 and all Flutter packages
+3.29, which looks harsh). Tune decay, weights and per-function caps, and
+record the results in the code-health-model card.
 Note: `pip install` may need user approval in this environment — ask the
 user to run `! make setup` rather than retrying.
 

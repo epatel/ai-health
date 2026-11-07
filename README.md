@@ -68,6 +68,32 @@ Tools:
 
 All tools return markdown by default (`output: "json"` for machine use).
 
+## Automatic feedback in Claude Code (hooks)
+
+Instead of relying on the agent to remember, let Claude Code run aihealth itself. Add to the
+project's `.claude/settings.json` (use the absolute path to your aihealth install):
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "/path/to/ai-health/.venv/bin/aihealth hook post-edit" }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "/path/to/ai-health/.venv/bin/aihealth hook stop" }] }
+    ]
+  }
+}
+```
+
+- **post-edit**: after each edit of a Python/Dart file, checks that file against HEAD. Silent
+  unless it got worse; then Claude gets the regressions with fix hints next to the edit result.
+- **stop**: when Claude is about to finish, checks all uncommitted changes. If health degraded,
+  Claude gets one more turn to fix them (or to say why they are intended). It never fires twice
+  in a row, so it cannot loop.
+- Both fail open: outside a git repo, for other languages, or on any error they do nothing.
+
 ## Configuration
 
 Optional `.aihealth.toml` at the repository root (all keys in `src/aihealth/config.py`):

@@ -59,7 +59,9 @@ class Bump:
 class BoolExpr:
     line: int
     operators: int
-    in_assert: bool = False  # `assert a and b`: a check, not branching
+    # used as an if/elif/while/ternary/guard condition (not a value such as
+    # `return a or b`, a default chain, or an assert)
+    is_condition: bool = False
 
 
 @dataclass
@@ -163,7 +165,7 @@ def _walk(root: Node, adapter: LanguageAdapter, fn_name: str | None) -> _Totals:
                 t.cyclomatic += len(ops)
                 t.cognitive += 1 + sum(1 for a, b in pairwise(ops) if a != b)
                 t.bool_exprs.append(
-                    BoolExpr(node.start_point[0] + 1, len(ops), _in_assert(node, adapter))
+                    BoolExpr(node.start_point[0] + 1, len(ops), _is_condition(node, adapter))
                 )
         elif fn_name and adapter.is_recursive_call(node, fn_name):
             t.cognitive += 1
@@ -180,13 +182,16 @@ def _is_bool_root(node: Node, adapter: LanguageAdapter) -> bool:
     return parent is None or adapter.role(parent) is not Role.BOOL_EXPR
 
 
-def _in_assert(node: Node, adapter: LanguageAdapter) -> bool:
+_CONDITION_OWNERS = (Role.IF, Role.LOOP, Role.TERNARY, Role.COMPREHENSION)
+
+
+def _is_condition(node: Node, adapter: LanguageAdapter) -> bool:
+    """True when the boolean expression is the condition of a branch or loop
+    (parentheses and `not` between them are looked through)."""
     parent = node.parent
-    while parent is not None and adapter.role(parent) not in (Role.STOP, Role.LAMBDA):
-        if parent.type in adapter.assert_types:
-            return True
+    while parent is not None and parent.type in adapter.bool_transparent:
         parent = parent.parent
-    return False
+    return parent is not None and adapter.role(parent) in _CONDITION_OWNERS
 
 
 def _bool_operators(root: Node, adapter: LanguageAdapter) -> list[str]:

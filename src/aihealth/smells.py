@@ -288,7 +288,7 @@ class _Detector:
 
     def _complex_conditional(self, fn: Function, m: FunctionMetrics) -> None:
         limit = self.config.threshold("complex_conditional")
-        hits = [b for b in m.bool_exprs if not b.in_assert and b.operators > limit]
+        hits = [b for b in m.bool_exprs if b.is_condition and b.operators > limit]
         if not hits:
             return
         worst = max(hits, key=lambda b: b.operators)

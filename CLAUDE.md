@@ -29,7 +29,9 @@ parsing via tree-sitter, history in SQLite.
 ## Enforced rules
 
 - Global `pip install` is blocked: use `.venv/bin/pip` (see standing-defaults).
-- Edited `.py` / `.dart` files are auto-formatted by a hook (ruff / dart format).
+- Edited `.py` / `.dart` files are auto-formatted by a hook (ruff / dart format), then checked
+  by `aihealth hook post-edit`. Regressions arrive as hook context, so fix them in code you touched.
+- A Stop hook (`aihealth hook stop`) reports remaining regressions once before you finish.
 
 ## Cards
 

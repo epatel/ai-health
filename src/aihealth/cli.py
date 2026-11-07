@@ -130,6 +130,18 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- hook ---------------------------------------------------------------------
+
+
+def _cmd_hook(args: argparse.Namespace) -> int:
+    from aihealth.hooks import run
+
+    out = run(args.event, sys.stdin.read())
+    if out:
+        print(out)
+    return 0  # fail open: hooks never block editing on their own errors
+
+
 # --- parser -------------------------------------------------------------------
 
 
@@ -189,6 +201,15 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
     serve.set_defaults(func=_cmd_serve)
+
+    hook = sub.add_parser(
+        "hook",
+        help="Claude Code hook: read hook JSON on stdin, report regressions",
+        description="post-edit: PostToolUse on Edit|Write (edited file only). "
+        "stop: Stop hook (all uncommitted changes, fires at most once per stop).",
+    )
+    hook.add_argument("event", choices=("post-edit", "stop"))
+    hook.set_defaults(func=_cmd_hook)
 
     return parser
 

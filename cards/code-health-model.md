@@ -186,6 +186,16 @@ smell is imposed by an interface. For example, MCP tool parameters are a
 JSON schema, so primitives and flat argument lists are required. Use it
 sparingly and always with a reason in the comment.
 
+### Complex Conditional = conditions only (M10)
+
+Only boolean expressions that are the condition of an if/elif/while,
+ternary, collection-if or comprehension/case guard count (parentheses and
+`not` are looked through). Values such as `return a and b`, default chains
+`x = a or b or c` and asserts don't count. Found while dogfooding the
+hooks: Python's `cwd or env or getcwd()` fallback was flagged. This
+supersedes the M5 assert-only exclusion. Cyclomatic and cognitive still
+count every boolean operator.
+
 ### Noise fixes from dogfooding (M5)
 
 - Boolean expressions inside `assert` (Python `assert`, Dart `assert(...)`)

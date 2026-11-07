@@ -121,12 +121,24 @@ def test_flutter_build_threshold_and_widget_depth():
     assert "large_method" in smells(other, "s.dart")
 
 
-def test_asserts_are_not_complex_conditionals():
-    py = "def f(a, b, c):\n    assert a and b or c\n    return a\n"
-    assert "complex_conditional" not in smells(py, "a.py")
-    dart = "void f(a, b, c) { assert(a && b || c); }"
+def test_only_conditions_are_complex_conditionals():
+    # asserts, return values and default chains are not branch conditions
+    for py in (
+        "def f(a, b, c):\n    assert a and b or c\n    return a\n",
+        "def f(a, b, c):\n    return a and b or c\n",
+        "def f(a, b, c):\n    x = a or b or c\n    return x\n",
+    ):
+        assert "complex_conditional" not in smells(py, "a.py"), py
+    for py in (
+        "def f(a, b, c):\n    if a and (b or c):\n        return 1\n",
+        "def f(a, b, c):\n    while not (a and b or c):\n        pass\n",
+        "def f(a, b, c):\n    return 1 if a and b or c else 2\n",
+    ):
+        assert "complex_conditional" in smells(py, "a.py"), py
+    dart = "void f(a, b, c) { assert(a && b || c); g(a && b || c); }"
     assert "complex_conditional" not in smells(dart, "a.dart")
-    assert "complex_conditional" in smells(dart.replace("assert(", "g("), "a.dart")
+    assert "complex_conditional" in smells("void f(a, b, c) { if (a && b || c) {} }", "a.dart")
+    assert "complex_conditional" in smells("void f(a, b) { while (a && b || a) {} }", "a.dart")
 
 
 def test_bool_params_are_neutral_for_primitive_obsession():

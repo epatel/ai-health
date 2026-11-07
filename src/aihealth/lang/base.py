@@ -169,7 +169,6 @@ class LanguageAdapter:
     primitive_types: ClassVar[frozenset[str]] = frozenset()
     # flag types: neither primitive nor domain types for Primitive Obsession
     neutral_types: ClassVar[frozenset[str]] = frozenset({"bool"})
-    assert_types: ClassVar[frozenset[str]] = frozenset({"assert_statement"})
     # composite nodes treated as one token (and normalised) for duplication
     literal_types: ClassVar[frozenset[str]] = frozenset()
 
