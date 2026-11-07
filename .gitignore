@@ -1,0 +1,14 @@
+initial-idea.md
+
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# aihealth scan data (per analysed repo)
+.aihealth/
+
+# Personal Claude settings
+.claude/settings.local.json
