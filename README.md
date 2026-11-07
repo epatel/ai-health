@@ -118,3 +118,7 @@ boundaries) with a comment (strings and docstrings don't count):
 ```python
 # aihealth: disable=primitive_obsession, excess_arguments
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
