@@ -33,7 +33,7 @@ Status: `todo` / `wip` / `done`.
 | # | Milestone | Status | Done when |
 |---|---|---|---|
 | M0 | Agentic setup (CLAUDE.md, cards, plan, hooks) | done | this file exists, checker passes |
-| M1 | Skeleton + parser spike | todo | `.venv`, `pyproject.toml`, `Makefile`, `aihealth --help`, pytest green; tree-sitter parses a real Flutter widget file and a Python module |
+| M1 | Skeleton + parser spike | done | `.venv`, `pyproject.toml`, `Makefile`, `aihealth --help`, pytest green; tree-sitter parses a real Flutter widget file and a Python module |
 | M2 | Language adapters | todo | Python + Dart adapters return a uniform `Module → Class → Function` model with spans, params, body nodes |
 | M3 | Function metrics | todo | LoC, cyclomatic, cognitive, max nesting, bumps, args, complex conditionals, widget-tree depth (Dart) — golden-file tests per language |
 | M4 | Smells + scoring | todo | smell detectors, penalty table, file score 1–10, LoC-weighted project score, `.aihealth.toml` overrides, duplication detector |
@@ -63,11 +63,15 @@ Status: `todo` / `wip` / `done`.
 
 ## Current state / handoff
 
-Plan-only session (2026-11-07). Agentic setup applied; no tool code yet.
-Next agent: start M1. Verify first that `tree-sitter-language-pack` ships a
-Dart grammar that handles current Dart 3 syntax (records, patterns, sealed
-classes) — if not, fall back to building `tree-sitter-dart` from
-UserNobody14/tree-sitter-dart and record the decision.
+2026-11-07: M0 and M1 done. Skeleton package, CLI stubs (exit 2 with the
+planned milestone), Makefile, 7 passing tests. tree-sitter-language-pack's
+Dart grammar handles Dart 3 + Flutter cleanly — no source build needed.
+Grammar quirks (sibling signature/body, no call node, unreliable boolean
+precedence) are recorded in `cards/parser-choice.md`.
+Next agent: M2 — uniform `Module → Class → Function` model + Python and
+Dart adapters under `src/aihealth/lang/`, using the spike fixtures.
+Note: `pip install` may need user approval in this environment — ask the
+user to run `! make setup` rather than retrying.
 
 ## Open questions
 

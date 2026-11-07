@@ -31,13 +31,36 @@ One parser, robust to syntax errors (tree-sitter yields partial trees, which
 matters when an agent's edit is mid-way), fast enough for per-edit hooks,
 and the same API for every future language.
 
-## Risks / verify in M1
+## Verified in M1 (tree-sitter 0.26.0, tree-sitter-language-pack 1.25.0)
 
-- The Dart grammar must handle Dart 3 syntax (records, patterns, sealed /
-  base / final classes, switch expressions). If the language pack's grammar
-  lags, build `tree-sitter-dart` from source and pin the commit.
-- Grammar node-type names change between grammar versions — pin versions
-  in `pyproject.toml` and keep golden tests per adapter.
+The language pack's Dart grammar parses Dart 3 (sealed/base/final classes,
+records, record/object patterns, switch expressions) and Flutter widget
+code with zero ERROR nodes. `tests/test_parser_spike.py` pins the node
+names; a grammar upgrade that renames them fails there first.
+
+Dart grammar quirks the adapter must handle:
+
+- **Signature and body are siblings, not parent/child.** Top-level:
+  `function_signature` then `function_body` under `program`. In a class:
+  `method_signature` (wrapping `function_signature`, `getter_signature`, …)
+  then `function_body` in `class_body`. Pair by adjacency.
+- **No call-expression node.** `Text('x')` is `identifier` + `selector` →
+  `argument_part` → `arguments`. Widget-tree depth = nesting depth of
+  `arguments` nodes inside `build()`'s body.
+- **Boolean operator precedence is not reliable in the tree shape**
+  (`a && b || c` parses as `logical_and_expression` containing
+  `logical_or_expression`). Count `logical_and_operator` /
+  `logical_or_operator` tokens instead of trusting the tree shape.
+- Named params live in `optional_formal_parameters` (`{…}`); positional
+  optional in `[…]`. Closures are `function_expression`; collection-if is
+  `if_element` (counts as a decision point).
+
+Python grammar: functions `function_definition`, classes
+`class_definition`, branches `if_statement`/`elif_clause`, boolean ops
+`boolean_operator`, `match_statement` — no surprises.
+
+Pin grammar versions in `pyproject.toml` before M3 golden tests depend on
+exact node shapes.
 
 ## When to revisit
 

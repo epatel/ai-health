@@ -12,13 +12,12 @@ parsing via tree-sitter, history in SQLite.
 
 ## Commands
 
-Planned for M1. Not yet implemented, so confirm each one before relying on it.
-
-- Setup: `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'`
-- Test: `.venv/bin/pytest` (one test: `.venv/bin/pytest tests/test_metrics.py::test_nesting`)
-- Lint: `.venv/bin/ruff check .`
+- Setup: `make setup` (creates `.venv`, installs `-e '.[dev]'`)
+- Test: `make test` (one test: `.venv/bin/pytest tests/test_cli.py::test_help_exits_cleanly`)
+- Lint / format: `make lint` · `make fmt`
 - Run: `.venv/bin/aihealth scan PATH` · `.venv/bin/aihealth delta [--staged|--base REV]`
 - MCP: `.venv/bin/aihealth mcp` (stdio) · Dashboard: `.venv/bin/aihealth serve --repo PATH`
+  (subcommands are stubs exiting 2 until their milestone lands)
 
 ## Enforced rules
 
