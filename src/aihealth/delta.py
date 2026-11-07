@@ -178,8 +178,12 @@ def delta_for_contents(
     return fd
 
 
-def _resolve_base(root: Path, revs: Revisions) -> Revisions:
-    """A repository without commits has no HEAD: compare against nothing."""
+def _resolve_revisions(root: Path, revs: Revisions) -> Revisions:
+    """Check both revisions exist. A repository without commits has no HEAD:
+    compare against nothing."""
+    head_is_rev = revs.head not in (gitutil.WORKTREE, gitutil.INDEX)
+    if head_is_rev and not gitutil.has_revision(root, revs.head):
+        raise gitutil.GitError(f"unknown revision: {revs.head}")
     if revs.base is None or gitutil.has_revision(root, revs.base):
         return revs
     if revs.base != "HEAD":
@@ -219,7 +223,7 @@ def run_delta(
 ) -> DeltaResult:
     """Delta of every changed supported file between ``revs.base`` and ``revs.head``."""
     root = gitutil.repo_root(repo)
-    revs = _resolve_base(root, revs or Revisions())
+    revs = _resolve_revisions(root, revs or Revisions())
     rel_paths = [_rel(root, p) for p in paths] if paths else None
     result = DeltaResult(str(root), revs.base, revs.head_label, [])
     for ch in gitutil.changed_files(root, revs, rel_paths):

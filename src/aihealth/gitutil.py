@@ -25,12 +25,22 @@ def _git(cwd: Path, *args: str, check: bool = True) -> bytes:
     return res.stdout
 
 
+def _rev(rev: str) -> str:
+    """A revision safe to pass to git: one starting with `-` would be read
+    as an option (`--output=FILE` makes `git diff` write a file)."""
+    if rev.startswith("-"):
+        raise GitError(f"invalid revision: {rev}")
+    return rev
+
+
 def repo_root(path: str | Path) -> Path:
     out = _git(Path(path), "rev-parse", "--show-toplevel").decode().strip()
     return Path(out)
 
 
 def has_revision(root: Path, rev: str) -> bool:
+    if rev.startswith("-"):
+        return False
     res = subprocess.run(
         ["git", "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}"],
         check=False,
@@ -90,17 +100,17 @@ def _all_files(root: Path, head: str | None, spec: list[str]) -> list[str]:
     elif head == INDEX:
         args = ["ls-files", "-z", "--cached"]
     else:
-        args = ["ls-tree", "-r", "-z", "--name-only", head]
+        args = ["ls-tree", "-r", "-z", "--name-only", "--end-of-options", _rev(head)]
     return _split(_git(root, *args, *spec))
 
 
 def _diff_args(revs: Revisions) -> list[str]:
     args = ["diff", "--name-status", "-z", "-M", "--no-ext-diff"]
     if revs.head == INDEX:
-        return [*args, "--cached", revs.base]
+        return [*args, "--cached", "--end-of-options", _rev(revs.base)]
     if revs.head is WORKTREE:
-        return [*args, revs.base]
-    return [*args, revs.base, revs.head]
+        return [*args, "--end-of-options", _rev(revs.base)]
+    return [*args, "--end-of-options", _rev(revs.base), _rev(revs.head)]
 
 
 def _parse_name_status(fields: list[str]) -> list[ChangedFile]:
@@ -126,8 +136,10 @@ def read_file(root: Path, rev: str | None, path: str) -> bytes | None:
     if rev is WORKTREE:
         p = root / path
         return p.read_bytes() if p.is_file() else None
-    spec = f":{path}" if rev == INDEX else f"{rev}:{path}"
-    res = subprocess.run(["git", "show", spec], cwd=root, capture_output=True, check=False)
+    spec = f":{path}" if rev == INDEX else f"{_rev(rev)}:{path}"
+    res = subprocess.run(
+        ["git", "show", "--end-of-options", spec], cwd=root, capture_output=True, check=False
+    )
     return res.stdout if res.returncode == 0 else None
 
 

@@ -86,7 +86,7 @@ Status: `todo` / `wip` / `done`.
 `tests/test_swift.py` (golden Sonar metrics plus Swift constructs),
 spike tests, calibration and docs. Everything from the first session
 (M0–M12) is unchanged: snapshots of Python, Dart and Makefile output
-before and after this work compare identical. 256 tests, ruff clean, and this repo scans at 9.91 (42 healthy
+before and after this work compare identical. 262 tests, ruff clean, and this repo scans at 9.91 (42 healthy
 files, 1 warning).
 
 **What exists:** an engine for Python, Dart/Flutter, Swift and Makefiles

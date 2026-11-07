@@ -174,6 +174,39 @@ def test_unknown_base_raises(repo):
         run_delta(repo, Config(), Revisions("nope"))
 
 
+def test_unknown_head_raises(repo):
+    with pytest.raises(gitutil.GitError, match="unknown revision: nope"):
+        run_delta(repo, Config(), Revisions("HEAD", "nope"))
+
+
+# --- option injection (AUDIT-REPORT.md finding 1) ----------------------------------
+
+
+@pytest.mark.parametrize("flag", ["--base", "--head"])
+def test_cli_revision_cannot_inject_git_options(repo, tmp_path_factory, capsys, flag):
+    """`--head=--output=FILE` once made `git diff` write FILE."""
+    target = tmp_path_factory.mktemp("out") / "pwned.txt"
+    assert main(["delta", "--repo", str(repo), f"{flag}=--output={target}"]) != 0
+    assert "revision" in capsys.readouterr().err
+    assert not target.exists()
+
+
+def test_git_layer_rejects_option_like_revisions(repo, tmp_path_factory):
+    target = tmp_path_factory.mktemp("out") / "pwned.txt"
+    evil = f"--output={target}"
+    calls = [
+        lambda: gitutil.changed_files(repo, Revisions("HEAD", evil)),
+        lambda: gitutil.changed_files(repo, Revisions(evil, gitutil.INDEX)),
+        lambda: gitutil.changed_files(repo, Revisions(None, evil)),  # ls-tree path
+        lambda: gitutil.read_file(repo, evil, "app.py"),
+    ]
+    for call in calls:
+        with pytest.raises(gitutil.GitError, match="invalid revision"):
+            call()
+    assert not gitutil.has_revision(repo, evil)
+    assert not target.exists()
+
+
 # --- cli ------------------------------------------------------------------------------
 
 

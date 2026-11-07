@@ -17,7 +17,7 @@ hardening and maintenance items. None of them blocks use.
 
 | # | Finding | Area | Severity |
 |---|---|---|---|
-| 1 | `delta --head=--output=FILE` makes git create/overwrite any writable file | Security | **Medium** |
+| 1 | `delta --head=--output=FILE` makes git create/overwrite any writable file | Security | **Medium**, fixed |
 | 2 | Dashboard: no CSRF check on `POST /scan`, no Host check (DNS rebinding) | Security | Low |
 | 3 | `serve --host 0.0.0.0` exposes an unauthenticated dashboard with no warning | Security | Low |
 | 4 | ECharts loaded from a CDN without Subresource Integrity | Security | Low |
@@ -49,7 +49,14 @@ hardening and maintenance items. None of them blocks use.
 
 ## Findings
 
-### 1. Git option injection via `--head` (Medium)
+### 1. Git option injection via `--head` (Medium, fixed)
+
+**Status: fixed** after the audit. `gitutil` rejects revisions that start
+with `-` and passes `--end-of-options` before revisions to `diff`,
+`ls-tree` and `show`. `delta` checks that `head` exists, as it already did
+for `base`. Regression tests in `tests/test_delta.py` cover both CLI flags
+and every git call; they fail on the old code. The original finding
+follows.
 
 `gitutil._diff_args`, `_all_files` and `read_file` pass revisions to git as
 positional arguments. `base` is validated first (`has_revision` runs
@@ -233,8 +240,7 @@ complete:
 
 ## Recommended order
 
-1. Fix finding 1 (validate `head`, `--end-of-options`, regression test).
-   It's small and closes the only real bug.
+1. ~~Fix finding 1~~ (done).
 2. Add CI (7) with a 3.11/3.12 matrix (9) and the MCP wiring test (8).
 3. Pin tested dependency ranges or add a lockfile, and record the grammar
    version in scans (6).
