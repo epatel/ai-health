@@ -1,0 +1,243 @@
+# Audit report: aihealth
+
+**Date:** 2026-11-07 · **Commit audited:** `10a08ab` (main) · **Auditor:** Claude Code (Opus 5.5)
+
+## Summary
+
+aihealth is in good shape for a 0.1.0 tool. The code is small (5.9k lines in
+`src/`), well-tested (258 tests, about 96 % line coverage), lint-clean, and
+scores 9.91 on its own health check. The design is well documented in
+`cards/`. Calibration and behaviour-preservation are backed by reproducible
+scripts.
+
+The audit found **one real security bug**: option injection through the
+CLI's `--head`, which can make git overwrite an arbitrary file. Exposure is
+limited because the MCP tools can't reach it. There are also a handful of
+hardening and maintenance items. None of them blocks use.
+
+| # | Finding | Area | Severity |
+|---|---|---|---|
+| 1 | `delta --head=--output=FILE` makes git create/overwrite any writable file | Security | **Medium** |
+| 2 | Dashboard: no CSRF check on `POST /scan`, no Host check (DNS rebinding) | Security | Low |
+| 3 | `serve --host 0.0.0.0` exposes an unauthenticated dashboard with no warning | Security | Low |
+| 4 | ECharts loaded from a CDN without Subresource Integrity | Security | Low |
+| 5 | No file-size limit in delta / hooks / MCP (a 4 MB file takes 8.6 s) | Robustness | Low |
+| 6 | Dependencies have open-ended versions and no lockfile; scores depend on the grammar version | Reproducibility | Medium |
+| 7 | No CI: tests and lint run only on a developer machine | Process | Medium |
+| 8 | MCP server registration and error mapping are untested | Tests | Low |
+| 9 | Only Python 3.12 is tested, though `requires-python >= 3.11` | Packaging | Low |
+| 10 | Remaining refactor target `smells.py` (8.64); stale test count in the plan | Maintenance | Info |
+
+---
+
+## Method
+
+- Read the trust boundaries in full: `gitutil.py`, `mcp_server.py`,
+  `web/app.py`, `hooks.py`, `store/`, the templates and the CLI argument
+  handling.
+- Ran attack probes in throwaway git repositories: revisions starting with
+  `-` via the CLI and via the MCP tool functions.
+- Grepped all SQL statements, template output filters and subprocess calls.
+- Ran the test suite under `sys.monitoring` to measure line coverage (no
+  coverage package is installed).
+- Timed a large-file parse, ran ruff and checked installed dependency
+  versions. Ran `aihealth scan .` on the repo itself.
+- Out of scope: third-party dependency CVE scanning (no network audit tool
+  available) and fuzzing the tree-sitter grammars.
+
+---
+
+## Findings
+
+### 1. Git option injection via `--head` (Medium)
+
+`gitutil._diff_args`, `_all_files` and `read_file` pass revisions to git as
+positional arguments. `base` is validated first (`has_revision` runs
+`git rev-parse --verify`, which rejects `--output=…`), but **`head` is
+never validated**. Reproduced:
+
+```console
+$ aihealth delta --base HEAD~1 "--head=--output=/tmp/pwned.txt"
+aihealth delta: --output=/tmp/pwned.txt vs HEAD~1: UNCHANGED
+$ ls -la /tmp/pwned.txt
+-rw-r--r--  7 bytes        # created (or truncated) by git diff --output
+```
+
+`git show --output=…` (in `read_file`) and `ls-tree` (no-base path) share
+the same pattern.
+
+- **Exposure:** only the CLI. The MCP tool `review_changes` takes `base`,
+  which is validated, and doesn't accept `head`, so a prompt-injected agent
+  can't use this. `base` via the CLI is rejected as `unknown revision`. Git
+  branch names can't start with `-`, so a CI job passing a branch name is
+  safe. It matters when a wrapper passes untrusted text as `--head`.
+- **Fix:** validate `head` like `base` (`has_revision` unless it is
+  WORKTREE/INDEX). As defence in depth, put `--end-of-options` before
+  revisions in `diff`/`ls-tree`/`show` (git ≥ 2.24). Add a regression test
+  with `--output=` for both flags.
+
+### 2. Dashboard: CSRF on `POST /scan` and DNS rebinding (Low)
+
+`web/app.py` has no CSRF token, no Origin/Referer check and no
+`TrustedHostMiddleware`.
+
+- **CSRF:** any web page the user visits can submit a form to
+  `http://127.0.0.1:8765/scan`. That starts a full scan and writes a row to
+  the history DB: wasted CPU and DB growth, no data leak.
+- **DNS rebinding:** a malicious site that rebinds its hostname to
+  127.0.0.1 can read the JSON API (`/api/scans`, `/api/scans/{id}/file`).
+  That reveals file paths, function names and findings of the scanned repo.
+  It does not reveal source code.
+- **Fix:** add `TrustedHostMiddleware(allowed_hosts=["127.0.0.1", "localhost", <--host>])`
+  and reject `POST /scan` when `Origin` is present and not the dashboard's
+  own origin.
+
+### 3. Binding the dashboard to all interfaces (Low)
+
+`aihealth serve --host 0.0.0.0` works, with no authentication and no
+warning. Anyone on the network can then browse findings and trigger scans.
+**Fix:** print a warning for non-loopback hosts, and document it in the
+README.
+
+### 4. CDN script without integrity (Low)
+
+`templates/base.html` loads
+`https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js` with no
+`integrity`/`crossorigin` attributes. A compromised CDN response would run
+in the dashboard origin, which can trigger scans via `POST /scan`. The
+version is pinned, which is good. **Fix:** add the SRI hash, or vendor the
+file into `web/static/` (about 1 MB). That would also make the dashboard
+work offline.
+
+### 5. No size limit outside `scan` (Low)
+
+`scan.max_file_kb` (1 MB) is applied only in `engine.discover`. Delta,
+`aihealth hook post-edit` and the MCP tools parse any file whatever its
+size. Measured: a 4 MB Python file takes **8.6 s** to score. Each agent edit
+of a large, unmarked generated file (a big JSON-in-Python fixture, an
+amalgamated source) would stall the post-edit hook by that much.
+**Fix:** apply `max_file_kb` in `delta_for_contents` / `score_source` callers
+and skip with a note, as scan already does.
+
+### 6. Dependency versions and score reproducibility (Medium)
+
+`pyproject.toml` uses lower bounds only (`tree-sitter>=0.23`,
+`tree-sitter-language-pack>=0.7`, `mcp>=2,<3`, …), and there is no
+lockfile. The installed `tree-sitter-language-pack` is **1.25.0**, far
+beyond the declared floor.
+
+- Grammar upgrades rename nodes or reshape trees. In this repo the spike
+  tests catch that. A user who installs later can get a newer grammar
+  that was never tested, and adapters degrade *silently*: unknown node
+  types just get no role, so complexity drops.
+- Scan history stores `tool_version` and `config_hash`, but not the
+  grammar version. A score jump after an upgrade is then unexplained in
+  `aihealth history` and the dashboard trend.
+- **Fix:** add tested upper bounds (`tree-sitter-language-pack>=1.25,<2`,
+  `tree-sitter>=0.26,<0.27`), or commit a `uv.lock` for reproducible
+  installs. Record the grammar package version in the `scan` row (a new
+  migration), and show a marker in the trend when it changes.
+
+### 7. No continuous integration (Medium)
+
+There is no `.github/workflows`. The test suite, ruff and the self-scan run
+only through local hooks and the developer's discipline. Contributors'
+pull requests, and dependency drift (see 6), would go unnoticed. **Fix:** a
+small GitHub Actions workflow: `make setup`, `make test`, `make lint`, and
+`aihealth scan . --fail-under 9` on Python 3.11 and 3.12.
+
+### 8. Untested MCP wiring (Low)
+
+The tool functions are tested directly (`tests/test_mcp.py`), but
+`build_server()` and `_as_tool_errors` are not executed by any test. These
+are the parts that depend on the `mcp` SDK's API (`MCPServer`, `ToolError`,
+`structured_output`). An SDK minor release that changed them would break
+the server while all tests stay green. **Fix:** one test that builds the
+server, lists its tools, calls one with bad input and asserts a `ToolError`
+with the message.
+
+Other untested lines are mostly error paths: the CLI's config-error and
+schema-too-new exits, `--staged` together with `--head`, and OSError
+branches in `engine`. Overall line coverage: about 96 % (3,641 / 3,802
+lines). Lowest: `cli.py` 83 %, `mcp_server.py` 88 %, `engine.py` and
+`gitutil.py` 92 %.
+
+### 9. Python versions (Low)
+
+`requires-python = ">=3.11"`, and ruff targets `py311`, but everything is
+developed and tested on 3.12. Nothing obviously 3.12-only was found
+(`tomllib` is 3.11+, and the coverage measurement used `sys.monitoring` but
+that is not in the package). It is unverified, though. CI (item 7) should
+cover it.
+
+### 10. Maintenance notes (Info)
+
+- `smells.py` scores 8.64: `_Detector.add` takes 10 parameters, and
+  `_Detector.duplication` and `lcom4` are complex. It is already the
+  documented next refactor target.
+- `project-plan.md` says "256 tests". The suite now has 258.
+- The calibration corpora for Swift are shallow clones outside the repo,
+  configured by `AIHEALTH_SWIFT_CORPORA`. A small script that clones them
+  at pinned commits would make calibration reproducible for others.
+
+---
+
+## Verified as sound
+
+- **SQL:** every query in `store/` uses `?` parameters. The only f-string
+  SQL is in `migrations.py`, and it is built from in-code constants.
+- **Templates:** Jinja2 autoescape is on (the default for `.html` in
+  `Jinja2Templates`). Embedded chart data goes through `|tojson`, which
+  escapes `<`, `>` and `&`, so file names or qualnames from a scanned repo
+  can't break out of the `<script type="application/json">` block. There
+  is no `|safe` or `Markup` anywhere.
+- **Subprocesses:** git is called with argument lists, never a shell. Paths
+  are passed after `--`. Only the revision positions are open (finding 1).
+- **MCP tools:** `base` is validated, `head` is not exposed, and tool input
+  errors map to `ToolError` messages. `score_file` / `preview_change` can
+  read any path the user can, but they return only scores and findings,
+  never file content.
+- **Hooks:** they read only the documented hook JSON fields, catch every
+  exception (fail open, exit 0), and never fire twice in a row
+  (`stop_hook_active`). The `AGENT-INSTALL.md` wrapper
+  (`command -v aihealth … || true`) was tested with and without aihealth
+  on PATH.
+- **Writes:** `scan --save` and the dashboard write only `.aihealth/` in the
+  target repo (which gitignores itself), or the `--db` path. The analysis
+  itself is read-only.
+- **Parsing robustness:** all walks are iterative (no recursion limit on
+  deep trees). The Swift adapter ran with 0 crashes on 5,646 real files,
+  and the Dart adapter on the Flutter SDK. Grammar error recovery is
+  handled, and parse errors are reported per file.
+- **Behaviour preservation:** the snapshot tooling shows byte-identical
+  results for 59,800 Python/Dart files and 1,217 Makefiles across the Swift
+  work.
+- **Packaging:** installing from GitHub (`uv tool install git+…`) works,
+  and the dashboard templates and static files are included.
+- **Lint and health:** ruff is clean, and the repo scores 9.91 with 42 of
+  43 files healthy.
+
+## Known limitations (documented, not defects)
+
+These are recorded in the cards. They're listed here so the audit is
+complete:
+
+- Delta checks duplication within each file only. Cross-file clones
+  introduced by a change are not detected.
+- Scores depend on syntax only, with no type information. Primitive
+  Obsession ignores untyped Python parameters.
+- Grammar gaps produce partial results: Makefile substitution references,
+  Swift `@_lifetime` / `__owned` and `f(())`.
+- Swift lookup-table clones (enum switches mapping cases to values) are a
+  measured, accepted false positive (0.5 % of clones).
+
+## Recommended order
+
+1. Fix finding 1 (validate `head`, `--end-of-options`, regression test).
+   It's small and closes the only real bug.
+2. Add CI (7) with a 3.11/3.12 matrix (9) and the MCP wiring test (8).
+3. Pin tested dependency ranges or add a lockfile, and record the grammar
+   version in scans (6).
+4. Dashboard hardening: Host check, Origin check, SRI or vendored ECharts,
+   warning for non-loopback hosts (2–4).
+5. Size limit in delta, hooks and MCP (5).
