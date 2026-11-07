@@ -15,7 +15,7 @@ from pathlib import Path
 from aihealth import gitutil
 from aihealth.config import Config
 from aihealth.duplication import DuplicationIndex
-from aihealth.lang import adapter_for, is_supported
+from aihealth.lang import adapter_for, file_head, is_supported, may_be_script
 from aihealth.lang.base import is_generated
 from aihealth.metrics import function_metrics
 from aihealth.model import Module
@@ -24,7 +24,7 @@ from aihealth.smells import detect
 
 
 def score_module(module: Module, config: Config, clones=None) -> FileScore:
-    adapter = adapter_for(module.path, config)
+    adapter = adapter_for(module.path, config, module.source)
     metrics = [function_metrics(fn, adapter) for fn in module.all_functions()]
     findings = detect(module, adapter, config, metrics, clones)
     return FileScore(
@@ -39,7 +39,7 @@ def score_module(module: Module, config: Config, clones=None) -> FileScore:
 
 
 def parse(source: bytes, path: str, config: Config) -> Module | None:
-    adapter = adapter_for(path, config)
+    adapter = adapter_for(path, config, source)
     return adapter.parse(source, path) if adapter else None
 
 
@@ -58,7 +58,7 @@ def _clones(modules: list[Module], config: Config):
         return []
     index = DuplicationIndex(min_tokens=dup["min_tokens"], min_lines=dup["min_lines"])
     for m in modules:
-        index.add(m, adapter_for(m.path, config))
+        index.add(m, adapter_for(m.path, config, m.source))
     return index.clones()
 
 
@@ -104,7 +104,8 @@ def discover(root: Path, config: Config) -> list[str]:
     max_bytes = config.section("scan")["max_file_kb"] * 1024
     out = []
     for rel in files:
-        if not is_supported(rel):
+        head = file_head(root / rel) if may_be_script(rel) else None
+        if not is_supported(rel, head):
             continue
         if is_excluded(rel, config.excludes):
             continue

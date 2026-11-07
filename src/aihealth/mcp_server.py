@@ -20,7 +20,7 @@ from aihealth import gitutil
 from aihealth.config import DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS, Config, ConfigError, load_config
 from aihealth.delta import DeltaResult, delta_for_contents, run_delta
 from aihealth.engine import project_path, scan, score_source
-from aihealth.lang import SUPPORTED_LANGUAGES
+from aihealth.lang import SUPPORTED_LANGUAGES, is_supported
 from aihealth.report import ReportOptions, render_delta, render_file, render_scan
 from aihealth.smells import EXPLANATIONS, HINTS, LABELS
 
@@ -33,7 +33,8 @@ class ToolInputError(ValueError):
 
 INSTRUCTIONS = """\
 aihealth estimates code health (1-10, CodeScene-style code smells) for Python, Dart/Flutter,
-Swift, Rust, TypeScript, JavaScript, C, C++, Objective-C(++), Makefiles and CMake.
+Swift, Rust, TypeScript, JavaScript, C, C++, Objective-C(++), shell scripts
+(bash/sh), Makefiles and CMake.
 - After editing such code, call `review_changes` (working tree vs HEAD). If the verdict \
 is DEGRADED, fix the listed new/worsened smells in the code you touched before finishing.
 - Before writing a large rewrite of a file, `preview_change` scores the proposed content \
@@ -111,7 +112,7 @@ def preview_change(
     absolute, root, rel = _resolve(path, repo)
     config = load_config(root)
     before = absolute.read_bytes() if absolute.is_file() else None
-    if score_source(b"", rel, config) is None:
+    if not is_supported(rel, content.encode()):
         raise ToolInputError(f"unsupported file type (supported: {SUPPORTED_LANGUAGES}): {rel}")
     fd = delta_for_contents(rel, before, content.encode(), config)
     result = DeltaResult(str(root), "current file", "proposed content", [fd])

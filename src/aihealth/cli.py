@@ -61,14 +61,14 @@ def _scan_file(path: Path, args: argparse.Namespace) -> int:
     """Score one file on its own (duplication within the file only), with
     the config of the project it belongs to."""
     from aihealth.engine import project_path, score_source
-    from aihealth.lang import is_supported
+    from aihealth.lang import is_supported_file
     from aihealth.lang.base import is_generated
 
     if args.save:
         print("error: --save needs a directory (one file is not a project scan)", file=sys.stderr)
         return 2
     root, rel = project_path(path)
-    if not is_supported(rel):
+    if not is_supported_file(path):
         print(
             f"unsupported file type: {rel} (supported: {SUPPORTED_LANGUAGES})",
             file=sys.stderr,

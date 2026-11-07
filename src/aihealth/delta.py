@@ -23,7 +23,7 @@ from aihealth import gitutil
 from aihealth.config import Config
 from aihealth.engine import is_excluded, score_source
 from aihealth.gitutil import ChangedFile, Revisions
-from aihealth.lang import is_supported
+from aihealth.lang import is_supported, may_be_script
 from aihealth.lang.base import is_generated
 from aihealth.scoring import FileScore
 from aihealth.smells import Finding
@@ -195,8 +195,8 @@ def _skip_reason(ch: ChangedFile, config: Config) -> str | None:
     """Why a changed file is not scored ("" = silently ignored)."""
     if ch.status == "deleted":
         return ""  # removing code never degrades health
-    if not is_supported(ch.path):
-        return ""
+    if not is_supported(ch.path) and not may_be_script(ch.path):
+        return ""  # extensionless files are checked by content in _file_delta
     if is_excluded(ch.path, config.excludes):
         return "excluded"
     return None
@@ -207,6 +207,8 @@ def _file_delta(root: Path, ch: ChangedFile, revs: Revisions, config: Config) ->
     after = gitutil.read_file(root, revs.head, ch.path)
     if after is None:
         return "unreadable"
+    if not is_supported(ch.path, after):
+        return ""  # an extensionless file without a shell shebang
     if is_generated(after):
         return "generated"
     before = None

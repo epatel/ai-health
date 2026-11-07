@@ -29,7 +29,7 @@ from pathlib import Path
 from aihealth.config import Config
 from aihealth.duplication import DuplicationIndex
 from aihealth.engine import score_module
-from aihealth.lang import adapter_for, is_supported, parse_source
+from aihealth.lang import adapter_for, file_head, is_supported_file, parse_source
 from aihealth.lang.base import is_generated
 
 SKIP_DIRS = {
@@ -54,7 +54,7 @@ def source_files(root: Path, langs: set[str] | None) -> list[Path]:
 
 
 def wanted(path: Path, langs: set[str] | None) -> bool:
-    adapter = adapter_for(path) if is_supported(path) else None
+    adapter = adapter_for(path, head=file_head(path)) if is_supported_file(path) else None
     if adapter is None or not language_selected(adapter.language, langs):
         return False
     return path.is_file() and path.stat().st_size <= MAX_BYTES
@@ -90,7 +90,7 @@ def snapshot_root(root: Path, langs: set[str] | None) -> tuple[dict, list]:
         source = path.read_bytes()
         if is_generated(source):
             continue
-        module, adapter = parse_source(source, str(path)), adapter_for(path)
+        module, adapter = parse_source(source, str(path)), adapter_for(path, head=source)
         files[str(path)] = file_record(module, adapter)
         index.add(module, adapter)
     clones = [

@@ -1,5 +1,5 @@
 """M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift, Rust,
-TypeScript, CMake, C, C++ and Objective-C code.
+TypeScript, CMake, C, C++, Objective-C and shell code.
 
 These tests pin the node type names the M2 adapters will rely on, so a
 grammar upgrade that renames them fails loudly here.
@@ -54,6 +54,7 @@ def _errors(node) -> list[tuple[int, str]]:
         ("c", "sample.c"),
         ("cpp", "sample.cpp"),
         ("objc", "sample.m"),
+        ("bash", "sample.sh"),
     ],
 )
 def test_parses_without_errors(lang, fixture):
@@ -309,3 +310,30 @@ def test_objc_methods_have_no_fields():
     assert greet.children[0].type == "-"
     assert [c.text for c in greet.named_children if c.type == "identifier"] == [b"greet", b"times"]
     assert greet.named_children[-1].type == "compound_statement"
+
+
+BASH_NODE_TYPES = """
+function_definition compound_statement if_statement elif_clause else_clause
+for_statement c_style_for_statement while_statement do_group case_statement case_item
+list test_command binary_expression ternary_expression subshell redirected_statement
+heredoc_redirect heredoc_body command command_name declaration_command comment
+"""
+
+
+def test_bash_node_types():
+    assert set(BASH_NODE_TYPES.split()) <= _types(_parse("bash", "sample.sh"))
+
+
+def test_bash_until_is_a_while_and_elif_has_no_field():
+    """Bash quirks: `until` is a `while_statement`; `elif_clause` and
+    `else_clause` are children of `if_statement` without a field name."""
+    root = _parse("bash", "sample.sh")
+    ifs = [
+        n for n in _find(root, "if_statement") if any(c.type == "elif_clause" for c in n.children)
+    ]
+    assert ifs
+    for i, child in enumerate(ifs[0].children):
+        if child.type in ("elif_clause", "else_clause"):
+            assert ifs[0].field_name_for_child(i) is None
+    loops = [n.children[0].type for n in _find(root, "while_statement")]
+    assert loops == ["while", "until"]

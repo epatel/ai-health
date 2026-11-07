@@ -54,6 +54,8 @@ def crate(name: str) -> Path:
 SWIFT = Path(os.environ.get("AIHEALTH_SWIFT_CORPORA", Path.home() / "Development/swift-corpora"))
 # shallow clones of the C, C++ and Objective-C repos below, in one directory
 CFAM = Path(os.environ.get("AIHEALTH_C_CORPORA", Path.home() / "Development/c-corpora"))
+# shallow clones of the shell repos below, in one directory
+SH = Path(os.environ.get("AIHEALTH_SH_CORPORA", Path.home() / "Development/sh-corpora"))
 
 # (name, path, expectation) - "lib": well-regarded library code, expected mostly
 # healthy; "complex": large, inherently complex code, expected lower.
@@ -136,7 +138,22 @@ CORPORA = [
     ("objc:KVOController", CFAM / "KVOController/FBKVOController", "lib"),
     ("objcpp:Texture", CFAM / "Texture/Source", "lib"),
     ("objcpp:ComponentKit", CFAM / "componentkit/ComponentKit", "lib"),
-    ("objcpp:flutter-darwin", FLUTTER.parent / "engine/src/flutter/shell/platform/darwin", "complex"),
+    (
+        "objcpp:flutter-darwin",
+        FLUTTER.parent / "engine/src/flutter/shell/platform/darwin",
+        "complex",
+    ),
+    ("sh:bats-core", SH / "bats-core", "lib"),
+    ("sh:rbenv", SH / "rbenv", "lib"),
+    ("sh:pyenv", SH / "pyenv", "lib"),
+    ("sh:n", SH / "n", "lib"),
+    ("sh:docker-install", SH / "docker-install", "lib"),
+    ("sh:bash-it", SH / "bash-it", "lib"),
+    ("sh:homebrew-install", SH / "install", "complex"),
+    ("sh:dehydrated", SH / "dehydrated", "complex"),
+    ("sh:nvm", SH / "nvm", "complex"),
+    ("sh:acme.sh", SH / "acme.sh", "complex"),
+    ("sh:dokku", SH / "dokku", "complex"),
 ]
 
 
@@ -198,6 +215,10 @@ C_EXCLUDES = [
 ]
 
 
+# shell repos: test suites (bats helpers, fixtures) next to the scripts
+SH_EXCLUDES = ["test/*", "tests/*", "*/test/*", "*/tests/*", "docs/*", "contrib/*"]
+
+
 def corpus_config(name: str) -> Config:
     config = Config()
     if name.startswith("ts:"):
@@ -206,6 +227,8 @@ def corpus_config(name: str) -> Config:
         config.data["scan"]["exclude"] = list(JS_EXCLUDES)
     elif name.startswith(("c:", "cpp:", "objc:", "objcpp:")):
         config.data["scan"]["exclude"] = list(C_EXCLUDES)
+    elif name.startswith("sh:"):
+        config.data["scan"]["exclude"] = list(SH_EXCLUDES)
     return config
 
 

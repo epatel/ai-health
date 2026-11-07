@@ -7,7 +7,8 @@ its changes (delta mode) and gives humans an overview of where an existing
 codebase needs improvement (scan mode). Scores are on a CodeScene-inspired
 1–10 scale, derived from explainable code smells. Languages: **Python**,
 **Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **TypeScript/TSX**,
-**JavaScript/JSX**, **C**, **C++**, **Objective-C**, **Makefiles** and **CMake**
+**JavaScript/JSX**, **C**, **C++**, **Objective-C(++)**, **shell scripts**,
+**Makefiles** and **CMake**
 (more via the adapter layer:
 README "Adding a language").
 
@@ -52,7 +53,8 @@ Status: `todo` / `wip` / `done`.
 | M16 | JavaScript adapter | done | `.js`/`.mjs`/`.cjs`/`.jsx` via the TypeScript adapter, assigned functions (CommonJS, prototypes) as units, 100 % of 26k declarations/methods on 22.7k files, calibrated on 7 repos |
 | M17 | CMake adapter | done | `CMakeLists.txt`/`*.cmake` scored (functions, macros, top-level blocks, `AND`/`OR`), all 639 definitions on 956 files, 90 % of 566 hand-written files healthy |
 | M18 | C, C++, Objective-C(++) | done | one adapter, three grammars (`.h` routed by content), source prepared against macros, units recovered from ERROR nodes; Objective-C++ via the objc grammar with `::` rewritten; calibrated on 18 repos |
-| M19 | Next language | todo | which one is the user's call: ask first (see handoff) |
+| M19 | Shell scripts | done | `.sh`/`.bash` and shebang scripts scored (functions + top-level blocks), bash roles shared with the Makefile adapter, 0 crashes on 5.5k scripts, calibrated on 11 repos |
+| M20 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
 
@@ -108,12 +110,26 @@ Status: `todo` / `wip` / `done`.
   original source, about 9 % of `.mm` code lines unscored (parse errors).
   C++ cohesion only for classes with all methods in the body. No C-family thresholds. See
   the C-family sections of both cards.
+- **Shell scripts** (M19): bash grammar for `.sh`, `.bash` and
+  extensionless files with a sh/bash/dash/ksh shebang (registry `head`
+  argument); zsh not supported (55 % of its lines fail). Units are
+  functions (plain names) and top-level blocks, as in CMake. `cmd || die`
+  guards count (3 % of cognitive points). Parse errors not reported. See
+  the shell sections of both cards.
 - **Generated Dart files** (`*.g.dart`, `*.freezed.dart`, `*.mocks.dart`)
   excluded by default.
 
 ## Current state / handoff
 
-**2026-11-07, third session.** M18 (C, C++, Objective-C) is done, and
+**2026-11-07, third session.** M19 (shell scripts) is done:
+`lang/shell.py`, `tests/test_shell.py`, shebang routing in the registry
+(`is_supported`/`adapter_for` take a `head`; engine, delta, hooks, CLI,
+MCP and `scripts/snapshot.py` pass it), `sh:` corpora in
+`scripts/calibrate.py` (`AIHEALTH_SH_CORPORA`), autoconf/configure/libtool
+generated-file markers, and docs. The Makefile adapter now imports the
+bash roles from `lang/shell.py`.
+
+Before that, M18 (C, C++, Objective-C) was done, and
 Objective-C++ (`.mm`, language `objcpp`) was added after it:
 `lang/cfamily.py` (adapter, header router, source preparation),
 `lang/cfamily_decl.py` (declarators, params, types),
@@ -124,21 +140,21 @@ docs. Shared code changed only by adding hooks (`grammars`,
 `_grammar_for`, `_prepare` in `lang/base.py`), C-family default excludes
 and three generated-file markers (Qt, bison, flex). Snapshots of every
 earlier language (49,533 files plus 1,217 Makefiles) compare identical.
-431 tests, ruff clean, and this repo scans at 9.94 (56 healthy files,
-1 warning).
+Now 468 tests, ruff clean, and this repo scans at 9.94 (60 healthy
+files, 1 warning).
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
-TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), Makefiles and CMake
+TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), shell scripts,
+Makefiles and CMake
 (13 generic smells plus Makefile `missing_phony`). Interfaces: CLI `scan`
 (dir or file) / `delta` / `history` / `serve` / `mcp` / `hook`, an MCP
 server (5 tools), SQLite history with migrations, a dashboard, and
-Claude Code hooks. Scoring is calibrated on 79 corpora, plus
+Claude Code hooks. Scoring is calibrated on 90 corpora, plus
 distribution checks on Makefiles and CMake files.
 
-**Next task (M19): ask the user which language.** Candidates: Go
+**Next task (M20): ask the user which language.** Candidates: Go
 (`if err != nil` needs a calibration decision), Kotlin (Compose maps
-onto widget depth; labelled args like Swift), shell scripts (cheapest:
-the bash role table already exists in `lang/make.py`).
+onto widget depth; labelled args like Swift), zsh (needs a grammar).
 Follow README "Adding a language". `lang/cfamily.py` shows several
 grammars in one adapter and source preparation; `lang/swift.py` a grammar
 without an `alternative` field; `lang/rust.py` a wrapped else-if, tests in
@@ -158,6 +174,9 @@ identical). Corpora on this machine, all read-only:
   ESLint, three.js), set `AIHEALTH_JS_CORPORA` for `--only js:`.
 - Rust: the crates in `~/.cargo/registry/src` (calibrate.py finds the
   newest version of each by name).
+- Shell: shallow clones (bats-core, rbenv, pyenv, n, docker-install,
+  bash-it, Homebrew install, dehydrated, nvm, acme.sh, dokku), set
+  `AIHEALTH_SH_CORPORA` for `calibrate.py --only sh:`.
 - C / C++ / Objective-C: Pico SDK (`~/Development/pico-sdk`), Flipper
   (`~/Development/flipper/flipperzero-firmware`, skip its `toolchain/`),
   OrcaSlicer `src/`, the Flutter engine, Xcode checkouts; shallow clones

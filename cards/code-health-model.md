@@ -543,6 +543,39 @@ exception would fit the targets, not the code. The C idiom of passing the
 context first (`uv_fs_open(loop, req, path, flags, mode, cb)`) does count
 for Excess Arguments; it is not a dominant penalty (≤ 11 % of any corpus).
 
+## Shell scripts (M19)
+
+Generic thresholds, no shell exceptions. Units are functions and
+top-level `if`/`for`/`while`/`case` blocks (as in CMake); scripts are
+mostly top-level commands, which aren't scored, and a long script with
+no structure shows up as Large File rather than one giant unit. Functions
+take no declared parameters, so Excess Arguments and Primitive Obsession
+never apply, and there are no classes. `break 2` / `continue 2` count +1
+like labeled jumps. `cmd || die` guards are counted: of 4,371 top-level
+`&&`/`||` lists, 725 are single-operator guards ending in `exit`/`return`/
+`die`/..., which is 3 % of all cognitive points, too little to justify an
+exemption. Calibration excludes test directories (`calibrate.py --only
+sh:`, `AIHEALTH_SH_CORPORA`).
+
+| Corpus | kind | kLoC | project | median file | healthy % | alert LoC % |
+|---|---|---:|---:|---:|---:|---:|
+| bats-core | lib | 3.7 | 8.1 | 10 | 68 | 0 |
+| rbenv | lib | 1.2 | 9.2 | 10 | 90 | 0 |
+| pyenv | lib | 7.8 | 7.6 | 10 | 79 | 0 |
+| n | lib | 1.2 | 5.8 | 10 | 67 | 0 |
+| docker-install | lib | 1.0 | 7.9 | 10 | 50 | 0 |
+| bash-it | lib | 17.6 | 8.6 | 10 | 88 | 3 |
+| Homebrew install | complex | 1.5 | 8.4 | 9.7 | 50 | 0 |
+| dehydrated | complex | 2.0 | 3.9 | 3.9 | 0 | 100 |
+| nvm | complex | 7.0 | 4.0 | 10 | 70 | 86 |
+| acme.sh | complex | 51.2 | 7.3 | 8.8 | 48 | 16 |
+| dokku | complex | 18.9 | 8.7 | 10 | 85 | 0 |
+
+The low scores are single big scripts: dehydrated is one 2,000-line file,
+nvm's `nvm.sh` holds a 4,000-line `nvm()` dispatcher, and `n` is mostly
+one `bin/n`. acme.sh's 300 DNS-API plugins copy each other's REST helpers
+(duplication is 40 % of its penalty).
+
 ## Delta classification
 
 Functions are paired by qualified name (`Class.method`); renamed functions

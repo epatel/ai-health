@@ -30,6 +30,14 @@ from tree_sitter_language_pack import get_parser
 
 from aihealth.lang.base import LanguageAdapter, LanguageSmell, iter_nodes, text
 from aihealth.lang.make_phony import missing_phony
+from aihealth.lang.shell import (
+    BASH_ALTERNATIVES,
+    BASH_BLOCKS,
+    BASH_BOOL_TRANSPARENT,
+    BASH_ROLES,
+    bash_bool_token,
+    bash_role,
+)
 from aihealth.metrics import Role
 from aihealth.model import Function, Module
 
@@ -163,8 +171,8 @@ class MakeAdapter(LanguageAdapter):
     filenames = ("Makefile", "makefile", "GNUmakefile", "BSDmakefile")
     # make and bash share these node names
     comment_types = frozenset({"comment"})
-    block_types = frozenset({"do_group", "compound_statement"})
-    bool_transparent = frozenset({"negated_command", "subshell"})
+    block_types = BASH_BLOCKS
+    bool_transparent = BASH_BOOL_TRANSPARENT
     roles: ClassVar[dict[str, Role]] = {
         # make
         "conditional": Role.IF,
@@ -172,24 +180,14 @@ class MakeAdapter(LanguageAdapter):
         "rule": Role.STOP,  # rules inside a conditional block are units of their own
         "define_directive": Role.STOP,
         # bash (recipes and define bodies)
-        "if_statement": Role.IF,
-        "elif_clause": Role.IF,
-        "for_statement": Role.LOOP,
-        "c_style_for_statement": Role.LOOP,
-        "while_statement": Role.LOOP,
-        "case_statement": Role.SWITCH,
-        "case_item": Role.CASE,
-        "ternary_expression": Role.TERNARY,
-        "function_definition": Role.STOP,
-        "list": Role.BOOL_EXPR,  # `a && b || c`
-        "binary_expression": Role.BOOL_EXPR,  # `[[ a && b ]]` (no ops in arithmetic)
+        **BASH_ROLES,
     }
     # tree-sitter-make rejects some valid GNU make (substitution references
     # with `=`, `obj-$(CONFIG) := ...`, `VPATH += :dir`): ~20 % of hand-written
     # Makefiles in a 2,190-file sample. Recovery keeps the damage to a line,
     # so don't alarm agents with "syntax errors"; make rejects real ones.
     reports_parse_errors = False
-    _ALTERNATIVES = frozenset({"elsif_directive", "else_directive", "elif_clause", "else_clause"})
+    _ALTERNATIVES = frozenset({"elsif_directive", "else_directive"}) | BASH_ALTERNATIVES
 
     def __init__(self) -> None:
         super().__init__()
@@ -201,10 +199,7 @@ class MakeAdapter(LanguageAdapter):
         if node.type == "function_call":
             name = text(node.child_by_field_name("function"))
             return Role.LOOP if name in _MAKE_LOOPS else _MAKE_CONTROL.get(name)
-        if node.type == "case_item":
-            value = node.child_by_field_name("value")
-            return None if value is not None and text(value).strip() == "*" else Role.CASE
-        return self.roles.get(node.type)
+        return bash_role(node, self.roles)
 
     def is_alternative(self, node: Node, index: int) -> bool:
         return node.children[index].type in self._ALTERNATIVES or super().is_alternative(
@@ -212,9 +207,7 @@ class MakeAdapter(LanguageAdapter):
         )
 
     def bool_token(self, node: Node) -> str | None:
-        if node.type in ("&&", "||") and node.parent is not None:
-            return "and" if node.type == "&&" else "or"
-        return None
+        return bash_bool_token(node)
 
     def statements(self, body: Node) -> list[Node]:
         if body.type == "program" or body.type in self.block_types:
