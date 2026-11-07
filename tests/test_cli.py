@@ -36,3 +36,17 @@ def test_installed_version_is_the_package_version():
     import aihealth
 
     assert metadata.version("aihealth") == aihealth.__version__
+
+
+def test_install_docs_name_the_current_release():
+    """README and AGENT-INSTALL pin `@v<version>`: a release must update them."""
+    from pathlib import Path
+
+    import aihealth
+
+    root = Path(__file__).parent.parent
+    tag = f"ai-health@v{aihealth.__version__}"
+    for doc in ("README.md", "AGENT-INSTALL.md"):
+        text = (root / doc).read_text()
+        pinned = [line for line in text.splitlines() if "git+https://github.com/epatel" in line]
+        assert pinned and all(tag in line for line in pinned), doc

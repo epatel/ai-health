@@ -24,7 +24,8 @@ parsing via tree-sitter, history in SQLite.
   it reports in code you touched.
 - Version: `src/aihealth/__init__.py` is the only source. Bump the minor version when the
   same code can score differently (a language, thresholds, smell or metric logic), the patch
-  otherwise, and add an entry to `CHANGELOG.md`.
+  otherwise, and add an entry to `CHANGELOG.md`. A release also updates the `@vX.Y.Z` in the
+  install lines of README.md and AGENT-INSTALL.md (a test checks it), then gets a git tag.
 - History: `.venv/bin/aihealth scan PATH --save` then `.venv/bin/aihealth history PATH`
   (DB `PATH/.aihealth/health.db`; schema changes = append to `store/migrations.py`)
 - Dashboard: `.venv/bin/aihealth serve --repo PATH [--db DB] [--port 8765]` (http://127.0.0.1:8765)

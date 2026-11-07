@@ -29,9 +29,12 @@ aihealth's version.
 ```bash
 # 1. Install into the project's venv (needs Python 3.11+)
 python3 -m venv .venv                # skip if the project already has one
-.venv/bin/pip install "git+https://github.com/epatel/ai-health"
+.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.2.0"
 .venv/bin/aihealth --version
 ```
+
+`@v0.2.0` is the current release (scores can change between releases, see `CHANGELOG.md`).
+Use the latest tag, or leave it out to follow `main`.
 
 2. Add to `.mcp.json` in the repo root. Claude Code starts the server in the project
    root, so the relative path works:
@@ -95,7 +98,7 @@ Notes:
 
 ```bash
 # 1. Install the CLI (needs Python 3.11+; with pipx: pipx install "git+...")
-uv tool install "git+https://github.com/epatel/ai-health"
+uv tool install "git+https://github.com/epatel/ai-health@v0.2.0"   # the current release
 aihealth --version       # not found? run `uv tool update-shell`, open a new terminal
 
 # 2. Register the MCP server for all your projects

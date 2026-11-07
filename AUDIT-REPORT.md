@@ -2,6 +2,37 @@
 
 **Date:** 2026-11-07 · **Commit audited:** `10a08ab` (main) · **Auditor:** Claude Code (Opus 5.5)
 
+## Status (v0.2.0)
+
+All 22 findings are fixed or covered. The audit below and its four
+re-assessments are kept as the record, in order; this table is the
+current state.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 1 | `delta --head` git option injection | Medium | fixed |
+| 2 | Dashboard: CSRF on `POST /scan`, DNS rebinding | Low | fixed |
+| 3 | `serve --host 0.0.0.0` without a warning | Low | fixed |
+| 4 | ECharts from a CDN without SRI | Low | fixed |
+| 5 | No file-size limit in delta, hooks, MCP | Low | fixed |
+| 6 | Open-ended dependency versions; grammar version not recorded | Medium | fixed |
+| 7 | No CI | Medium | fixed |
+| 8 | MCP wiring untested | Low | covered (stdio round-trip test) |
+| 9 | Only Python 3.12 tested | Low | fixed (CI on 3.11–3.13) |
+| 10 | `smells.py` refactor target; stale test count | Info | fixed (10.00) |
+| 11 | A scanned repo's `core.fsmonitor` runs commands | Low | fixed |
+| 12 | `scan` hangs on a named pipe outside git | Low | fixed |
+| 13 | Quadratic source scanning (C-family, zsh) | Low–Medium | fixed |
+| 14 | zsh parse guard without a wall-clock bound | Low | fixed |
+| 15 | `serve --host ::1` refuses every request | Low | fixed |
+| 16 | Delta reads oversized files before the size check | Info | fixed |
+| 17 | CI actions pinned by tag | Info | fixed (SHAs, Dependabot) |
+| 18 | Quadratic Makefile `define` check | Low | fixed |
+| 19 | Version never bumped | Low | fixed (0.2.0, changelog, tag) |
+| 20 | Install instructions not pinned to a release | Low | fixed |
+| 21 | Only editable installs tested | Low | fixed (wheel job in CI) |
+| 22 | Stale opening summary | Info | fixed (this table) |
+
 ## Summary
 
 aihealth is in good shape for a 0.1.0 tool. The code is small (5.9k lines in
@@ -691,3 +722,88 @@ tests.
   covers only the workflow, by design.
 - **Walks:** `os.walk` doesn't follow symlinked directories, so a link
   loop can't hang a scan outside git.
+
+---
+
+## Fourth re-assessment
+
+**Date:** 2026-11-07 · **Commit:** `0fa1a8e`, tag `v0.2.0` · **Range:** the 0.2.0
+release (fixes for 18 and 19), packaging and docs around it
+
+### State
+
+- Findings 1–19 are fixed or covered. The repo scores 10.00 (62 of 62
+  files healthy), with 510 tests. CI passes on the release commit,
+  including the check that the installed version matches the code.
+- Dependabot has opened its first two pull requests: `actions/checkout`
+  v4.4.0 → v7.0.1 (#2) and `actions/setup-python` v5.6.0 → v7.1.0 (#1).
+  Both keep the SHA-plus-comment pin, and CI passes on both. They cross
+  major versions, so merging is a decision for the maintainer, not a
+  finding.
+
+| # | Finding | Severity |
+|---|---|---|
+| 20 | Install instructions point at `main`, not the release tag | **new**, Low, fixed |
+| 21 | CI tests only an editable install | **new**, Low, fixed |
+| 22 | This report's opening summary shows fixed findings as open | **new**, Info, fixed |
+
+### 20. Install instructions don't use the tag (new, Low)
+
+`README.md` and `AGENT-INSTALL.md` install
+`git+https://github.com/epatel/ai-health`, which is whatever `main` is
+at install time. Now that releases are tagged and the version marks
+score changes, two people following the same instructions a week apart
+can get different scores for the same code. **Fix:** show
+`git+https://github.com/epatel/ai-health@v0.2.0` and say to replace it
+with the latest tag, keeping the unpinned form for following `main`.
+Optionally publish GitHub Releases from `CHANGELOG.md`.
+
+### 21. Only editable installs are tested (new, Low)
+
+CI runs `pip install -e '.[dev]'`, where the package is imported from
+the source tree. A regular install, as users get from `git+…`, builds a
+wheel. Two things could then break unseen: the package data
+(`web/templates/*.html`, `web/static/*`, which the dashboard needs) and
+the version resolved from `aihealth.__version__`. The configuration
+looks right (`[tool.setuptools.package-data]`, `dynamic = ["version"]`),
+and the first audit checked a `git+` install by hand, but nothing keeps
+it working. **Fix:** a CI step that builds the wheel, installs it into a
+clean venv, and runs `aihealth --version`, a scan, and the dashboard's
+page test against the installed copy.
+
+### 22. Stale opening summary (new, Info)
+
+The table at the top of this report still lists findings 2–10 as open,
+with their original severities. Every later round was appended below, so
+a reader who stops at the summary gets the wrong picture. **Fix:** a
+status table at the top covering all findings, with the dated sections
+kept as the record.
+
+### Verified in the release
+
+- **Version:** one source; the wheel metadata, `aihealth --version` and
+  `scan.tool_version` agree (0.2.0 after reinstall). The version test
+  catches a second source or a stale install.
+- **History and trends:** "aihealth changed" and "parsers changed"
+  notes; unknown values don't count as changes. The chart marks both
+  (checked in Node).
+- **18:** linear, same results on 70,793 Makefile chunks.
+- **`CHANGELOG.md`:** the claims match the code (languages, modes,
+  hardening, version rule).
+
+### Fixes for 20–22
+
+- **20:** `README.md` and `AGENT-INSTALL.md` install
+  `git+https://github.com/epatel/ai-health@v0.2.0` and explain why to pin
+  a tag. `test_install_docs_name_the_current_release` fails when a release
+  bumps `__version__` without updating every install line, and
+  `CLAUDE.md` lists that step in the release rule.
+- **21:** a `wheel` job in CI builds the wheel (`pip wheel . --no-deps`),
+  installs it with its dependencies into a clean venv, and, from outside
+  the checkout, checks `aihealth --version` against `__version__`, scans
+  `src/` (`--fail-under 9`), and runs `scripts/check_installed.py`. The
+  script refuses a copy imported from the source tree, checks the
+  templates and `charts.js` are installed, and renders the dashboard's
+  front page. Its first real run is the push of this fix.
+- **22:** the status table at the top of this report.
+
