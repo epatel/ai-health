@@ -1,5 +1,6 @@
 """C / C++ / Objective-C adapter: grammar routing, units, golden metrics, cohesion."""
 
+import time
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,7 @@ from aihealth.config import DEFAULT_EXCLUDES
 from aihealth.engine import is_excluded
 from aihealth.lang import adapter_for, is_supported, parse_file, parse_source
 from aihealth.lang.base import is_generated
-from aihealth.lang.cfamily import header_grammar, prepare
+from aihealth.lang.cfamily import _APPLE_ENUM, header_grammar, prepare
 from aihealth.metrics import function_metrics
 from aihealth.smells import lcom4
 
@@ -570,3 +571,13 @@ def test_generated_markers():
     assert is_generated(b"/* WARNING! All changes made in this file will be lost! */")
     assert is_generated(b"/* A Bison parser, made by GNU Bison 3.8.2.  */")
     assert not is_excluded("src/ui_helpers.h", DEFAULT_EXCLUDES)
+
+
+def test_header_routing_and_enum_macros_are_linear():
+    """`^\\s*` ran across blank lines from every line start: 80 KB of blank
+    lines took 78 s; `NS_ENUM(` + spaces backtracked the same way."""
+    start = time.perf_counter()
+    assert header_grammar(b"\n" * 80000) == "c"
+    assert _APPLE_ENUM.search(b"NS_ENUM(" + b" " * 80000) is None
+    assert prepare(b"\n" * 80000, "objc") == b"\n" * 80000
+    assert time.perf_counter() - start < 1

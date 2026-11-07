@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import os
 import re
+import signal
 import warnings
-from dataclasses import dataclass
+from bisect import bisect_left
+from typing import NamedTuple
 
 from tree_sitter import Node, Parser, Tree
 from tree_sitter_language_pack import get_parser
@@ -32,12 +34,17 @@ _ZSH_MARKERS = rb"|#compdef\b|#autoload\b"
 _SHELL_HEAD = re.compile(_SHEBANG_PATH + rb"(?:ba|da|k|z)?sh\b" + _ZSH_MARKERS)
 _ZSH_HEAD = re.compile(_SHEBANG_PATH + rb"zsh\b" + _ZSH_MARKERS)
 
-# `for k v in ...`: the grammar takes one loop variable
-_FOR_NAMES = re.compile(rb"\bfor[ \t]+\w+((?:[ \t]+\w+)+)(?=[ \t]+in\b)")
-_FLAGS = re.compile(rb"\([^)\n]*\)")
-_PARAM = re.compile(rb"[\w#@*!?-]*(?:\[[^]\n]*\])?")
+# `for k v in ...`: the grammar takes one loop variable (at most 8 more, so
+# a line of many `for` words isn't backtracked over once per `for`)
+_FOR_NAMES = re.compile(rb"\bfor[ \t]+\w+((?:[ \t]+\w+){1,8})(?=[ \t]+in\b)")
+# bounded, so a long line of `${(` or `${a[` isn't rescanned for each one
+_FLAGS = re.compile(rb"\([^)\n]{0,64}\)")
+_PARAM = re.compile(rb"[\w#@*!?-]*(?:\[[^]\n]{0,256}\])?")
+_BRACE_EVENTS = re.compile(rb"\\.|[{}\n]", re.DOTALL)
+_COMMAND = re.compile(rb"\$\(")
 _PARENS = bytes.maketrans(b"()", b"__")
 _CPU_SECONDS = 1
+_WALL_SECONDS = 3  # also ends a child that blocks without using CPU
 
 
 def is_shell_head(head: bytes) -> bool:
@@ -53,14 +60,11 @@ def is_zsh_head(head: bytes) -> bool:
 def prepare_zsh(source: bytes) -> bytes:
     """Same length and lines: extra `for` variables blanked, and parens in
     `${name/pattern/replacement}` turned into `_` (the endless-loop case
-    above; the pattern's text doesn't matter for metrics)."""
+    above; the pattern's text doesn't matter for metrics). Linear time."""
     out = bytearray(_FOR_NAMES.sub(_blank_group, source))
-    start = source.find(b"${")
-    while start >= 0:
-        span = _Expansion(source, start).substitution()
-        if span is not None:
-            out[span] = out[span].translate(_PARENS)
-        start = source.find(b"${", start + 2)
+    if b"${" in source:
+        for part in _Expansions(source).substitution_parts():
+            out[part.start : part.end] = out[part.start : part.end].translate(_PARENS)
     return bytes(out)
 
 
@@ -71,45 +75,67 @@ def _blank_group(match: re.Match[bytes]) -> bytes:
     return whole[: start - offset] + b" " * (end - start) + whole[end - offset :]
 
 
-@dataclass(frozen=True)
-class _Expansion:
-    """The `${...}` starting at ``start`` in ``src``."""
-
-    src: bytes
+class _Span(NamedTuple):
     start: int
+    end: int
 
-    def end(self) -> int:
-        """Index after its closing `}` on the same line, or -1."""
-        src = self.src
-        depth = 0
-        i = self.start
-        while i < len(src):
-            ch = src[i : i + 1]
-            if ch == b"\n":
-                return -1
-            if ch == b"}" and depth == 1:
-                return i + 1
-            depth += (ch == b"{") - (ch == b"}")
-            i += 2 if ch == b"\\" else 1
-        return -1
 
-    def operator(self) -> int:
+def _match_braces(src: bytes) -> dict[int, int]:
+    """For each `${` (by position), the index after its `}` on the same
+    line. One pass: thousands of `${` on one line stay linear."""
+    closes: dict[int, int] = {}
+    stack: list[int] = []
+    for m in _BRACE_EVENTS.finditer(src):  # a backslash pair is skipped
+        token = m.group()
+        if token == b"\n":
+            stack.clear()
+        elif token == b"{":
+            stack.append(m.start() - 1)
+        elif token == b"}" and stack:
+            closes[stack.pop()] = m.end()
+    return {start: end for start, end in closes.items() if src[start : start + 1] == b"$"}
+
+
+class _Expansions:
+    """The `${...}` expansions of a source and where commands (`$(`) start."""
+
+    def __init__(self, src: bytes) -> None:
+        self.src = src
+        self.closes = _match_braces(src)
+        self.commands = [m.start() for m in _COMMAND.finditer(src)]
+
+    def substitution_parts(self) -> list[_Span]:
+        """The `/pattern/replacement}` parts, merged where they nest."""
+        parts = (self._substitution(_Span(*item)) for item in self.closes.items())
+        merged: list[_Span] = []
+        for part in sorted(p for p in parts if p is not None):
+            if merged and part.start <= merged[-1].end:
+                merged[-1] = _Span(merged[-1].start, max(merged[-1].end, part.end))
+            else:
+                merged.append(part)
+        return merged
+
+    def _substitution(self, expansion: _Span) -> _Span | None:
+        """The part from the `/` after the parameter, unless it runs a command."""
+        op = self._operator(expansion)
+        if self.src[op : op + 1] != b"/":
+            return None
+        part = _Span(op, expansion.end)
+        return None if self._runs_command(part) else part
+
+    def _operator(self, expansion: _Span) -> int:
         """Index after the flags and the parameter: a name with an optional
         subscript, or a nested `${...}`."""
-        i = self.start + 2
+        i = expansion.start + 2
         flags = _FLAGS.match(self.src, i)
         i = flags.end() if flags else i
-        if self.src.startswith(b"${", i):
-            return max(_Expansion(self.src, i).end(), i)
+        if i in self.closes:
+            return self.closes[i]
         return _PARAM.match(self.src, i).end()
 
-    def substitution(self) -> slice | None:
-        """The `/pattern/replacement}` part, unless it runs a command."""
-        end = self.end()
-        op = self.operator()
-        if end < 0 or self.src[op : op + 1] != b"/":
-            return None
-        return None if b"$(" in self.src[op:end] else slice(op, end)
+    def _runs_command(self, part: _Span) -> bool:
+        k = bisect_left(self.commands, part.start)
+        return k < len(self.commands) and self.commands[k] + 2 <= part.end
 
 
 def lost_lines(root: Node) -> int:
@@ -142,7 +168,8 @@ def _inherits_error(node: Node, in_error: bool) -> bool:
 
 def _finishes(parser: Parser, source: bytes) -> bool:
     """Does ``parser`` return on ``source``? Tried in a forked child limited
-    to one CPU second (about 2 ms for a normal file). No fork: assume not."""
+    to one CPU second and three seconds of wall-clock time (about 2 ms for a
+    normal file). No fork: assume not."""
     if resource is None or not hasattr(os, "fork"):
         return False
     with warnings.catch_warnings():  # "multi-threaded, fork() may deadlock"
@@ -151,6 +178,8 @@ def _finishes(parser: Parser, source: bytes) -> bool:
     if pid == 0:  # the child only parses, then leaves without cleanup
         try:
             resource.setrlimit(resource.RLIMIT_CPU, (_CPU_SECONDS, _CPU_SECONDS))
+            signal.signal(signal.SIGALRM, signal.SIG_DFL)  # the default kills it
+            signal.alarm(_WALL_SECONDS)
             parser.parse(source)
         finally:
             os._exit(0)

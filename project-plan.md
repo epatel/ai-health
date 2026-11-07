@@ -119,7 +119,7 @@ Status: `todo` / `wip` / `done`.
   the shell sections of both cards.
 - **zsh** (M20, user asked for it consolidated with bash): the same
   `ShellAdapter`, module language `zsh`. The zsh grammar can loop forever,
-  so it runs in a forked child with a 1 s CPU limit first, and each file
+  so it runs in a forked child with a 1 s CPU / 3 s wall-clock limit first, and each file
   keeps the zsh or bash tree, whichever loses fewer lines. See the zsh
   sections of both cards.
 - **Generated Dart files** (`*.g.dart`, `*.freezed.dart`, `*.mocks.dart`)
@@ -153,7 +153,7 @@ docs. Shared code changed only by adding hooks (`grammars`,
 `_grammar_for`, `_prepare` in `lang/base.py`), C-family default excludes
 and three generated-file markers (Qt, bison, flex). Snapshots of every
 earlier language (49,533 files plus 1,217 Makefiles) compare identical.
-Now 468 tests, ruff clean, and this repo scans at 9.94 (60 healthy
+Now 492 tests, ruff clean, and this repo scans at 9.94 (60 healthy
 files, 1 warning).
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,

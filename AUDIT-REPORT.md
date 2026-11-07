@@ -351,10 +351,10 @@ and zsh adapters.
 | 7 | No CI | open |
 | 8 | MCP wiring untested | open (`mcp_server.py` 87.5 % covered) |
 | 9 | Only Python 3.12 tested | open |
-| 10 | `smells.py` refactor; stale test count | open (plan says 468 tests, there are 484) |
-| 12 | `scan` hangs on a named pipe outside git | **new**, Low |
-| 13 | Quadratic source scanning (header routing, `NS_ENUM`, zsh `${`) | **new**, Low–Medium |
-| 14 | zsh parse guard has no wall-clock bound | **new**, Low |
+| 10 | `smells.py` refactor; stale test count | `smells.py` open; test count updated |
+| 12 | `scan` hangs on a named pipe outside git | **new**, Low, fixed |
+| 13 | Quadratic source scanning (header routing, `NS_ENUM`, zsh `${`) | **new**, Low–Medium, fixed |
+| 14 | zsh parse guard has no wall-clock bound | **new**, Low, fixed |
 
 **Finding 6, update.** The declared floors can't run the current code:
 `tree-sitter-language-pack>=0.7` predates the `zsh`, `objc` and `cmake`
@@ -432,3 +432,27 @@ sleeping), and optionally cap memory with `RLIMIT_AS` on Linux.
 3. Apply `max_file_kb` in delta, hooks and MCP (5).
 4. Dashboard hardening (2–4).
 5. Refactor `smells.py` (10), and update the test count in the plan.
+
+### Fixes for 12–14
+
+- **12:** `file_head` reads only regular files (`stat.S_ISREG` first), so
+  `discover` and `is_supported_file` never open a FIFO.
+  `test_scan_does_not_open_a_named_pipe` runs the scan in a thread with a
+  10 s limit, so a regression fails instead of hanging the suite.
+- **13:** `^[^\S\n]*` replaces `^\s*` in the header markers (same matches,
+  can't cross lines), and `\(\s*\w[\w ]*,` the enum macro's
+  `\(\s*[\w ]+,`. `prepare_zsh` matches `${`/`}` pairs in one regex pass,
+  bounds the flag and subscript patterns, merges nested parts, and allows
+  at most 8 extra `for` variables (that regex was quadratic too, found
+  while fixing). Every input from the table now takes milliseconds at 80k
+  units, and timing tests cover them. Old and new code give identical
+  output on all 319,729 C-family files and all real zsh files on this
+  machine. The only change: two bash files in acme.sh, where the word
+  "for" in prose was followed by more than 8 words before "in". The zsh
+  rewrites don't apply to bash files anyway.
+- **14:** the child also sets `SIGALRM` to its default action and calls
+  `alarm(3)`. A test with a parser that sleeps (no CPU) returns within the
+  limit.
+- The three new tests fail on the old code. 492 tests pass, ruff is clean,
+  and `aihealth delta` reports no changes in health.
+

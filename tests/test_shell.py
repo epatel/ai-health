@@ -1,6 +1,9 @@
 """Shell script adapter: routing (extension and shebang), units, golden metrics,
 and zsh (grammar choice, source preparation, the parse guard)."""
 
+import os
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -10,7 +13,14 @@ from test_delta import git
 from aihealth.config import Config
 from aihealth.delta import run_delta
 from aihealth.engine import scan
-from aihealth.lang import adapter_for, is_supported, is_supported_file, parse_file, parse_source
+from aihealth.lang import (
+    adapter_for,
+    is_supported,
+    is_supported_file,
+    parse_file,
+    parse_source,
+    shell_zsh,
+)
 from aihealth.lang.base import is_generated
 from aihealth.lang.shell_zsh import ZshParser, _finishes, lost_lines, prepare_zsh
 from aihealth.metrics import function_metrics
@@ -348,3 +358,58 @@ def test_the_tree_that_loses_fewer_lines_wins():
     src = b'x="${a=" "}"\nf() { :; }\n'  # the zsh grammar loses line 1
     assert lost_lines(tslp.get_parser("zsh").parse(src).root_node) == 1
     assert lost_lines(ZshParser().parse(src).root_node) == 0
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+def test_scan_does_not_open_a_named_pipe(tmp_path):
+    """Reading an extensionless file's shebang must not block on a FIFO."""
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin/tool").write_text("#!/bin/sh\nf() { :; }\n")
+    fifo = tmp_path / "bin/pipe"
+    os.mkfifo(fifo)
+    done = threading.Event()
+    found = []
+
+    def run():
+        found.extend(f.path for f in scan(tmp_path, Config()).files)
+        done.set()
+
+    threading.Thread(target=run, daemon=True).start()
+    try:
+        assert done.wait(10), "scan blocked on the named pipe"
+    finally:
+        if not done.is_set():  # release the blocked open so the thread can end
+            os.close(os.open(fifo, os.O_WRONLY | os.O_NONBLOCK))
+    assert found == ["bin/tool"]
+    assert not is_supported_file(fifo)
+
+
+class _BlockingParser:
+    """A parse that sleeps: no CPU used, so only a wall-clock limit ends it."""
+
+    def parse(self, source):
+        time.sleep(30)
+
+
+def test_a_parse_that_blocks_is_ended_by_the_wall_clock_limit(monkeypatch):
+    monkeypatch.setattr(shell_zsh, "_WALL_SECONDS", 1)
+    start = time.monotonic()
+    assert not shell_zsh._finishes(_BlockingParser(), b"x")
+    assert time.monotonic() - start < 10
+
+
+# inputs that took 20-75 s each when preparation was quadratic
+SLOW_ZSH = [
+    b"x=" + b"${" * 20000,
+    b"x=" + b"${(" * 20000,
+    b"x=" + b"${a[" * 20000,
+    b"${a/" * 20000 + b"}" * 20000,
+    b"for " * 20000,
+]
+
+
+@pytest.mark.parametrize("src", SLOW_ZSH, ids=["open", "flags", "subscript", "nested", "for"])
+def test_zsh_preparation_is_linear(src):
+    start = time.perf_counter()
+    assert len(prepare_zsh(src)) == len(src)
+    assert time.perf_counter() - start < 1

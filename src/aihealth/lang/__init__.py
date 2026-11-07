@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import stat
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -60,8 +62,11 @@ def may_be_script(path: str | Path) -> bool:
 
 
 def file_head(path: str | Path) -> bytes | None:
-    """The first bytes of a file on disk, enough for a shebang, or None."""
+    """The first bytes of a regular file on disk, enough for a shebang, or
+    None (also for a named pipe, whose `open` would block until a writer)."""
     try:
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            return None
         with open(path, "rb") as f:
             return f.read(_HEAD_BYTES)
     except OSError:

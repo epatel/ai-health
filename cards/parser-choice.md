@@ -438,10 +438,17 @@ type information (e.g. Primitive Obsession on inferred types).
   (which could cancel) segfaults with these grammars, and there is no
   `timeout_micros` any more, so `ZshParser` first parses in a forked child
   limited to 1 CPU second (`RLIMIT_CPU`; about 2 ms per normal file, a
-  hang costs 1 s and about 1 GB in the child). If the child doesn't finish,
+  hang costs 1 s and about 1 GB in the child) and 3 s of wall-clock time
+  (`SIGALRM`, for a child that blocks without using CPU, e.g. on a lock
+  held by another thread at fork time: the MCP server and the dashboard
+  are multi-threaded). If the child doesn't finish,
   or there's no `fork` (Windows), the bash tree is used.
   `prepare_zsh` turns parens in `${name/pattern/replacement}` into `_`
-  (removes 3 of the 4 hangs) and blanks extra `for k v in` variables.
+  (removes 3 of the 4 hangs) and blanks extra `for k v in` variables (at
+  most 8). It runs in linear time: `${`/`}` pairs are matched in one
+  regex pass, the flag and subscript patterns are length-bounded, and
+  nested parts are merged before rewriting (a 40 KB line of `${` took
+  73 s with a scan per `${`).
 - **Best of two trees**: neither grammar is good on zsh. Measured as lost
   lines (tokens directly in ERROR nodes; statements recovered inside an
   ERROR count as placed) on ohmyzsh and 8 zsh repos (163k lines): bash

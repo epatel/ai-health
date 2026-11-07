@@ -40,11 +40,13 @@ from aihealth.model import Class, Function, Module
 
 # --- header routing ---------------------------------------------------------------------
 
+# `^[^\S\n]*`, not `^\s*`: the latter runs across blank lines from every line
+# start (an 80 KB file of blank lines took 78 s).
 _OBJC_MARKERS = re.compile(
-    rb"^\s*(@interface|@protocol|@implementation|@end\b|#import\b)", re.MULTILINE
+    rb"^[^\S\n]*(@interface|@protocol|@implementation|@end\b|#import\b)", re.MULTILINE
 )
 _CPP_MARKERS = re.compile(
-    rb"^\s*(namespace\b|template\s*<|class\s+\w+\s*(final\s*)?[:{]|struct\s+\w+\s*(final\s*)?:[^:]|"
+    rb"^[^\S\n]*(namespace\b|template\s*<|class\s+\w+\s*(final\s*)?[:{]|struct\s+\w+\s*(final\s*)?:[^:]|"
     rb"(public|private|protected)\s*:)|\w::\w",
     re.MULTILINE,
 )
@@ -79,7 +81,7 @@ def _spaces(match: re.Match[bytes]) -> bytes:
 # grammars (one costs GTMSessionFetcher.m 5,000 lines); `enum Kind {...};`
 # parses (without `typedef`, which would need a name after the body)
 _APPLE_ENUM = re.compile(
-    rb"(?:\btypedef\s+)?\b(?:NS|CF)_(?:ENUM|OPTIONS|CLOSED_ENUM|ERROR_ENUM)\(\s*[\w ]+,\s*(\w+)\s*\)"
+    rb"(?:\btypedef\s+)?\b(?:NS|CF)_(?:ENUM|OPTIONS|CLOSED_ENUM|ERROR_ENUM)\(\s*\w[\w ]*,\s*(\w+)\s*\)"
 )
 # a line holding only an ALL_CAPS macro: `Q_OBJECT`, `ABSL_NAMESPACE_BEGIN`,
 # `NS_ASSUME_NONNULL_BEGIN`, `PACK_STRUCT_BEGIN`
