@@ -7,6 +7,7 @@ capped at 3.0 (``_severity``). Scoring turns severities into penalties.
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING
 
@@ -56,6 +57,45 @@ LABELS = {
     "low_cohesion": "Low Cohesion",
     "primitive_obsession": "Primitive Obsession",
     "code_duplication": "Code Duplication",
+}
+
+
+# What each smell measures and why it matters (served by MCP explain_smell).
+EXPLANATIONS = {
+    "brain_method": "A function that is at the same time a Large Method, a Complex Method and "
+    "deeply nested. It typically centralises a module's behaviour, so every change touches it "
+    "and every change is risky.",
+    "large_method": "Lines of code in the function (blank lines, comments and docstrings "
+    "excluded; nested functions counted separately). Long functions mix responsibilities and "
+    "are hard to name, test and review. Dart `build()` methods have a higher limit.",
+    "complex_method": "Cyclomatic complexity: 1 + every branch point (if/elif, loops, case arms, "
+    "catch, ternary, and/or). It approximates the number of paths a test suite must cover.",
+    "cognitive_complexity": "SonarSource cognitive complexity: like cyclomatic, but each "
+    "structure costs more the deeper it is nested, and runs of boolean operators count once. "
+    "It approximates how hard the code is to read top to bottom.",
+    "deep_nesting": "Maximum depth of nested if/loop/switch/try blocks. Each level adds "
+    "state the reader must keep in mind; nested conditionals are a strong predictor of defects.",
+    "bumpy_road": "Several separate chunks of nested logic in one function (a 'bump' is a "
+    "top-level statement nesting 2+ deep). Each bump is usually a missing abstraction that "
+    "wants to be its own function.",
+    "excess_arguments": "Number of parameters (Dart named parameters count half, `this.x` "
+    "field initialisers are free). Long parameter lists hide a missing concept and make call "
+    "sites error-prone.",
+    "complex_conditional": "Boolean expressions with 2+ and/or operators (asserts excluded). "
+    "They are easy to get wrong and hard to read; a named predicate documents the intent.",
+    "deep_widget_tree": "Flutter: nesting depth of widget constructor calls in one function. "
+    "Deep trees in one build method are hard to read and rebuild more than needed; small widget "
+    "classes fix both.",
+    "large_file": "Code lines in the file. Large files accumulate unrelated responsibilities "
+    "and become merge-conflict and knowledge bottlenecks.",
+    "low_cohesion": "LCOM4: groups of methods that share no fields and don't call each other. "
+    "Two or more independent groups mean the class does unrelated jobs.",
+    "primitive_obsession": "Share of typed parameters in the file that are built-in primitives "
+    "(str, int, dict, List, Map, ...; bool and untyped excluded). Domain concepts passed as raw "
+    "primitives lose validation and meaning.",
+    "code_duplication": "Blocks of 50+ tokens / 6+ lines repeated within the file or across the "
+    "project (literals may differ). Duplicated logic must be changed in several places, and one "
+    "copy is eventually forgotten.",
 }
 
 
@@ -437,4 +477,25 @@ def detect(
     d.file()
     if clones:
         d.duplication(clones, {f.qualname: f.loc for f in funcs})
-    return d.findings
+    disabled = disabled_smells(module, adapter)
+    return [f for f in d.findings if f.smell not in disabled]
+
+
+_DISABLE = re.compile(r"aihealth:[ \t]*disable=([\w, \t]+)")
+
+
+def disabled_smells(module: Module, adapter: LanguageAdapter) -> set[str]:
+    """Smells switched off for a file by a *comment* such as
+    `# aihealth: disable=primitive_obsession, excess_arguments` (strings and
+    docstrings don't count). Meant for boundaries where the smell is imposed,
+    e.g. MCP/CLI/JSON API functions that must take primitives."""
+    found: set[str] = set()
+    stack = [module.root]
+    while stack:
+        node = stack.pop()
+        if node.type in adapter.comment_types:
+            for match in _DISABLE.finditer(node.text.decode("utf-8", "replace")):
+                found.update(x.strip() for x in match.group(1).split(","))
+            continue
+        stack.extend(node.children)
+    return found & set(LABELS)

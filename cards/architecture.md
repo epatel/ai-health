@@ -44,7 +44,7 @@ Planned package layout (`src/aihealth/`):
 | `delta.py` | `run_delta(repo, config, revs, paths) -> DeltaResult`. For each changed supported, non-excluded file, `delta_for_contents(change, before, after, config)` scores both versions with `engine.score_source`, `compare()` pairs findings by (level, symbol, smell), and `file_verdict()` applies the rules. `FileDelta` and `DeltaResult` have `to_dict()` for JSON/MCP. |
 | `report.py` | `render_scan(result, fmt, ReportOptions)` / `render_delta(...)` return strings for `fmt` in `FORMATS` (text, markdown, json). `ReportOptions(top, max_findings, verbose, functions)`. The CLI only prints these, and MCP (M7) should return the markdown or json from here too. |
 | `cli.py` | `aihealth scan`, `aihealth delta`, `aihealth serve`, `aihealth mcp`. |
-| `mcp_server.py` | FastMCP stdio server wrapping the engine. |
+| `mcp_server.py` | MCP stdio server (mcp SDK 2.x `MCPServer`, pinned `>=2,<3`; v2 renamed FastMCP). The tools are plain functions: `review_changes`, `score_file`, `preview_change` (score proposed content vs the current file without writing it), `scan_project` and `explain_smell`. They return `report.render_*` markdown or json. Input problems raise `ToolInputError`, which `build_server` converts to the SDK's `ToolError`: v2 hides the message of any other exception. Registered with `structured_output=False`, because otherwise the text is sent twice. `.mcp.json` registers it for this repo. |
 | `store/` | SQLite connection, `MIGRATIONS` list, `PRAGMA user_version` runner, scan persistence. |
 | `web/` | FastAPI app, Jinja templates, static assets; reads only from the store. |
 

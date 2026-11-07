@@ -176,6 +176,16 @@ under the new path, so findings still pair across a git rename.
 - The tolerance exists because a function can grow without its smells
   getting worse: its share of the file rises, so its penalty rises.
 
+### File-level suppression (M7)
+
+A comment `aihealth: disable=smell_a, smell_b` (keys as in `[weights]`)
+removes those smells from that file's findings and score. Only real
+comment nodes count, not strings or docstrings: an example in a docstring
+once silenced `smells.py` itself. This is meant for boundaries where a
+smell is imposed by an interface. For example, MCP tool parameters are a
+JSON schema, so primitives and flat argument lists are required. Use it
+sparingly and always with a reason in the comment.
+
 ### Noise fixes from dogfooding (M5)
 
 - Boolean expressions inside `assert` (Python `assert`, Dart `assert(...)`)

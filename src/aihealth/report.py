@@ -17,6 +17,7 @@ from aihealth.scoring import band
 if TYPE_CHECKING:
     from aihealth.delta import Change, DeltaResult, FileDelta
     from aihealth.engine import ScanResult
+    from aihealth.scoring import FileScore
     from aihealth.smells import Finding
 
 FORMATS = ("text", "markdown", "json")
@@ -46,6 +47,27 @@ def render_delta(result: DeltaResult, fmt: str, opts: ReportOptions | None = Non
     if fmt == "markdown":
         return delta_markdown(result, opts)
     return delta_text(result, opts)
+
+
+def render_file(fs: FileScore, fmt: str, opts: ReportOptions | None = None) -> str:
+    """One file's score and findings (MCP score_file)."""
+    opts = opts or ReportOptions()
+    if fmt == "json":
+        return json.dumps(fs.to_dict(with_functions=opts.functions), indent=2)
+    out = [
+        f"## {fs.path}: {_fmt_score(fs.score)}",
+        "",
+        f"{fs.loc} LoC, {len(fs.findings)} finding(s)",
+    ]
+    if fs.parse_errors:
+        out.append(f"⚠ {fs.parse_errors} syntax error(s): score may be partial.")
+    groups = _group_by_symbol(fs.findings)
+    if not groups:
+        return "\n".join([*out, "", "No code smells found."])
+    shown = groups[: opts.max_findings]
+    out += ["", *_numbered(shown, lambda f: f.label)]
+    out += _more(len(groups), len(shown), "functions with findings")
+    return "\n".join(out)
 
 
 # --- shared helpers -------------------------------------------------------------

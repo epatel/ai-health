@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "tree-sitter>=0.23",
     "tree-sitter-language-pack>=0.7",
+    "mcp>=2,<3",
 ]
 
 [project.optional-dependencies]

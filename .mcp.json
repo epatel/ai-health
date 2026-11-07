@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "aihealth": {
+      "command": ".venv/bin/aihealth",
+      "args": ["mcp"]
+    }
+  }
+}

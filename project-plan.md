@@ -39,7 +39,7 @@ Status: `todo` / `wip` / `done`.
 | M4 | Smells + scoring | done | smell detectors, penalty table, file score 1–10, LoC-weighted project score, `.aihealth.toml` overrides, duplication detector |
 | M5 | Delta mode | done | before/after scoring for working tree, staged, or `base..head`; per-function new/worsened/fixed smells; verdict + exit code |
 | M6 | Output formats | done | `text`, `json`, `markdown` (agent-oriented, concise with refactor hints) |
-| M7 | MCP server | todo | stdio server exposing `review_changes`, `score_file`, `scan_project`, `explain_smell`; registered in `.mcp.json` and smoke-tested from Claude Code |
+| M7 | MCP server | done | stdio server exposing `review_changes`, `score_file`, `scan_project`, `explain_smell`; registered in `.mcp.json` and smoke-tested from Claude Code |
 | M8 | Storage + migrations | todo | SQLite at `<repo>/.aihealth/health.db`, `PRAGMA user_version` migration runner, scans persisted |
 | M9 | Dashboard | todo | FastAPI + Jinja: project overview, treemap (size=LoC, colour=score), file view with smells per function, score trend |
 | M10 | Agent loop integration | todo | optional Claude Code hook / skill that runs delta after edits; dogfooded on this repo |
@@ -58,7 +58,8 @@ Status: `todo` / `wip` / `done`.
 - **Storage:** SQLite, dependency-free migration runner (standing default).
 - **Dashboard:** server-rendered (FastAPI + Jinja), charts via a pinned CDN
   library (ECharts) — no frontend build.
-- **MCP:** official `mcp` Python SDK (FastMCP), stdio transport.
+- **MCP:** official `mcp` Python SDK 2.x (`MCPServer`, formerly FastMCP), stdio
+  transport, plain-text tool results (`structured_output=False`).
 - **Dart test closures** passed to `group`/`test`/`testWidgets`/`setUp`/…
   are scored as their own units (option (a), user decision 2026-11-07).
   Configurable via `[dart] test_closure_calls`.
@@ -98,10 +99,14 @@ params.
 M6 done: `report.py` (renderers moved out of cli.py) and `--format
 markdown` plus `--max-findings` for scan and delta. Entries are grouped per
 function, with distinct hints. 105 tests. Project self-score is 8.20.
-Next agent: M7 MCP server. Add the `mcp` dependency (ask the user to run
-`! make setup` after editing pyproject). Tools: review_changes (delta
-markdown/json), score_file (path or inline content), scan_project,
-explain_smell. Reuse `report.render_*`.
+M7 done: `mcp_server.py` (5 tools incl. `preview_change`), `aihealth mcp`,
+`.mcp.json`, README.md, and the `aihealth: disable=` comment directive. 116
+tests incl. a stdio round trip. mcp SDK 2.x is pinned: v2 renamed FastMCP
+to MCPServer, hides non-ToolError messages and uses snake_case result
+fields.
+Next agent: M8 storage + migrations. SQLite at `<repo>/.aihealth/health.db`
+with a `PRAGMA user_version` migration runner (standing-defaults card),
+persisting scans (scan, file_score, finding). Wire `aihealth scan --save`.
 Note: `pip install` may need user approval in this environment — ask the
 user to run `! make setup` rather than retrying.
 

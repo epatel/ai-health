@@ -134,6 +134,18 @@ def test_bool_params_are_neutral_for_primitive_obsession():
     assert "primitive_obsession" not in smells(flags, "p.py")
 
 
+def test_disable_comment_switches_off_smells_for_file():
+    src = "\n".join(f"def f{i}(a: str, b: int, c: dict) -> None: ..." for i in range(4))
+    assert "primitive_obsession" in smells(src, "p.py")
+    disabled = "# aihealth: disable=primitive_obsession, excess_arguments\n" + src
+    assert "primitive_obsession" not in smells(disabled, "p.py")
+    dart = "// aihealth: disable=excess_arguments\nvoid f(int a, int b, int c, int d, int e) {}"
+    assert "excess_arguments" not in smells(dart, "a.dart")
+    # a directive inside a string or docstring is not a comment
+    in_string = 'X = "aihealth: disable=primitive_obsession"\n' + src
+    assert "primitive_obsession" in smells(in_string, "p.py")
+
+
 def test_weight_zero_disables_smell():
     cfg = Config()
     cfg.data["weights"]["excess_arguments"] = 0

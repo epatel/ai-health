@@ -71,6 +71,19 @@ def _cmd_delta(args: argparse.Namespace) -> int:
     return 1 if result.verdict == DEGRADED else 0
 
 
+# --- mcp ----------------------------------------------------------------------
+
+
+def _cmd_mcp(_args: argparse.Namespace) -> int:
+    try:
+        from aihealth.mcp_server import main as serve
+    except ImportError as e:  # pragma: no cover - depends on install
+        print(f"MCP support not installed ({e}); run: pip install mcp", file=sys.stderr)
+        return 2
+    serve()
+    return 0
+
+
 # --- parser -------------------------------------------------------------------
 
 
@@ -113,7 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
     delta.set_defaults(func=_cmd_delta)
 
     mcp = sub.add_parser("mcp", help="run the MCP server over stdio")
-    mcp.set_defaults(func=_not_yet("M7"))
+    mcp.set_defaults(func=_cmd_mcp)
 
     serve = sub.add_parser("serve", help="run the web dashboard")
     serve.add_argument("--repo", default=".")
