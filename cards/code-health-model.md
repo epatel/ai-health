@@ -86,9 +86,11 @@ closures made up thousands of lines. Resolved in M4 (next section).
 
 ## Units of scoring (decided in M4)
 
-- A function's LoC counts **its own lines only**. Lines inside nested
-  scored units (Python local defs, Dart local functions, Dart test closures)
-  belong to those units.
+- A function's LoC counts **its own body lines only** (M11: from the body
+  start, so decorators and the parameter list are not counted; a long
+  signature is Excess Arguments' concern). Lines inside nested scored units
+  (Python local defs, Dart local functions, Dart test closures) belong to
+  those units.
 - **Dart test closures are separate units** (decision (a), 2026-11-07):
   closures passed to `group`, `test`, `testWidgets`, `testGoldens`,
   `blocTest`, `setUp`, `setUpAll`, `tearDown` and `tearDownAll` become
@@ -109,11 +111,16 @@ closures made up thousands of lines. Resolved in M4 (next section).
   Function/class smells use scale = `0.5 + 0.5 × min(1, 4 × share)`, where
   `share` is the symbol's LoC divided by the file's LoC: a smelly function
   covering ≥ 25 % of the file counts fully, and a tiny one counts half.
-- **File score** = `10 − 9 × (1 − exp(−P / 10))`, where P is the sum of
-  penalties. It is smooth, never below 1, and each extra smell costs a
-  little less (P = 1 → 9.14, 5 → 6.46, 10 → 4.31, 20 → 2.22). This replaced
-  the planned `clamp(10 − P)`, which hit 1.0 for any file with one Brain
-  Method.
+- **File penalty P** (M11): penalties are summed per symbol and each
+  symbol's sum is capped at 4 (`symbol_cap`). The function/class part is
+  divided by `sqrt(loc / 300)` for files over 300 LoC (`density_loc`), so
+  big files are judged by the density of problems. File-level smells
+  (Large File, Primitive Obsession) are added undamped.
+- **File score** = `10 − 9 × (1 − exp(−P / 15))` (`decay`). It is smooth,
+  never below 1, and each extra smell costs a little less (P = 1 → 9.42,
+  2 → 8.87, 5 → 7.45, 10 → 5.62, 20 → 3.37). This replaced the planned
+  `clamp(10 − P)`, which hit 1.0 for any file with one Brain Method. All
+  three parameters can be set under `[score]`.
 - **Project score** = Σ(score × LoC) / Σ LoC.
 - **Bands:** Healthy ≥ 9, Warning 4 to < 9, Alert < 4.
 - Default weights: brain_method 2.0, large_file 1.5; large_method,
@@ -123,7 +130,9 @@ closures made up thousands of lines. Resolved in M4 (next section).
   Brain Method is reported *in addition to* its three component smells.
 - Smell details:
   - Excess Arguments ignores Dart `this.x` / `super.x` field initializers,
-    so Flutter widget constructors aren't flagged.
+    so Flutter widget constructors aren't flagged. Named parameters count
+    half: Dart `{…}` params, and (M11) Python keyword-only params after `*`
+    / `*args` plus `**kwargs`. Both are named options at the call site.
   - Primitive Obsession counts only typed parameters. Untyped Python is
     "unknown", not primitive. Dart callbacks (`Function`) and records are
     unknown too.
@@ -143,9 +152,65 @@ closures made up thousands of lines. Resolved in M4 (next section).
 | Flutter `packages` (1.3M LoC, incl. tests) | 3.29 | 1055 / 1143 / 696 |
 | this repo (2.5k LoC) | 7.18 | 14 / 6 / 1 |
 
-These look harsh for well-maintained code. Big files collect many
-findings, and exponential decay still sums them all. Calibrate in M11.
-Scan speed is about 12k LoC/s including cross-file duplication.
+These looked harsh for well-maintained code, which led to the M11
+calibration below. Scan speed is about 12k LoC/s including cross-file
+duplication.
+
+## Calibration (M11)
+
+Reproduce with `.venv/bin/python scripts/calibrate.py --cache <scratch dir>`.
+It reads the corpora without writing to them, caches the findings, and
+re-scores them under formula variants without rescanning.
+
+**Targets, set before looking at results:** (1) well-regarded library code
+is mostly healthy (project ≈ 8+, median file ≥ 9); (2) large, inherently
+complex code lands at ≈ 5–7; (3) only genuine god-files are in alert;
+(4) more smells never raise a score, and one mild smell keeps a file
+healthy.
+
+**Corpora:** Python libraries from site-packages (click, httpx, starlette,
+jinja2, fastapi, uvicorn, anyio; complex: pydantic, pip internals) and Dart
+(pub-cache: provider, http, bloc, go_router, dio, args, shelf, collection;
+complex: flutter_test, Flutter widgets/material/rendering, flutter_tools).
+About 520k LoC in total.
+
+| Corpus | M4 project score | M11 project score | M11 median file | M11 alert LoC % |
+|---|---:|---:|---:|---:|
+| dart provider / http / bloc / shelf | 9.3 / 9.1 / 9.8 / 8.6 | 9.7 / 9.3 / 9.9 / 9.1 | 10 | 0 |
+| dart go_router / collection / args / dio | 7.7 / 7.5 / 7.1 / 6.1 | 8.8 / 8.3 / 7.9 / 7.5 | 9.2–10 | 0–18 |
+| py starlette / jinja2 / anyio | 6.7 / 4.8 / 5.5 | 8.0 / 7.0 / 7.1 | 8.9–10 | 0–23 |
+| py click / httpx / uvicorn / fastapi | 4.6 / 4.8 / 4.5 / 2.6 | 6.3 / 6.1 / 6.3 / 5.4 | 7.9–10 | 6–34 |
+| py pydantic / pip | 4.3 / 6.7 | 6.2 / 8.1 | 9.0–9.4 | 0–26 |
+| flutter widgets / material / rendering | 5.0 / 4.4 / 3.9 | 7.2 / 6.8 / 6.3 | 8.4–9.6 | 6–22 |
+| flutter_test / flutter_tools | 4.6 / 5.2 | 6.8 / 7.4 | 9.1–10 | 0 |
+
+**What changed, and why:**
+1. *Bug:* scanning an explicitly given directory that is itself gitignored
+   (e.g. a dependency in `.venv`) returned 0 files. It now falls back to
+   walking the directory.
+2. *Large Method measures the body.* FastAPI's 30-parameter `Annotated[…,
+   Doc()]` signatures had counted as "358-line methods".
+3. *Python keyword-only params count half*, consistent with Dart named
+   params.
+4. *Aggregation:* per-symbol cap 4, density damping above 300 LoC, decay
+   10 → 15. Variants compared: cap only, density 500/300, cap 3/4, decay
+   10/15. Cap or density alone moved scores by under 1 point. The
+   combination met targets 2–4 and most of target 1.
+5. *Duplication was kept as is.* It is the top penalty in many Dart
+   corpora, but 87 % of that penalty comes from clones of 10+ lines, and
+   the samples are real copy-paste (`ElevatedButton.styleFrom` ≈
+   `FilledButton.styleFrom`, `_RenderInputPadding` copied across three
+   files).
+
+**Known gap, accepted:** several respected Python libraries stay in
+*warning* (httpx 6.1, uvicorn 6.3, click 6.3, fastapi 5.4). Their findings
+are real: sync/async client copy-paste in httpx, two near-identical
+protocol implementations in uvicorn, a 9-group `Context` class in click.
+Tuning further would fit the targets, not the code.
+
+**Side effect, accepted:** density damping means adding clean code to a
+big file with smells raises its score slightly. Delta still reports any
+new or worsened smell, so this can't hide a regression.
 
 ## Delta classification
 
@@ -223,7 +288,9 @@ count every boolean operator.
 
 ## When to revisit
 
-- Calibration shows scores bunching (everything 9–10 or everything < 4).
+- Re-run `scripts/calibrate.py` after changing thresholds, weights or the
+  aggregation. Scores bunching (everything 9–10 or everything < 4) means
+  recalibrate.
 - Agents game a single metric (e.g. splitting functions mechanically) while
   readability drops — add or reweight smells.
 - A language is added whose idioms break a threshold (like Flutter `build`).

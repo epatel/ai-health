@@ -48,35 +48,40 @@ def _is_docstring(node: Node) -> bool:
     return first is not None and first.id == node.id
 
 
+def _param_name(child: Node) -> tuple[str, str | None]:
+    """(name, splat node type or None) of one parameter node."""
+    if child.type == "identifier":
+        return text(child), None
+    if child.type in _SPLATS:
+        return text(child).lstrip("*"), child.type
+    if child.type == "typed_parameter":  # first named child: identifier or splat
+        first = child.named_children[0]
+        return text(first).lstrip("*"), first.type if first.type in _SPLATS else None
+    return text(child.child_by_field_name("name")), None
+
+
 def _params(params_node: Node | None, is_method: bool) -> list[Param]:
     if params_node is None:
         return []
     out: list[Param] = []
+    keyword_only = False  # after `*` or `*args`: named at every call site
     for child in params_node.named_children:
+        if child.type == "keyword_separator":
+            keyword_only = True
         if child.type in ("keyword_separator", "positional_separator", "comment"):
             continue
-        name_node = child.child_by_field_name("name")
+        name, splat = _param_name(child)
         type_node = child.child_by_field_name("type")
-        variadic = child.type in _SPLATS
-        if child.type == "identifier":
-            name = text(child)
-        elif child.type in _SPLATS:
-            name = text(child).lstrip("*")
-        elif child.type == "typed_parameter":
-            # name is the first named child (identifier or a splat pattern)
-            first = child.named_children[0]
-            variadic = first.type in _SPLATS
-            name = text(first).lstrip("*")
-        else:
-            name = text(name_node)
         out.append(
             Param(
                 name=name,
                 type_text=text(type_node) if child.type in _PARAM_TYPED and type_node else None,
+                named=keyword_only or splat == "dictionary_splat_pattern",
                 optional=child.type in _PARAM_DEFAULT,
-                variadic=variadic,
+                variadic=splat is not None,
             )
         )
+        keyword_only = keyword_only or splat == "list_splat_pattern"
     if is_method and out and out[0].name in ("self", "cls") and not out[0].typed:
         out = out[1:]
     return out

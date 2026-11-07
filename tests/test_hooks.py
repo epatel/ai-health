@@ -87,10 +87,15 @@ def test_stop_blocks_once_on_degraded_changes(repo):
     assert hooks.run("stop", json.dumps(payload)) == ""
 
 
-@pytest.mark.parametrize("bad", ["", "not json", "[]", '{"cwd": 5}'])
+@pytest.mark.parametrize("bad", ["not json", "[]", '{"cwd": 5}', '{"cwd": "/nonexistent"}'])
 def test_hooks_fail_open_on_bad_input(bad):
     assert hooks.run("post-edit", bad) == ""
     assert hooks.run("stop", bad) == ""
+
+
+def test_post_edit_with_empty_stdin_does_nothing():
+    # (for `stop`, empty stdin means "no payload": it checks the cwd)
+    assert hooks.run("post-edit", "") == ""
 
 
 def test_cli_hook_round_trip(repo):

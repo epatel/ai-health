@@ -76,20 +76,36 @@ def test_python_params():
 
 def test_python_loc_excludes_docstrings_comments_blank():
     fns = _fns("declarations.py")
-    # own lines only: `def outer(...)` and `return inner(...)`; inner's two
-    # lines belong to outer.inner
-    assert fns["outer"].loc == 2
-    assert fns["outer.inner"].loc == 2
-    # decorator line is part of the function span
-    assert fns["Service.build"].loc == 3
+    # own body lines only: `return inner(...)`; the signature isn't counted
+    # and inner's body belongs to outer.inner
+    assert fns["outer"].loc == 1
+    assert fns["outer.inner"].loc == 1
+    # decorator and signature are part of the span, not of the loc
+    assert fns["Service.build"].start_line < fns["Service.build"].end_line
+    assert fns["Service.build"].loc == 1
     module = parse_file(FIXTURES / "declarations.py")
     assert module.loc < len((FIXTURES / "declarations.py").read_text().splitlines())
+
+
+def test_python_keyword_only_params_are_named():
+    module = parse_source(b"def f(a, b=1, *args, c, d=2, **kw): pass\n", "k.py")
+    params = module.all_functions()[0].params
+    assert [(p.name, p.named) for p in params] == [
+        ("a", False),
+        ("b", False),
+        ("args", False),
+        ("c", True),
+        ("d", True),
+        ("kw", True),
+    ]
+    star = parse_source(b"def g(a, *, b, c): pass\n", "k.py").all_functions()[0].params
+    assert [p.named for p in star] == [False, True, True]
 
 
 def test_python_constructor_kind():
     fns = _fns("sample.py")
     assert fns["Repository.__init__"].kind == "constructor"
-    assert fns["classify"].loc == 10
+    assert fns["classify"].loc == 9  # body only
 
 
 # --- dart -----------------------------------------------------------------

@@ -82,7 +82,8 @@ DEFAULTS: dict[str, Any] = {
     "thresholds": DEFAULT_THRESHOLDS,
     "weights": DEFAULT_WEIGHTS,
     "scan": {"exclude": [], "use_default_excludes": True, "max_file_kb": 1024},
-    "score": {"decay": 10.0},  # see scoring.file_score
+    # see scoring.py; calibrated in M11 (cards/code-health-model.md)
+    "score": {"decay": 15.0, "symbol_cap": 4.0, "density_loc": 300.0},
     "primitive_obsession": {"min_params": 10},
     "duplication": {"min_tokens": 50, "min_lines": 6, "cross_file": True},
     # score drops up to this are ignored when no smell is new/worse: when a file

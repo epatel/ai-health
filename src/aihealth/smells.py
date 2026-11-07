@@ -418,8 +418,8 @@ def _is_build_method(fn: Function) -> bool:
 
 
 def _effective_args(fn: Function) -> float:
-    """Positional params count 1, named (Dart `{}`) 0.5; `this.x`/`super.x`
-    field initializers don't count."""
+    """Positional params count 1; named ones (Dart `{}`, Python keyword-only
+    and **kwargs) 0.5; Dart `this.x`/`super.x` field initializers don't count."""
     total = 0.0
     for p in fn.params:
         if p.type_text == "<field>":

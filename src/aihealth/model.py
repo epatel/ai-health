@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class Param:
     name: str
     type_text: str | None = None  # declared type as written, None if untyped
-    named: bool = False  # Dart `{...}` named parameter
+    named: bool = False  # Dart `{...}` named / Python keyword-only (after `*`) or **kwargs
     optional: bool = False  # has a default / Dart `[...]` / nullable named
     variadic: bool = False  # Python *args / **kwargs
 
@@ -35,7 +35,7 @@ class Function:
     end_line: int  # 1-based, inclusive
     params: list[Param]
     body: Node  # tree-sitter node of the body; metrics walk this
-    loc: int = 0  # code lines (no blanks/comments/docstrings) in the span
+    loc: int = 0  # body code lines (no signature/blanks/comments/docstrings/nested fns)
     class_name: str | None = None
 
 

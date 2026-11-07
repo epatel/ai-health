@@ -1,6 +1,7 @@
 """Smells, scoring, config, duplication and scan (M4)."""
 
 import json
+import subprocess
 import textwrap
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from aihealth.config import Config, ConfigError, load_config
 from aihealth.duplication import DuplicationIndex
 from aihealth.engine import is_excluded, scan, score_source
 from aihealth.lang import adapter_for, parse_source
-from aihealth.scoring import band, file_score, project_score
+from aihealth.scoring import ScoreParams, band, file_penalty, file_score, project_score
 from aihealth.smells import Finding, _severity, lcom4
 
 
@@ -40,12 +41,44 @@ def _finding(weight=1.0, severity=1.0, level="function", share=1.0):
 
 def test_file_score_curve():
     assert file_score([]) == 10.0
-    assert file_score([_finding()]) == pytest.approx(9.14, abs=0.01)
+    assert file_score([_finding()]) == pytest.approx(9.42, abs=0.01)  # one mild smell: healthy
     assert file_score([_finding(severity=3)] * 10) >= 1.0
     # tiny functions in big files count half
     small = _finding(share=0.01)
     file_score([small])
     assert small.penalty == pytest.approx(0.52, abs=0.01)
+
+
+def _f(symbol, smell="complex_method", *, level="function", severity=1.0, weight=1.0):
+    return Finding(smell, level, "f", 1, symbol, 0, 0, severity, "", "", weight, 1.0)
+
+
+def test_symbol_cap_limits_one_function():
+    # brain method + its three component smells on one function: capped at 4
+    brain = [_f("g", s, severity=3) for s in ("brain_method", "large_method", "deep_nesting")]
+    assert file_penalty(brain, 100, ScoreParams()) == 4.0
+    # the same penalty spread over three functions is not capped
+    spread = [_f(name, severity=3) for name in ("a", "b", "c")]
+    assert file_penalty(spread, 100, ScoreParams()) == 9.0
+
+
+def test_density_damping_spares_file_level_smells():
+    params = ScoreParams()
+    local = [_f("g", severity=2)]
+    assert file_penalty(local, 300, params) == 2.0
+    assert file_penalty(local, 1200, params) == pytest.approx(1.0)  # / sqrt(4)
+    large_file = [_f(None, "large_file", level="file", severity=2)]
+    assert file_penalty(large_file, 1200, params) == 2.0
+
+
+def test_more_smells_never_raise_the_score():
+    findings = []
+    previous = 10.0
+    for i in range(12):
+        findings.append(_f(f"fn{i % 3}", severity=1 + i % 3))
+        score = file_score(list(findings), 800)
+        assert score <= previous
+        previous = score
 
 
 def test_bands_and_project_weighting():
@@ -344,6 +377,18 @@ def _repo(tmp_path: Path) -> Path:
     )
     (tmp_path / "notes.txt").write_text("not code")
     return tmp_path
+
+
+def test_scan_of_gitignored_directory_walks_it(tmp_path):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / ".gitignore").write_text("vendor/\n")
+    (tmp_path / "vendor" / "lib").mkdir(parents=True)
+    (tmp_path / "vendor" / "lib" / "a.py").write_text("def f(x):\n    return x\n")
+    (tmp_path / "main.py").write_text("def g(x):\n    return x\n")
+    # the repo scan honours .gitignore ...
+    assert {f.path for f in scan(tmp_path, Config()).files} == {"main.py"}
+    # ... but explicitly scanning the ignored directory still finds its code
+    assert {f.path for f in scan(tmp_path / "vendor", Config()).files} == {"lib/a.py"}
 
 
 def test_exclude_matching():

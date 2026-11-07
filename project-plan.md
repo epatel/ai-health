@@ -43,7 +43,7 @@ Status: `todo` / `wip` / `done`.
 | M8 | Storage + migrations | done | SQLite at `<repo>/.aihealth/health.db`, `PRAGMA user_version` migration runner, scans persisted |
 | M9 | Dashboard | done | FastAPI + Jinja: project overview, treemap (size=LoC, colour=score), file view with smells per function, score trend |
 | M10 | Agent loop integration | done | optional Claude Code hook / skill that runs delta after edits; dogfooded on this repo |
-| M11 | Calibration | todo | run on 2–3 open-source Python and Flutter repos, tune thresholds/weights so scores spread sensibly; record results in the scoring card |
+| M11 | Calibration | done | run on 2–3 open-source Python and Flutter repos, tune thresholds/weights so scores spread sensibly; record results in the scoring card |
 
 ## Decisions
 
@@ -63,6 +63,10 @@ Status: `todo` / `wip` / `done`.
   library (ECharts) — no frontend build.
 - **MCP:** official `mcp` Python SDK 2.x (`MCPServer`, formerly FastMCP), stdio
   transport, plain-text tool results (`structured_output=False`).
+- **Flutter `build()`** (settled in M11): keep both the higher Large Method
+  limit for `build` (120 lines, about p97 of Flutter's own `build()`
+  methods) and the Deep Widget Tree smell (> 8, about p95). Flutter corpora
+  land in the target band with them.
 - **Dart test closures** passed to `group`/`test`/`testWidgets`/`setUp`/…
   are scored as their own units (option (a), user decision 2026-11-07).
   Configurable via `[dart] test_closure_calls`.
@@ -124,20 +128,19 @@ and a README section for other projects. 154 tests. Verified live: a
 smelly Write produced the regression report as PostToolUse context, and
 fixing it made the hook go silent. Calibration: Complex Conditional now
 counts only branch/loop conditions.
-Next agent: M11 calibration. Run on 2-3 open-source Python and Flutter
-repos (use `--db` in a scratch dir and never write into foreign repos).
-Compare score spreads (Flutter material was 4.17 and all Flutter packages
-3.29, which looks harsh). Tune decay, weights and per-function caps, and
-record the results in the code-health-model card.
+M11 done: `scripts/calibrate.py` with 22 reference corpora (~520k LoC,
+read-only). Scoring was calibrated: per-symbol cap 4, density damping above
+300 LoC, decay 15, Large Method counts body lines, Python keyword-only
+params count half. Fixed a scan bug for gitignored directories. Results and
+rationale are in the code-health-model card. This repo now scores 9.15.
+160 tests.
+All planned milestones (M0-M11) are done. Possible next steps: more
+languages (adapter + role table + golden tests), behavioural hotspots from
+git change frequency (a v1 non-goal), and cross-file duplication in delta
+mode.
 Note: `pip install` may need user approval in this environment — ask the
 user to run `! make setup` rather than retrying.
 
 ## Open questions
 
-- Flutter `build()` methods are long by nature: separate, higher Large
-  Method threshold for `build` in widget classes, or rely on the widget-depth
-  metric instead? (Proposal: higher threshold + widget-depth smell; confirm in M11.)
-- Scores look harsh on well-maintained code (Flutter material 4.17, all
-  Flutter packages 3.29). Calibrate in M11. Candidate fixes: cap the
-  penalty per function, higher decay, or normalise file penalty by
-  function count.
+None open. Raise new ones here.

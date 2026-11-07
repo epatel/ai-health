@@ -66,7 +66,7 @@ def test_treemap_tree_nests_by_directory():
 def test_overview_and_file_view(project):
     conn, scan_id = _saved(project)
     data = views.overview(conn, scan_id)
-    # one mild smell (penalty 1.0 -> 9.14) keeps bad.py in the healthy band
+    # one mild smell (penalty 1.0 -> 9.42) keeps bad.py in the healthy band
     assert data["counts"] == {"healthy": 3, "warning": 0, "alert": 0}
     assert [f["path"] for f in data["worst"]] == ["pkg/bad.py"]
     assert data["smells"][0]["label"] == "Deep Nesting"

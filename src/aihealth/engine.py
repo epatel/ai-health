@@ -17,7 +17,7 @@ from aihealth.duplication import DuplicationIndex
 from aihealth.lang import SUPPORTED_EXTENSIONS, adapter_for
 from aihealth.metrics import function_metrics
 from aihealth.model import Module
-from aihealth.scoring import FileScore, file_score, project_score
+from aihealth.scoring import FileScore, ScoreParams, file_score, project_score
 from aihealth.smells import detect
 
 
@@ -29,7 +29,7 @@ def score_module(module: Module, config: Config, clones=None) -> FileScore:
         path=module.path,
         language=module.language,
         loc=module.loc,
-        score=file_score(findings, config.section("score")["decay"]),
+        score=file_score(findings, module.loc, ScoreParams(**config.section("score"))),
         findings=findings,
         functions=metrics,
         parse_errors=module.error_count,
@@ -94,6 +94,14 @@ def discover(root: Path, config: Config) -> list[str]:
 
 
 def _git_files(root: Path) -> list[str] | None:
+    """Files git knows about (tracked + untracked, honouring .gitignore), or
+    None when git can't tell: not a work tree, or `root` itself is ignored
+    (e.g. a dependency inside .venv the user explicitly asked to scan)."""
+    ignored = subprocess.run(
+        ["git", "check-ignore", "-q", "."], cwd=root, capture_output=True, check=False
+    )
+    if ignored.returncode == 0:
+        return None
     try:
         res = subprocess.run(
             ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],

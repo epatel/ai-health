@@ -6,9 +6,18 @@ penalty(finding) = weight x severity x scale
     (a smelly function covering >= 25 % of the file counts fully; a tiny
     one in a big file counts half)
 
-file score = 10 - 9 x (1 - exp(-P / decay))      P = sum of penalties
-    smooth: never below 1, each extra smell costs a bit less, decay = 10
-    by default (P = 1 -> 9.14, P = 5 -> 6.46, P = 10 -> 4.31, P = 20 -> 2.22)
+P (file penalty), calibrated in M11 on reference corpora (scripts/calibrate.py):
+    - penalties are summed per symbol (function/class) and each symbol's sum
+      is capped at `symbol_cap` (default 4): one Brain Method and its three
+      overlapping component smells don't dominate a file
+    - the function/class part is divided by sqrt(loc / density_loc) for files
+      over `density_loc` (default 300) LoC: big files are judged by the
+      density of problems, not their count (file-level smells such as Large
+      File are not damped, so size is still penalised directly)
+
+file score = 10 - 9 x (1 - exp(-P / decay))      decay = 15 by default
+    smooth, never below 1, each extra smell costs a bit less
+    (P = 1 -> 9.42, P = 2 -> 8.87, P = 5 -> 7.45, P = 10 -> 5.62, P = 20 -> 3.37)
 
 project score = sum(score x loc) / sum(loc)
 """
@@ -39,12 +48,33 @@ def penalty(f: Finding) -> float:
     return f.weight * f.severity * scale
 
 
-def file_score(findings: list[Finding], decay: float = 10.0) -> float:
-    total = 0.0
+@dataclass(frozen=True)
+class ScoreParams:
+    decay: float = 15.0
+    symbol_cap: float = 4.0
+    density_loc: float = 300.0
+
+
+def file_penalty(findings: list[Finding], loc: int, params: ScoreParams) -> float:
+    """Total penalty P (see module docstring). Sets each finding's raw penalty."""
+    per_symbol: dict[tuple, float] = {}
+    filewide = 0.0
     for f in findings:
         f.penalty = round(penalty(f), 3)
-        total += f.penalty
-    return round(10.0 - 9.0 * (1.0 - math.exp(-total / decay)), 2)
+        if f.level == "file":
+            filewide += f.penalty
+        else:
+            key = (f.level, f.symbol)
+            per_symbol[key] = per_symbol.get(key, 0.0) + f.penalty
+    local = sum(min(p, params.symbol_cap) for p in per_symbol.values())
+    damping = math.sqrt(max(1.0, loc / params.density_loc))
+    return local / damping + filewide
+
+
+def file_score(findings: list[Finding], loc: int = 0, params: ScoreParams | None = None) -> float:
+    params = params or ScoreParams()
+    total = file_penalty(findings, loc, params)
+    return round(10.0 - 9.0 * (1.0 - math.exp(-total / params.decay)), 2)
 
 
 @dataclass

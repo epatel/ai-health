@@ -90,12 +90,15 @@ def count_in_span(lines: set[int], start: int, end: int) -> int:
 
 
 def _assign_own_loc(funcs: list[Function], lines: set[int]) -> None:
-    """A function's loc counts its own code lines only: lines inside nested
-    scored functions (local defs, Dart test closures) belong to those."""
+    """A function's loc counts its own *body* code lines: the signature
+    (decorators, parameter list) is not counted (a long parameter list is
+    Excess Arguments' concern), and lines inside nested scored functions
+    (local defs, Dart test closures) belong to those."""
     sorted_lines = sorted(lines)
     ordered = sorted(funcs, key=lambda f: (f.start_line, -f.end_line))
     for i, fn in enumerate(ordered):
-        lo = bisect_left(sorted_lines, fn.start_line)
+        body_start = fn.body.start_point[0] + 1 if fn.body is not None else fn.start_line
+        lo = bisect_left(sorted_lines, body_start)
         hi = bisect_right(sorted_lines, fn.end_line)
         own = set(sorted_lines[lo:hi])
         for inner in ordered[i + 1 :]:
