@@ -8,6 +8,9 @@ Grammar quirks handled here (see cards/parser-choice.md):
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
+from itertools import pairwise
 from typing import ClassVar
 
 from tree_sitter import Node
@@ -38,28 +41,50 @@ _CONTAINERS = {
 _BODIES = {"class_body", "extension_body", "enum_body", "extension_type_body"}
 
 
+def _child(node: Node | None, *types: str) -> Node | None:
+    """First named child of one of ``types``."""
+    if node is None:
+        return None
+    return next((c for c in node.named_children if c.type in types), None)
+
+
+def _parent_if(node: Node | None, *types: str) -> Node | None:
+    """The node's parent if it is one of ``types``, else None."""
+    parent = node.parent if node is not None else None
+    return parent if parent is not None and parent.type in types else None
+
+
 def _signature_of(node: Node) -> Node | None:
     """The concrete *_signature node for a top-level sig or method_signature."""
     if node.type in _SIGNATURES:
         return node
     if node.type == "method_signature":
-        return next((c for c in node.named_children if c.type in _SIGNATURES), None)
+        return _child(node, *_SIGNATURES)
     return None
 
 
-def _name(sig: Node) -> str:
-    kind = _SIGNATURES[sig.type]
-    if kind in ("function", "getter"):
-        return text(sig.child_by_field_name("name"))
-    if kind == "setter":
-        return text(sig.child_by_field_name("name")) + "="
-    if kind == "operator":
-        op = next((c for c in sig.children if c.type.endswith("operator") and c.is_named), None)
-        if op is None:  # e.g. `operator []`, `operator ~`
-            parts = [text(c) for c in sig.children if c.type != "formal_parameter_list"]
-            return "operator " + "".join(parts[parts.index("operator") + 1 :])
+# --- names ------------------------------------------------------------------------
+
+
+def _field_name(sig: Node) -> str:
+    return text(sig.child_by_field_name("name"))
+
+
+def _setter_name(sig: Node) -> str:
+    return _field_name(sig) + "="
+
+
+def _operator_name(sig: Node) -> str:
+    op = next((c for c in sig.children if c.type.endswith("operator") and c.is_named), None)
+    if op is not None:
         return f"operator {text(op)}"
-    # constructors: identifiers (and dots) before the parameter list
+    # e.g. `operator []`, `operator ~`: the tokens after the keyword
+    parts = [text(c) for c in sig.children if c.type != "formal_parameter_list"]
+    return "operator " + "".join(parts[parts.index("operator") + 1 :])
+
+
+def _constructor_name(sig: Node) -> str:
+    """Identifiers (and dots) before the parameter list: `Repo`, `Repo.named`."""
     parts = []
     for c in sig.children:
         if c.type in ("formal_parameter_list", "initializers"):
@@ -68,6 +93,21 @@ def _name(sig: Node) -> str:
             parts.append(text(c))
     return "".join(parts)
 
+
+_NAMERS = {
+    "function": _field_name,
+    "getter": _field_name,
+    "setter": _setter_name,
+    "operator": _operator_name,
+    "constructor": _constructor_name,
+}
+
+
+def _name(sig: Node) -> str:
+    return _NAMERS[_SIGNATURES[sig.type]](sig)
+
+
+# --- parameters ---------------------------------------------------------------------
 
 _NOT_TYPE_PARTS = {"identifier", "final_builtin", "const_builtin", "inferred_type", "comment"}
 
@@ -90,57 +130,83 @@ def _param_name(node: Node) -> str:
     return text(idents[-1]) if idents else text(node)
 
 
-def _params(sig: Node) -> list[Param]:
-    plist = sig.child_by_field_name("parameters") or next(
-        (c for c in sig.named_children if c.type == "formal_parameter_list"), None
-    )
-    if plist is None:
-        return []
-    out: list[Param] = []
-
-    def add(node: Node, named: bool, optional: bool) -> None:
-        prev = node.prev_sibling
-        required = prev is not None and prev.type == "required"
-        out.append(
-            Param(
-                name=_param_name(node),
-                type_text=_param_type(node),
-                named=named,
-                optional=optional and not required,
-            )
-        )
-
+def _param_nodes(plist: Node) -> Iterator[tuple[Node, bool, bool]]:
+    """(formal_parameter, named, optional) in order; `{...}` params are named,
+    `[...]` ones positional-optional."""
     for child in plist.named_children:
         if child.type == "formal_parameter":
-            add(child, named=False, optional=False)
+            yield child, False, False
         elif child.type == "optional_formal_parameters":
             named = text(child).lstrip().startswith("{")
-            for p in child.named_children:
-                if p.type == "formal_parameter":
-                    add(p, named=named, optional=True)
-    return out
+            yield from (
+                (p, named, True) for p in child.named_children if p.type == "formal_parameter"
+            )
+
+
+def _param(node: Node, named: bool, optional: bool) -> Param:
+    prev = node.prev_sibling
+    required = prev is not None and prev.type == "required"
+    return Param(
+        name=_param_name(node),
+        type_text=_param_type(node),
+        named=named,
+        optional=optional and not required,
+    )
+
+
+def _params(sig: Node) -> list[Param]:
+    plist = sig.child_by_field_name("parameters") or _child(sig, "formal_parameter_list")
+    if plist is None:
+        return []
+    return [_param(node, named, optional) for node, named, optional in _param_nodes(plist)]
+
+
+# --- calls ------------------------------------------------------------------------------
+
+
+def _call_target(holder: Node) -> Node | None:
+    """The identifier called by `Foo(...)` or `Foo.named(...)`, whose argument
+    list is in ``holder`` (the `selector` around the `argument_part`)."""
+    prev = holder.prev_sibling
+    if prev is not None and prev.type == "selector":  # Foo.named(...)
+        if _child(prev, "unconditional_assignable_selector") is None:
+            return None
+        prev = prev.prev_sibling
+    return prev if prev is not None and prev.type == "identifier" else None
 
 
 def _is_widgetish_call(args: Node) -> bool:
     """True if an `arguments` node belongs to `Foo(...)`, `Foo.named(...)`,
     `const Foo(...)` or `new Foo(...)` with a capitalised type name."""
-    parent = args.parent
-    if parent is None:
-        return False
-    if parent.type in ("const_object_expression", "new_expression"):
+    if _parent_if(args, "const_object_expression", "new_expression") is not None:
         return True
-    if parent.type != "argument_part" or parent.parent is None:
-        return False
-    selector = parent.parent  # selector > argument_part > arguments
-    prev = selector.prev_sibling
-    if prev is not None and prev.type == "selector":  # Foo.named(...)
-        if not any(c.type == "unconditional_assignable_selector" for c in prev.children):
-            return False
-        prev = prev.prev_sibling
-    if prev is None or prev.type != "identifier":
-        return False
-    name = text(prev).lstrip("_$")
+    part = _parent_if(args, "argument_part")
+    holder = part.parent if part is not None else None  # usually a `selector`
+    target = _call_target(holder) if holder is not None else None
+    name = text(target).lstrip("_$") if target is not None else ""
     return bool(name) and name[0].isupper()
+
+
+def _closure_call(fexpr: Node) -> tuple[str, Node] | None:
+    """For `callee('desc', () {...})` return (callee, arguments node)."""
+    args = _parent_if(_parent_if(fexpr, "argument", "named_argument"), "arguments")
+    part = _parent_if(args, "argument_part")
+    callee = part.parent.prev_sibling if part is not None and part.parent is not None else None
+    if callee is None or callee.type != "identifier":
+        return None
+    return text(callee), args
+
+
+def _description(args: Node) -> str:
+    first = _child(args, "argument")
+    lit = first.named_children[0] if first is not None and first.named_child_count else None
+    if lit is None or lit.type != "string_literal":
+        return ""
+    desc = " ".join(text(lit).strip("'\"").split())
+    return desc if len(desc) <= 60 else desc[:57] + "..."
+
+
+# --- class members (cohesion) -----------------------------------------------------------
 
 
 def _is_member_of_other(ident: Node) -> bool:
@@ -162,9 +228,7 @@ def _is_member_of_other(ident: Node) -> bool:
 def _class_body(cls: Class) -> Node | None:
     if cls.node is None:
         return None
-    return cls.node.child_by_field_name("body") or next(
-        (c for c in cls.node.named_children if c.type in _BODIES), None
-    )
+    return cls.node.child_by_field_name("body") or _child(cls.node, *_BODIES)
 
 
 def _is_instance_declaration(node: Node) -> bool:
@@ -186,6 +250,55 @@ def _instance_fields(cls: Class) -> set[str]:
     return fields
 
 
+def _is_member_ref(node: Node, members: set[str]) -> bool:
+    """An identifier naming one of this class's members (not `other.x`)."""
+    is_name = node.type == "identifier" and text(node) in members
+    return is_name and not _is_member_of_other(node)
+
+
+def _member_names_in(body: Node, members: set[str]) -> set[str]:
+    """Class members referenced in a method body (local functions excluded)."""
+    names: set[str] = set()
+    stack = list(body.children)
+    while stack:
+        n = stack.pop()
+        if n.type == "local_function_declaration":
+            continue
+        if _is_member_ref(n, members):
+            names.add(text(n))
+        stack.extend(n.children)
+    return names
+
+
+# --- roles that depend on context -------------------------------------------------------
+
+
+def _block_role(node: Node) -> Role | None:
+    """Handler bodies are siblings of catch_clause/on-type inside try."""
+    parent = node.parent
+    if parent is None or parent.type != "try_statement":
+        return None
+    body = parent.child_by_field_name("body")
+    return Role.CATCH if body is None or body.id != node.id else None
+
+
+def _jump_role(node: Node) -> Role | None:
+    """`break label;` / `continue label;`; unlabeled jumps add nothing."""
+    return Role.JUMP_LABEL if any(c.type == "identifier" for c in node.children) else None
+
+
+def _switch_expression_case_role(node: Node) -> Role | None:
+    pattern = node.named_children[0] if node.named_child_count else None
+    if pattern is not None and text(pattern).strip() == "_":
+        return None  # wildcard arm is the default
+    return Role.CASE
+
+
+def _is_unknown_type(type_text: str) -> bool:
+    """Field-typed params, callbacks and records: not judged as primitives."""
+    return type_text == "<field>" or "Function" in type_text or type_text.startswith("(")
+
+
 DEFAULT_TEST_CALLS = frozenset(
     {
         "group",
@@ -201,30 +314,24 @@ DEFAULT_TEST_CALLS = frozenset(
 )
 
 
-def _closure_call(fexpr: Node) -> tuple[str, Node] | None:
-    """For `callee('desc', () {...})` return (callee, arguments node)."""
-    arg = fexpr.parent
-    if arg is None or arg.type not in ("argument", "named_argument"):
-        return None
-    args = arg.parent
-    if args is None or args.type != "arguments":
-        return None
-    part = args.parent
-    if part is None or part.type != "argument_part" or part.parent is None:
-        return None
-    prev = part.parent.prev_sibling
-    if prev is None or prev.type != "identifier":
-        return None
-    return text(prev), args
+def _is_function_body(node: Node | None) -> bool:
+    return node is not None and node.type == "function_body"
 
 
-def _description(args: Node) -> str:
-    first = next((c for c in args.named_children if c.type == "argument"), None)
-    lit = first.named_children[0] if first is not None and first.named_child_count else None
-    if lit is None or lit.type != "string_literal":
-        return ""
-    desc = " ".join(text(lit).strip("'\"").split())
-    return desc if len(desc) <= 60 else desc[:57] + "..."
+@dataclass(frozen=True)
+class _Scope:
+    """Where extracted functions go and how they are named."""
+
+    module: Module
+    cls: Class | None = None
+    prefix: str = ""
+
+    def add(self, fn: Function) -> None:
+        (self.cls.methods if self.cls is not None else self.module.functions).append(fn)
+
+    def nested(self, owner: str) -> _Scope:
+        """Scope for units nested in ``owner`` (local functions, test closures)."""
+        return _Scope(self.module, None, f"{owner}.")
 
 
 class DartAdapter(LanguageAdapter):
@@ -266,8 +373,8 @@ class DartAdapter(LanguageAdapter):
 
     def base_types(self, type_text: str) -> list[str] | None:
         t = type_text.strip()
-        if t == "<field>" or "Function" in t or t.startswith("("):
-            return None  # field-typed, callbacks and records are not primitives
+        if _is_unknown_type(t):
+            return None
         return type_leaves(t, "<", ">") or None
 
     def member_refs(self, cls: Class) -> dict[str, set[str]]:
@@ -275,27 +382,18 @@ class DartAdapter(LanguageAdapter):
         methods in each method body."""
         members = {m.name.rstrip("=") for m in cls.methods if m.kind != "constructor"}
         members |= _instance_fields(cls)
-        refs: dict[str, set[str]] = {}
-        for fn in cls.methods:
-            names: set[str] = set()
-            stack = list(fn.body.children)
-            while stack:
-                n = stack.pop()
-                if n.type == "local_function_declaration":
-                    continue
-                if n.type == "identifier":
-                    name = text(n)
-                    if name in members and not _is_member_of_other(n):
-                        names.add(name)
-                stack.extend(n.children)
-            refs[fn.qualname] = names
-        return refs
+        return {fn.qualname: _member_names_in(fn.body, members) for fn in cls.methods}
 
     def _test_unit(self, fexpr: Node) -> tuple[str, Node] | None:
         call = _closure_call(fexpr)
         if call is None or call[0] not in self.test_calls:
             return None
         return call
+
+    def _is_test_closure(self, node: Node) -> bool:
+        return node.type == "function_expression" and self._test_unit(node) is not None
+
+    # --- metric hooks --------------------------------------------------------------------
 
     roles: ClassVar[dict[str, Role]] = {
         "if_statement": Role.IF,
@@ -316,33 +414,27 @@ class DartAdapter(LanguageAdapter):
     }
     bool_transparent = frozenset({"parenthesized_expression", "unary_expression"})
 
+    def _closure_role(self, node: Node) -> Role | None:
+        # closures passed to test()/group() are units of their own
+        return Role.STOP if self._test_unit(node) is not None else Role.LAMBDA
+
+    # node types whose role depends on context (plain functions: dict values
+    # are not bound as methods)
+    _CONTEXT_ROLES: ClassVar[dict[str, Callable[[Node], Role | None]]] = {
+        "block": _block_role,
+        "break_statement": _jump_role,
+        "continue_statement": _jump_role,
+        "switch_expression_case": _switch_expression_case_role,
+    }
+
     def role(self, node: Node) -> Role | None:
-        t = node.type
-        if t == "block":
-            parent = node.parent
-            # handler bodies are siblings of catch_clause/on-type inside try
-            if parent is not None and parent.type == "try_statement":
-                body = parent.child_by_field_name("body")
-                if body is None or body.id != node.id:
-                    return Role.CATCH
-            return None
-        if t in ("break_statement", "continue_statement"):
-            return Role.JUMP_LABEL if any(c.type == "identifier" for c in node.children) else None
-        if t == "function_expression" and self._test_unit(node) is not None:
-            return Role.STOP
-        r = self.roles.get(t)
-        if t == "switch_expression_case":
-            pattern = node.named_children[0] if node.named_child_count else None
-            if pattern is not None and text(pattern).strip() == "_":
-                return None  # wildcard arm is the default
-        return r
+        if node.type == "function_expression":
+            return self._closure_role(node)
+        contextual = self._CONTEXT_ROLES.get(node.type)
+        return contextual(node) if contextual is not None else self.roles.get(node.type)
 
     def bool_token(self, node: Node) -> str | None:
-        if node.type == "logical_and_operator":
-            return "and"
-        if node.type == "logical_or_operator":
-            return "or"
-        return None
+        return {"logical_and_operator": "and", "logical_or_operator": "or"}.get(node.type)
 
     def is_recursive_call(self, node: Node, fn_name: str) -> bool:
         if node.type != "identifier" or text(node) != fn_name:
@@ -368,45 +460,46 @@ class DartAdapter(LanguageAdapter):
             if node.type == "arguments" and _is_widgetish_call(node):
                 depth += 1
                 best = max(best, depth)
-            if node.type == "local_function_declaration" or (
-                node.type == "function_expression" and self._test_unit(node) is not None
-            ):
-                continue
-            stack.extend((c, depth) for c in node.children)
+            if not self._is_unit_boundary(node):
+                stack.extend((c, depth) for c in node.children)
         return best
 
-    def _extract(self, module: Module) -> None:
-        self._scan_members(module, module.root, cls=None, prefix="")
+    def _is_unit_boundary(self, node: Node) -> bool:
+        """Nested units scored on their own: local functions, test closures."""
+        return node.type == "local_function_declaration" or self._is_test_closure(node)
 
-    def _scan_members(self, module: Module, parent: Node, cls: Class | None, prefix: str) -> None:
-        kids = parent.named_children
-        for i, node in enumerate(kids):
-            if node.type in _CONTAINERS:
-                self._add_container(module, node)
-                continue
-            sig = _signature_of(node)
-            if sig is None and node.type == "declaration":
-                # Body-less constructors (initializer lists) and abstract methods
-                # are not scored, but closures in initializers may declare local
-                # functions, e.g. `super(builder: (f) { void h() {...} ... })`.
-                ctor = next((c for c in node.named_children if c.type in _SIGNATURES), None)
-                owner = _name(ctor) if ctor is not None else "<init>"
-                self._add_local_functions(module, node, f"{owner}.")
-                continue
-            if sig is None:
-                continue
-            nxt = kids[i + 1] if i + 1 < len(kids) else None
-            if nxt is None or nxt.type != "function_body":
-                continue  # abstract / external declaration
-            self._add_function(module, sig, node, nxt, cls, prefix)
+    # --- extraction ---------------------------------------------------------------------
+
+    def _extract(self, module: Module) -> None:
+        self._scan_members(_Scope(module), module.root)
+
+    def _scan_members(self, scope: _Scope, parent: Node) -> None:
+        # each member with its next sibling (a function body follows its signature)
+        for node, nxt in pairwise([*parent.named_children, None]):
+            self._add_member(scope, node, nxt)
+
+    def _add_member(self, scope: _Scope, node: Node, nxt: Node | None) -> None:
+        """A container, a function (signature + body sibling), or a body-less
+        declaration whose initializer closures may hold local functions."""
+        if node.type in _CONTAINERS:
+            self._add_container(scope.module, node)
+            return
+        sig = _signature_of(node)
+        if sig is None and node.type == "declaration":
+            # Body-less constructors (initializer lists) and abstract methods
+            # are not scored, but closures in initializers may declare local
+            # functions, e.g. `super(builder: (f) { void h() {...} ... })`.
+            ctor = _child(node, *_SIGNATURES)
+            owner = _name(ctor) if ctor is not None else "<init>"
+            self._add_local_functions(scope.nested(owner), node)
+        elif sig is not None and _is_function_body(nxt):
+            self._add_function(scope, sig, node, nxt)
+        # else: abstract / external declaration, nothing to score
 
     def _add_container(self, module: Module, node: Node) -> None:
-        name_node = node.child_by_field_name("name")
-        if name_node is None:
-            name_node = next(
-                (c for c in node.named_children if c.type in ("identifier", "type_identifier")),
-                None,
-            )
+        name_node = node.child_by_field_name("name") or _child(
+            node, "identifier", "type_identifier"
+        )
         cls = Class(
             name=text(name_node) or "<extension>",
             kind=_CONTAINERS[node.type],
@@ -415,43 +508,33 @@ class DartAdapter(LanguageAdapter):
             node=node,
         )
         module.classes.append(cls)
-        body = node.child_by_field_name("body") or next(
-            (c for c in node.named_children if c.type in _BODIES), None
-        )
+        body = _class_body(cls)
         if body is not None:
-            self._scan_members(module, body, cls=cls, prefix=f"{cls.name}.")
+            self._scan_members(_Scope(module, cls, f"{cls.name}."), body)
 
-    def _add_function(
-        self,
-        module: Module,
-        sig: Node,
-        outer: Node,
-        body: Node,
-        cls: Class | None,
-        prefix: str,
-    ) -> None:
+    def _add_function(self, scope: _Scope, sig: Node, outer: Node, body: Node) -> None:
         kind = _SIGNATURES[sig.type]
         name = _name(sig)
-        if kind == "function" and cls is not None:
+        if kind == "function" and scope.cls is not None:
             kind = "method"
         # constructor names already carry the class: `Repo`, `Repo.named`
-        qualname = name if kind == "constructor" else f"{prefix}{name}"
-        fn = Function(
-            name=name,
-            qualname=qualname,
-            kind=kind,
-            start_line=outer.start_point[0] + 1,
-            end_line=body.end_point[0] + 1,
-            params=_params(sig),
-            body=body,
-            class_name=cls.name if cls else None,
+        qualname = name if kind == "constructor" else f"{scope.prefix}{name}"
+        scope.add(
+            Function(
+                name=name,
+                qualname=qualname,
+                kind=kind,
+                start_line=outer.start_point[0] + 1,
+                end_line=body.end_point[0] + 1,
+                params=_params(sig),
+                body=body,
+                class_name=scope.cls.name if scope.cls else None,
+            )
         )
-        (cls.methods if cls is not None else module.functions).append(fn)
-        self._add_local_functions(module, body, f"{qualname}.")
+        self._add_local_functions(scope.nested(qualname), body)
 
-    def _add_test_unit(
-        self, module: Module, fexpr: Node, callee: str, args: Node, prefix: str
-    ) -> None:
+    def _add_test_unit(self, scope: _Scope, fexpr: Node, call: tuple[str, Node]) -> None:
+        callee, args = call
         body = fexpr.child_by_field_name("body")
         if body is None:
             return
@@ -459,34 +542,37 @@ class DartAdapter(LanguageAdapter):
         name = f'{callee}("{desc}")' if desc else callee
         fn = Function(
             name=name,
-            qualname=f"{prefix}{name}",
+            qualname=f"{scope.prefix}{name}",
             kind="test",
             start_line=args.parent.parent.prev_sibling.start_point[0] + 1,
             end_line=fexpr.end_point[0] + 1,
             params=_params(fexpr),
             body=body,
         )
-        module.functions.append(fn)
-        self._add_local_functions(module, body, f"{fn.qualname}.")
+        scope.add(fn)
+        self._add_local_functions(scope.nested(fn.qualname), body)
 
-    def _add_local_functions(self, module: Module, body: Node, prefix: str) -> None:
+    def _add_local_functions(self, scope: _Scope, body: Node) -> None:
         """Local named functions and test closures are scored on their own;
         other closures stay part of the enclosing function."""
         stack = list(body.children)
         while stack:
             n = stack.pop()
-            if n.type == "function_expression":
-                unit = self._test_unit(n)
-                if unit is not None:
-                    self._add_test_unit(module, n, unit[0], unit[1], prefix)
-                    continue
-            if n.type == "local_function_declaration":
-                lam = next((c for c in n.named_children if c.type == "lambda_expression"), None)
-                if lam is None:
-                    continue
-                sig = next((c for c in lam.named_children if c.type == "function_signature"), None)
-                fbody = next((c for c in lam.named_children if c.type == "function_body"), None)
-                if sig is not None and fbody is not None:
-                    self._add_function(module, sig, n, fbody, None, prefix)
-                continue  # its own body is handled by the recursive call
-            stack.extend(n.children)
+            if not self._add_nested_unit(scope, n):
+                stack.extend(n.children)
+
+    def _add_nested_unit(self, scope: _Scope, n: Node) -> bool:
+        """Add ``n`` if it is a nested unit; True if it was a unit boundary
+        (its insides are then handled by that unit, not the caller)."""
+        if n.type == "function_expression":
+            call = self._test_unit(n)
+            if call is not None:
+                self._add_test_unit(scope, n, call)
+            return call is not None
+        if n.type != "local_function_declaration":
+            return False
+        lam = _child(n, "lambda_expression")
+        sig, fbody = _child(lam, "function_signature"), _child(lam, "function_body")
+        if sig is not None and fbody is not None:
+            self._add_function(scope, sig, n, fbody)
+        return True

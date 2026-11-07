@@ -1,0 +1,5 @@
+# aihealth config for this repo (see src/aihealth/config.py for all keys)
+
+[scan]
+# deliberately smelly inputs for the golden tests, not code to judge
+exclude = ["tests/fixtures/*"]
