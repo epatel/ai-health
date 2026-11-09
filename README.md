@@ -35,18 +35,18 @@ installed globally:
 ```bash
 cd your-project
 python3 -m venv .venv                      # skip if the project already has one
-.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.2.1"
+.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.2.2"
 .venv/bin/aihealth scan .
 ```
 
-`@v0.2.1` is the current release: scores can change between releases (see
+`@v0.2.2` is the current release: scores can change between releases (see
 [CHANGELOG.md](CHANGELOG.md)), so pin a tag to get the same scores everywhere. Leave it out
 to follow `main`.
 
 Or install it globally, or from a clone to work on aihealth itself:
 
 ```bash
-uv tool install "git+https://github.com/epatel/ai-health@v0.2.1"   # or: pipx install "git+..."
+uv tool install "git+https://github.com/epatel/ai-health@v0.2.2"   # or: pipx install "git+..."
 python3 -m venv .venv && .venv/bin/pip install -e .         # from a clone (or: make setup)
 ```
 
