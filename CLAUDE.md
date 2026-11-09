@@ -35,7 +35,8 @@ parsing via tree-sitter, history in SQLite.
 - CI: `.github/workflows/ci.yml` runs ruff, the tests and `aihealth scan . --fail-under 9` on
   Python 3.11–3.13 (Linux) and 3.12 (macOS), on push, pull requests and weekly; actions are
   pinned to commit SHAs, updated by Dependabot. `audit.yml` runs pip-audit on the runtime
-  dependencies daily; `scorecard.yml` runs OpenSSF Scorecard (README badges for all three)
+  dependencies daily; `scorecard.yml` runs OpenSSF Scorecard (README badges for all three);
+  `codeql.yml` runs CodeQL (Python, workflows). Vulnerability reports: `SECURITY.md`
 
 ## Enforced rules
 
