@@ -20,8 +20,14 @@ healthy ≥ 9, warning 4–9, alert < 4.
 
 ## Install
 
-Needs Python 3.11+ and git 2.24+. The recommended way is into the venv of the project you
-want to check, so nothing is installed globally:
+Needs Python 3.11+ and git 2.24+. macOS ships Python 3.9 (`/usr/bin/python3`, from the
+Xcode Command Line Tools), so install a newer one first, e.g. `brew install python` or
+`uv python install 3.12`, and use it below if `python3 --version` still says 3.9 (e.g.
+`python3.12 -m venv .venv`). From a clone, `make setup` uses `python3` from your PATH; pick
+another with `make setup PYTHON=python3.12`.
+
+The recommended way is into the venv of the project you want to check, so nothing is
+installed globally:
 
 ```bash
 cd your-project

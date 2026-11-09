@@ -27,7 +27,8 @@ aihealth goes into the project's own virtual environment, and the config points 
 aihealth's version.
 
 ```bash
-# 1. Install into the project's venv (needs Python 3.11+)
+# 1. Install into the project's venv (needs Python 3.11+; macOS's python3 is 3.9,
+#    so check `python3 --version` and use e.g. python3.12 from brew or uv if needed)
 python3 -m venv .venv                # skip if the project already has one
 .venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.2.1"
 .venv/bin/aihealth --version
