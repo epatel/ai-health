@@ -66,6 +66,8 @@ aihealth delta --format markdown    # agent-oriented output (also: text, json)
 
 aihealth scan path/to/repo --format markdown --max-findings 20
 aihealth scan . --fail-under 7      # CI gate on the project score
+aihealth scan . --report            # full report in AI-HEALTH.md (renders on GitHub)
+aihealth scan . --report ai-health.html   # the same as a self-contained page for a browser
 aihealth scan src/app.py            # one file (also: x.dart, main.rs, app.tsx, app.js, x.c, x.cpp, x.m, x.sh, bin/deploy, Makefile, CMakeLists.txt)
 ```
 

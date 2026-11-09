@@ -19,6 +19,8 @@ from aihealth.report import (
 )
 from aihealth.store.scans import default_db_path
 
+DEFAULT_REPORT = "AI-HEALTH.md"
+
 # --- scan -------------------------------------------------------------------
 
 
@@ -51,6 +53,8 @@ def _scan_dir(root: Path, args: argparse.Namespace) -> int:
         return 2
     result = scan(root, config)
     print(render_scan(result, args.format, _report_options(args)))
+    if not _write_report(result, root, args.report):
+        return 2
     if args.save:
         _save(result, config, args.db or default_db_path(root))
     below = args.fail_under is not None and (result.score or 10.0) < args.fail_under
@@ -60,7 +64,7 @@ def _scan_dir(root: Path, args: argparse.Namespace) -> int:
 def _scan_file(path: Path, args: argparse.Namespace) -> int:
     """Score one file on its own (duplication within the file only), with
     the config of the project it belongs to."""
-    from aihealth.engine import project_path, score_source
+    from aihealth.engine import ScanResult, project_path, score_source
     from aihealth.lang import is_supported_file
     from aihealth.lang.base import is_generated
 
@@ -85,7 +89,28 @@ def _scan_file(path: Path, args: argparse.Namespace) -> int:
         return 0
     fs = score_source(source, rel, config)
     print(render_file(fs, args.format, _report_options(args)))
+    if not _write_report(ScanResult(str(root), [fs], []), root, args.report):
+        return 2
     return 1 if args.fail_under is not None and fs.score < args.fail_under else 0
+
+
+def _write_report(result, root: Path, report: str | None) -> bool:
+    """Write the full report (markdown or html by extension) if asked; False
+    on error. A bare --report writes AI-HEALTH.md in the scanned project."""
+    from aihealth.report_doc import ReportMeta, render_report, report_format
+
+    if not report:
+        return True
+    out = Path(report) if report != DEFAULT_REPORT else root / DEFAULT_REPORT
+    try:
+        fmt = report_format(out)
+        text = render_report(result, fmt, ReportMeta.for_output(root, out))
+        out.write_text(text, encoding="utf-8")
+    except (ValueError, OSError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return False
+    print(f"wrote {fmt} report to {out}", file=sys.stderr)
+    return True
 
 
 def _save(result, config, db: Path) -> None:
@@ -217,6 +242,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         metavar="SCORE",
         help="exit 1 if the (project/file) score is below",
+    )
+    scan.add_argument(
+        "--report",
+        nargs="?",
+        const=DEFAULT_REPORT,
+        metavar="FILE",
+        help="also write a full report: .md (renders on GitHub) or .html (opens in a browser); "
+        f"without FILE: {DEFAULT_REPORT} in the scanned project",
     )
     scan.add_argument("--save", action="store_true", help="store the scan in the history DB")
     scan.add_argument("--db", help="history DB (default: <path>/.aihealth/health.db)")

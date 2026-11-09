@@ -7,6 +7,13 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
+## Unreleased
+
+- `aihealth scan --report [FILE]` also writes a full report: `AI-HEALTH.md`
+  (default, in the scanned project; renders on GitHub, with links to each
+  file and line) or a self-contained `.html` page for a browser (light and
+  dark, no scripts). Output only, scores unchanged.
+
 ## 0.2.1 (2026-11-08)
 
 - Markdown reports keep names from scanned code intact: code spans
