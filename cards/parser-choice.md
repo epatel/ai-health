@@ -212,6 +212,40 @@ type information (e.g. Primitive Obsession on inferred types).
   with parse errors. 56,262 of 56,267 function bodies extracted
   (99.99 %); the 5 misses are `impl` blocks inside `const _: () = { … }`.
 
+## Go (M21)
+
+- Grammar `go` (tree-sitter-language-pack). Parses generics (type
+  parameters, `~int | ~float64` constraints, generic receivers
+  `func (s *Stack[T])`), range-over-func and `for range 10` with zero
+  errors in the fixture.
+- **Not yet in the grammar**: generic methods (`func (r *Rand) N[T any]()`,
+  Go 1.27) and `new(expr)` (Go 1.26). In the Go 1.27 stdlib these are the
+  only parse errors outside `testdata/`: 2 source files and 5 test files
+  (`encoding/json/v2/arshal_test.go` loses one function to recovery).
+  Parse errors stay reported.
+- Units: `function_declaration`, `method_declaration` (fields `receiver`,
+  `name`, `parameters`, `result`, `body`), `func_literal`. A body `block`
+  holds a `statement_list`, absent when the block is empty.
+- Parameters: `parameter_declaration` with zero or more `name` fields and
+  one `type` (`a, b int` is two names), `variadic_parameter_declaration`.
+- **Else-if is not wrapped**: the `alternative` of an `if_statement` is
+  another `if_statement` or a `block`; the walker's default handles it.
+- Switches: `expression_switch_statement`, `type_switch_statement`,
+  `select_statement`; their arms `expression_case`, `type_case`,
+  `communication_case` and `default_case` are direct children. A case
+  listing several values is one arm.
+- `binary_expression` has an `operator` field; precedence is correct.
+  `for` conditions: a bare `for cond {}` has the condition as an unnamed
+  child; a three-clause loop puts it in `for_clause` (field `condition`),
+  which the adapter treats as transparent.
+- `break`/`continue` carry a `label_name` child; `labeled_statement` wraps
+  the loop; `goto_statement`.
+- Comments: `comment`. Generated files carry `// Code generated ... DO NOT
+  EDIT.` (the Go convention), caught by the existing "do not edit" marker.
+- Coverage: 10,642 files (Go 1.27 `src/` plus `~/go/pkg/mod`), 0 crashes,
+  137,188 of 137,189 function/method bodies extracted; 60 files with parse
+  errors, 53 of them in `testdata/` (much of it deliberately invalid).
+
 ## TypeScript (M15)
 
 - Grammars `typescript` (`.ts`, `.mts`, `.cts`) and `tsx` (`.tsx`) from

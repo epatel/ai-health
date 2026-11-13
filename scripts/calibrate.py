@@ -19,6 +19,8 @@ import argparse
 import math
 import os
 import pickle
+import shutil
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -56,6 +58,21 @@ SWIFT = Path(os.environ.get("AIHEALTH_SWIFT_CORPORA", Path.home() / "Development
 CFAM = Path(os.environ.get("AIHEALTH_C_CORPORA", Path.home() / "Development/c-corpora"))
 # shallow clones of the shell repos below, in one directory
 SH = Path(os.environ.get("AIHEALTH_SH_CORPORA", Path.home() / "Development/sh-corpora"))
+
+# shallow clones of the Go repos below, in one directory
+GO = Path(os.environ.get("AIHEALTH_GO_CORPORA", Path.home() / "Development/go-corpora"))
+
+
+def goroot() -> Path:
+    """The Go installation's `src/` (standard library and toolchain)."""
+    go = shutil.which("go")
+    if go is None:
+        return Path("/nonexistent-goroot")
+    out = subprocess.run([go, "env", "GOROOT"], capture_output=True, text=True, check=False)
+    return Path(out.stdout.strip()) / "src"
+
+
+GOSRC = goroot()
 
 # (name, path, expectation) - "lib": well-regarded library code, expected mostly
 # healthy; "complex": large, inherently complex code, expected lower.
@@ -163,6 +180,20 @@ CORPORA = [
     ("zsh:powerlevel10k", SH / "powerlevel10k", "complex"),
     ("zsh:zinit", SH / "zinit", "complex"),
     ("zsh:zimfw", SH / "zimfw", "complex"),
+    ("go:strings", GOSRC / "strings", "lib"),
+    ("go:encoding-json", GOSRC / "encoding/json", "lib"),
+    ("go:net-http", GOSRC / "net/http", "lib"),
+    ("go:cobra", GO / "cobra", "lib"),
+    ("go:chi", GO / "chi", "lib"),
+    ("go:zap", GO / "zap", "lib"),
+    ("go:gin", GO / "gin", "lib"),
+    ("go:bubbletea", GO / "bubbletea", "lib"),
+    ("go:go-types", GOSRC / "go/types", "complex"),
+    ("go:runtime", GOSRC / "runtime", "complex"),
+    ("go:compile-ssa", GOSRC / "cmd/compile/internal/ssa", "complex"),
+    ("go:hugo", GO / "hugo", "complex"),
+    ("go:prometheus", GO / "prometheus", "complex"),
+    ("go:caddy", GO / "caddy", "complex"),
 ]
 
 
@@ -228,6 +259,10 @@ C_EXCLUDES = [
 SH_EXCLUDES = ["test/*", "tests/*", "*/test/*", "*/tests/*", "docs/*", "contrib/*"]
 
 
+# Go repos: tests sit next to the code (`*_test.go`), fixtures in testdata/
+GO_EXCLUDES = ["*_test.go", "testdata/*", "*/testdata/*", "vendor/*", "examples/*", "_examples/*"]
+
+
 def corpus_config(name: str) -> Config:
     config = Config()
     if name.startswith("ts:"):
@@ -238,6 +273,8 @@ def corpus_config(name: str) -> Config:
         config.data["scan"]["exclude"] = list(C_EXCLUDES)
     elif name.startswith(("sh:", "zsh:")):
         config.data["scan"]["exclude"] = list(SH_EXCLUDES)
+    elif name.startswith("go:"):
+        config.data["scan"]["exclude"] = list(GO_EXCLUDES)
     return config
 
 

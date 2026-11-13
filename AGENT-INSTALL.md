@@ -1,6 +1,6 @@
 # Set up aihealth
 
-aihealth scores code health (1–10) for Python, Dart/Flutter, Swift, Rust, TypeScript,
+aihealth scores code health (1–10) for Python, Dart/Flutter, Swift, Rust, Go, TypeScript,
 JavaScript, C, C++, Objective-C(++), shell scripts (bash, zsh), Makefiles and CMake, and
 gives a coding agent feedback on its own changes. Set it up **in a project's venv**
 (recommended: installed inside the project, nothing global), **for a project** with a

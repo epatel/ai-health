@@ -392,6 +392,74 @@ deliberate duplication, accepted like httpx and TCA. Other generic
 thresholds fit without Rust exceptions. `?` adds no complexity
 (error propagation, like Go's `if err != nil` question in the README).
 
+## Go (M21)
+
+Generic thresholds; one Go rule, measured. Units and grammar notes are in
+the parser card.
+
+**Error propagation adds nothing.** `if err != nil { return .. }` (also
+`if err := f(); err != nil`, or a name ending in `Err`), with no `else`
+and a lone `return` in its body, has role None: no cyclomatic or
+cognitive point, no nesting. It is Go's spelled-out `?`, which adds
+nothing in Rust. Measured with and without (non-test files):
+
+| Code | err-propagation share of `if`s | of cyclomatic | of cognitive | Complex Method functions |
+|---|---:|---:|---:|---:|
+| net/http | 6.6 % | 3.3 % | 4.7 % | 135 → 131 |
+| encoding/json | 10.9 % | 4.6 % | 8.7 % | 102 → 98 |
+| cmd/go | 11.6 % | 6.4 % | 7.3 % | 338 → 307 |
+| hugo | 16.9 % | 7.7 % | 11.9 % | 425 → 370 |
+| prometheus | 16.7 % | 7.9 % | 10.1 % | 635 → 552 |
+| caddy | 19.2 % | 10.1 % | 14.9 % | 295 → 234 |
+
+Compare shell `cmd || die` guards at 3 % (counted). Project scores move
+by at most 0.2, but the exemption takes 13–21 % of application functions
+out of Complex Method for boilerplate alone. Error checks that do more
+than return (log, wrap and continue, have an `else`) stay branches.
+`[go] count_error_checks = true` counts them all.
+
+**Receiver types are classes.** A file's methods on `T` and `*T` form
+one `Class`, spanning the `type` declaration and the methods (functions
+placed between them count toward its share). Methods of one type in
+other files are judged per file, like Swift extensions.
+
+**Subtests are units.** `t.Run("name", func(t *testing.T) {..})` closures
+(callee `Run`, configurable as `[go] test_closure_calls`) are scored on
+their own, as Dart test closures, so a table-driven test isn't one giant
+function. `var f = func(..)` and `f := func(..)` are units too, as named
+function values are in TypeScript.
+
+**Calibration** (`scripts/calibrate.py --only go:`; stdlib from `go env
+GOROOT`, clones in `AIHEALTH_GO_CORPORA`; `*_test.go`, `testdata/`,
+`vendor/` and examples left out):
+
+| Corpus | kind | kLoC | project | median file | healthy % | alert LoC % |
+|---|---|---:|---:|---:|---:|---:|
+| zap | lib | 5.2 | 9.1 | 10 | 87 | 0 |
+| chi | lib | 2.9 | 8.4 | 10 | 81 | 0 |
+| gin | lib | 5.5 | 8.3 | 10 | 88 | 0 |
+| bubbletea | lib | 2.8 | 7.4 | 10 | 87 | 0 |
+| cobra | lib | 5.2 | 6.9 | 8.3 | 37 | 0 |
+| stdlib net/http | lib | 23.8 | 6.2 | 9.1 | 50 | 29 |
+| stdlib encoding/json | lib | 13.1 | 5.8 | 8.3 | 42 | 25 |
+| stdlib strings | lib | 1.7 | 5.4 | 10 | 62 | 54 |
+| hugo | complex | 100.3 | 7.2 | 9.4 | 59 | 10 |
+| stdlib runtime | complex | 70.1 | 7.1 | 10 | 76 | 14 |
+| prometheus | complex | 165.0 | 6.5 | 10 | 58 | 19 |
+| caddy | complex | 51.0 | 6.5 | 9.1 | 52 | 9 |
+| stdlib go/types | complex | 7.0 | 6.0 | 7.7 | 19 | 14 |
+| cmd/compile ssa | complex | 34.0 | 5.8 | 7.8 | 21 | 29 |
+
+Complex code lands at 5.8–7.2 and the third-party libraries mostly
+healthy. **Known gap, accepted** (as for click/httpx): the standard
+library's hand-tuned packages stay in warning. Their findings are real:
+`strings.IndexRune` has cognitive complexity 57, `ToUpper`/`ToLower`
+share 25 lines, and `net/http` and `encoding/json` hold long state
+machines and reflection switches. cobra's `getCompletions` reaches
+cognitive 116, and its doc generators copy each other. Excess Arguments
+and Primitive Obsession needed no Go change (`context.Context` is a
+domain type).
+
 ## TypeScript (M15)
 
 Units and grammar notes are in the parser card. **What counts as a

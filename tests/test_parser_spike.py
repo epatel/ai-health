@@ -1,4 +1,4 @@
-"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift, Rust,
+"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift, Rust, Go,
 TypeScript, CMake, C, C++, Objective-C and shell code.
 
 These tests pin the node type names the M2 adapters will rely on, so a
@@ -47,6 +47,7 @@ def _errors(node) -> list[tuple[int, str]]:
         ("dart", "flutter_widget.dart"),
         ("swift", "sample.swift"),
         ("rust", "sample.rs"),
+        ("go", "sample.go"),
         ("typescript", "sample.ts"),
         ("tsx", "sample.tsx"),
         ("javascript", "sample.js"),
@@ -200,6 +201,41 @@ def test_rust_else_if_is_wrapped_in_else_clause():
                 inner |= {c.type for c in alt.named_children}
         stack.extend(n.children)
     assert inner == {"if_expression", "block"}
+
+
+GO_NODE_TYPES = """
+function_declaration method_declaration func_literal parameter_list
+parameter_declaration variadic_parameter_declaration type_parameter_list
+type_declaration type_spec block statement_list if_statement for_statement
+range_clause expression_switch_statement type_switch_statement select_statement
+expression_case type_case communication_case default_case labeled_statement
+label_name break_statement continue_statement goto_statement binary_expression
+selector_expression call_expression short_var_declaration var_spec comment
+"""
+
+
+def test_go_node_types():
+    types = _types(_parse("go", "sample.go"))
+    assert set(GO_NODE_TYPES.split()) <= types
+
+
+def test_go_blocks_hold_a_statement_list_and_else_if_is_direct():
+    """Go quirks: a block's statements sit in a `statement_list`, and an
+    else-if is the `alternative` if_statement itself (no wrapper)."""
+    root = _parse("go", "sample.go")
+    alts, blocks = set(), set()
+    stack = [root]
+    while stack:
+        n = stack.pop()
+        if n.type == "if_statement":
+            alt = n.child_by_field_name("alternative")
+            if alt is not None:
+                alts.add(alt.type)
+        if n.type == "block" and n.named_child_count:
+            blocks |= {c.type for c in n.named_children}
+        stack.extend(n.children)
+    assert alts == {"if_statement", "block"}
+    assert blocks == {"statement_list"}
 
 
 TS_NODE_TYPES = """

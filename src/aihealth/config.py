@@ -27,6 +27,10 @@ Example `.aihealth.toml`::
 
     [javascript]                # .js, .mjs, .cjs and .jsx
     test_closure_calls = ["describe", "it", "test"]
+
+    [go]
+    count_error_checks = true   # score `if err != nil { return .. }` (default: false)
+    test_closure_calls = ["Run"]   # `t.Run("name", func(t *testing.T) {..})`
 """
 
 from __future__ import annotations
@@ -135,6 +139,8 @@ DEFAULTS: dict[str, Any] = {
     "rust": {"score_test_modules": False},
     "typescript": {"test_closure_calls": None},  # for .ts and .tsx
     "javascript": {"test_closure_calls": None},
+    # error checks that only return: no complexity by default (code-health-model)
+    "go": {"count_error_checks": False, "test_closure_calls": None},
 }
 
 
@@ -169,7 +175,16 @@ class Config:
             return {} if calls is None else {"test_calls": frozenset(calls)}
         if language == "rust":
             return {"score_test_modules": bool(self.data["rust"]["score_test_modules"])}
+        if language == "go":
+            return self._go_options()
         return {}
+
+    def _go_options(self) -> dict[str, Any]:
+        go = self.data["go"]
+        options: dict[str, Any] = {"count_error_checks": bool(go["count_error_checks"])}
+        if go["test_closure_calls"] is not None:
+            options["test_calls"] = frozenset(go["test_closure_calls"])
+        return options
 
 
 def _merge(base: dict[str, Any], override: dict[str, Any], path: str = "") -> None:

@@ -6,7 +6,7 @@ A code-health tool that gives an AI coding agent fast, actionable feedback on
 its changes (delta mode) and gives humans an overview of where an existing
 codebase needs improvement (scan mode). Scores are on a CodeScene-inspired
 1–10 scale, derived from explainable code smells. Languages: **Python**,
-**Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **TypeScript/TSX**,
+**Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **Go**, **TypeScript/TSX**,
 **JavaScript/JSX**, **C**, **C++**, **Objective-C(++)**, **shell scripts** (bash, zsh),
 **Makefiles** and **CMake**
 (more via the adapter layer:
@@ -55,7 +55,8 @@ Status: `todo` / `wip` / `done`.
 | M18 | C, C++, Objective-C(++) | done | one adapter, three grammars (`.h` routed by content), source prepared against macros, units recovered from ERROR nodes; Objective-C++ via the objc grammar with `::` rewritten; calibrated on 18 repos |
 | M19 | Shell scripts | done | `.sh`/`.bash` and shebang scripts scored (functions + top-level blocks), bash roles shared with the Makefile adapter, 0 crashes on 5.5k scripts, calibrated on 11 repos |
 | M20 | zsh | done | `.zsh`/`.zsh-theme`, zsh shebangs and `#compdef` functions via the shell adapter: zsh grammar guarded against endless loops and compared with the bash tree per file, 0 crashes on 1,158 files, calibrated on 9 repos |
-| M21 | Next language | todo | which one is the user's call: ask first (see handoff) |
+| M21 | Go adapter | done | `.go` scored (receiver types as classes, named func values and `t.Run` subtests as units, error propagation exempt), 137,188 of 137,189 bodies on 10.6k files, calibrated on 14 corpora |
+| M22 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
 
@@ -122,6 +123,13 @@ Status: `todo` / `wip` / `done`.
   so it runs in a forked child with a 1 s CPU / 3 s wall-clock limit first, and each file
   keeps the zsh or bash tree, whichever loses fewer lines. See the zsh
   sections of both cards.
+- **Go** (M21, user's choice of language): `if err != nil { return .. }`
+  with no else adds no complexity (5–15 % of cognitive points, 13–21 %
+  of app functions' Complex Method flags), like Rust's `?`;
+  `[go] count_error_checks` restores it. A receiver type's methods in one
+  file form one class. `t.Run` closures are units. `vendor/` not excluded
+  by default (consistent with the C family). Generic methods and
+  `new(expr)` are not in the grammar yet. See the Go sections of both cards.
 - **Dependencies** (after the re-assessment): tree-sitter and the
   grammar pack pinned to the tested minor version, other runtime
   dependencies below their next major, ruff to a minor. CI
@@ -132,6 +140,14 @@ Status: `todo` / `wip` / `done`.
   excluded by default.
 
 ## Current state / handoff
+
+**2026-11-13.** M21 (Go) is done: `lang/go.py`, `tests/test_go.py`,
+`tests/fixtures/sample.go`, Go spike tests, `[go]` config section
+(`count_error_checks`, `test_closure_calls`), `go:` corpora in
+`scripts/calibrate.py` (stdlib via `go env GOROOT`, clones in
+`AIHEALTH_GO_CORPORA`). Shared code changed only by registering the
+adapter and adding the config section. Not yet released: the CHANGELOG
+entry is under "Unreleased" (next release is 0.3.0, a minor bump).
 
 **2026-11-07, third session.** M20 (zsh) is done: `lang/shell_zsh.py`
 (zsh detection, `prepare_zsh`, the guarded `ZshParser` in
@@ -163,17 +179,16 @@ Now 517 tests, ruff clean, CI green, and this repo scans at 10.00 (all 62
 files healthy).
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
-TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), shell scripts,
+Go, TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), shell scripts,
 Makefiles and CMake
 (13 generic smells plus Makefile `missing_phony`). Interfaces: CLI `scan`
 (dir or file) / `delta` / `history` / `serve` / `mcp` / `hook`, an MCP
 server (5 tools), SQLite history with migrations, a dashboard, and
-Claude Code hooks. Scoring is calibrated on 90 corpora, plus
+Claude Code hooks. Scoring is calibrated on 104 corpora, plus
 distribution checks on Makefiles and CMake files.
 
-**Next task (M21): ask the user which language.** Candidates: Go
-(`if err != nil` needs a calibration decision), Kotlin (Compose maps
-onto widget depth; labelled args like Swift).
+**Next task (M22): ask the user which language.** Candidates: Kotlin
+(Compose maps onto widget depth; labelled args like Swift), C#, Java.
 Follow README "Adding a language". `lang/cfamily.py` shows several
 grammars in one adapter and source preparation; `lang/swift.py` a grammar
 without an `alternative` field; `lang/rust.py` a wrapped else-if, tests in
@@ -205,6 +220,9 @@ identical). Corpora on this machine, all read-only:
   nlohmann/json, abseil, SDWebImage, AFNetworking, fmdb, Mantle,
   KVOController, Texture, ComponentKit), set `AIHEALTH_C_CORPORA` for `calibrate.py --only c`
   (C and C++) and `--only objc`.
+- Go: the Go toolchain's `src/` (`go env GOROOT`, read-only) and
+  `~/go/pkg/mod`; shallow clones (cobra, chi, zap, gin, bubbletea, hugo,
+  prometheus, caddy), set `AIHEALTH_GO_CORPORA` for `calibrate.py --only go:`.
 - Swift: shallow clones (Alamofire, swift-argument-parser,
   swift-collections, swift-nio, Kingfisher, IceCubesApp, vapor,
   swift-composable-architecture, SwiftLint), set

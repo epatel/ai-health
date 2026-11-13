@@ -26,8 +26,8 @@ def test_adapter_by_extension(path, lang):
 
 
 def test_unsupported_extension():
-    assert adapter_for("main.go") is None
-    assert parse_source(b"package main", "main.go") is None
+    assert adapter_for("Main.kt") is None
+    assert parse_source(b"package main", "Main.kt") is None
 
 
 def test_partial_parse_counts_errors():

@@ -7,7 +7,7 @@
 # aihealth
 
 Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter**,
-**Swift/SwiftUI**, **Rust**, **TypeScript/TSX**, **JavaScript/JSX**, **C**, **C++**,
+**Swift/SwiftUI**, **Rust**, **Go**, **TypeScript/TSX**, **JavaScript/JSX**, **C**, **C++**,
 **Objective-C** / **Objective-C++**, **shell scripts** (bash, zsh), **Makefiles** and **CMake**,
 built as feedback for AI coding agents.
 
@@ -186,6 +186,27 @@ aihealth isn't installed there; for a global install see [AGENT-INSTALL.md](AGEN
 - Code inside macro invocations (`quote! { }`, `tokio::select! { }`) is opaque to the
   parser and not scored.
 
+## Go
+
+`*.go` files are scored with the generic smells.
+
+- **Units**: functions, methods, functions bound to a name (`var f = func(..)`,
+  `f := func(..)`) and subtest closures (`t.Run("name", func(t *testing.T) {..})`, the
+  callee names are configurable). Other `func` literals (goroutines, `defer func()`,
+  callbacks) stay part of their function.
+- **Receiver types** are classes: a file's methods on `*T` and `T` form one class, and Low
+  Cohesion is measured through the receiver (`r.x`, `r.m()`).
+- **Branching**: `else if`, `switch`, type switches and `select` (`default` is not a
+  path; a case listing several values is one path), labeled `break`/`continue`, `goto`.
+- **Error checks** that only propagate (`if err != nil { return .., err }`, also with an
+  `if err := f(); ...` initializer) add nothing, like Rust's `?`. They are 7–19 % of all
+  `if`s in real code. An error check that handles the error (logs, retries, has an `else`)
+  counts as a normal branch. Set `count_error_checks = true` under `[go]` to count them all.
+- **Skipped**: generated files (`// Code generated ... DO NOT EDIT.`, the Go convention).
+  `vendor/` is not skipped by default: add it to `[scan] exclude` if you vendor.
+- Generic methods (`func (r *Rand) N[T any]()`) and `new(expr)` (Go 1.26+) are not in the
+  grammar yet: such files report "syntax errors", and the rest of the file is still scored.
+
 ## TypeScript
 
 `*.ts`, `*.mts`, `*.cts` and `*.tsx` files are scored with the generic smells.
@@ -342,6 +363,10 @@ test_closure_calls = ["describe", "it", "test"]
 
 [javascript]                     # .js, .mjs, .cjs and .jsx
 test_closure_calls = ["describe", "it", "test"]
+
+[go]
+count_error_checks = true        # count `if err != nil { return .. }` (default: false)
+test_closure_calls = ["Run"]     # `t.Run("name", func(t *testing.T) {..})`
 ```
 
 Turn smells off for one file where they are imposed by an interface (e.g. CLI/JSON/MCP
@@ -356,7 +381,7 @@ boundaries) with a comment (strings and docstrings don't count):
 All metrics, smells and scoring are language-neutral. A language is **one adapter file**
 that tells the engine what the syntax tree means, plus tests that pin that meaning. Python
 (`src/aihealth/lang/python.py`), Dart (`lang/dart.py`), Swift (`lang/swift.py`), Rust
-(`lang/rust.py`), TypeScript (`lang/typescript.py`), JavaScript (`lang/javascript.py`, a
+(`lang/rust.py`), Go (`lang/go.py`), TypeScript (`lang/typescript.py`), JavaScript (`lang/javascript.py`, a
 subclass for a grammar that shares node names) and C/C++/Objective-C(++) (`lang/cfamily.py`,
 one adapter that picks a grammar per file) are the reference adapters; `lang/shell.py` is
 the smallest, and shows units for top-level blocks. Copy the one whose language is closer.
@@ -440,8 +465,9 @@ I'd do it in this order. Each step has a check before you move on.
   (`const f = () => {}` in TS/JS) should be scored as named functions, while inline
   callbacks stay part of their parent. Test-framework closures (`describe`/`it`, XCTest)
   likely deserve the Dart treatment, so a test file isn't one giant function.
-- **Idiomatic branching**: Go's `if err != nil { return err }` adds a branch to every call.
-  Check in calibration whether it should get the same exemption as asserts.
+- **Idiomatic branching**: Go's `if err != nil { return err }` would add a branch to every
+  call. Measure its share in calibration before exempting it (Go does: 5–15 % of
+  cognitive points; shell `cmd || die` doesn't: 3 %).
 - **Named arguments**: Kotlin, Swift and C# have them, and they should count half,
   consistent with Dart and Python.
 - **UI trees**: JSX, SwiftUI `body` and Compose `@Composable` functions map onto
