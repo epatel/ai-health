@@ -12,7 +12,8 @@ parsing via tree-sitter, history in SQLite.
 
 ## Commands
 
-- Setup: `make setup` (creates `.venv`, installs `-e '.[dev]'`)
+- Setup: `make setup` (creates `.venv`, installs `-e '.[dev]'`); `make help` lists targets,
+  `make link` puts `aihealth` in `~/.local/bin`
 - Test: `make test` (one test: `.venv/bin/pytest tests/test_cli.py::test_help_exits_cleanly`)
 - Lint / format: `make lint` · `make fmt`
 - Scan: `.venv/bin/aihealth scan PATH [--format text|markdown|json] [--max-findings N] [-v] [--fail-under 7] [--report [AI-HEALTH.md|x.html]]`
@@ -40,7 +41,8 @@ parsing via tree-sitter, history in SQLite.
 
 ## Enforced rules
 
-- Global `pip install` is blocked: use `.venv/bin/pip` (see standing-defaults).
+- Package installs are blocked for the agent (global and `.venv/bin/pip`): edit `pyproject.toml`,
+  then ask the user to run `! make setup`.
 - Edited `.py` / `.dart` files are auto-formatted by a hook (ruff / dart format), then checked
   by `aihealth hook post-edit`. Regressions arrive as hook context, so fix them in code you touched.
 - A Stop hook (`aihealth hook stop`) reports remaining regressions once before you finish.
@@ -54,6 +56,9 @@ parsing via tree-sitter, history in SQLite.
 - [code-health-model](cards/code-health-model.md) — touching smells, thresholds, penalties, score bands, or delta verdict logic
 - [parser-choice](cards/parser-choice.md) — adding a language, changing grammars, or adapter/tree-sitter problems
 - [standing-defaults](cards/standing-defaults.md) — creating venvs, adding dependencies, or adding/changing database tables
+
+### Reference
+- [calibration-corpora](cards/calibration-corpora.md) — calibrating, or proving a change leaves other languages' scores identical (snapshot corpora, env vars)
 
 When you commit a change that adds non-obvious logic, settles an architectural choice,
 or makes a card above wrong, update or add the card in that commit and keep this index

@@ -114,7 +114,7 @@ Status: `todo` / `wip` / `done`.
   the C-family sections of both cards.
 - **Shell scripts** (M19): bash grammar for `.sh`, `.bash` and
   extensionless files with a sh/bash/dash/ksh shebang (registry `head`
-  argument); zsh not supported (55 % of its lines fail). Units are
+  argument); zsh came later (M20). Units are
   functions (plain names) and top-level blocks, as in CMake. `cmd || die`
   guards count (3 % of cognitive points). Parse errors not reported. See
   the shell sections of both cards.
@@ -141,41 +141,10 @@ Status: `todo` / `wip` / `done`.
 
 ## Current state / handoff
 
-**2026-11-13.** M21 (Go) is done: `lang/go.py`, `tests/test_go.py`,
-`tests/fixtures/sample.go`, Go spike tests, `[go]` config section
-(`count_error_checks`, `test_closure_calls`), `go:` corpora in
-`scripts/calibrate.py` (stdlib via `go env GOROOT`, clones in
-`AIHEALTH_GO_CORPORA`). Shared code changed only by registering the
-adapter and adding the config section. Released as 0.3.0.
-
-**2026-11-07, third session.** M20 (zsh) is done: `lang/shell_zsh.py`
-(zsh detection, `prepare_zsh`, the guarded `ZshParser` in
-`ShellAdapter._parsers["zsh"]`), zsh roles/units in `lang/shell.py`,
-registry routing via `is_shell_head`, zsh tests in `tests/test_shell.py`,
-`zsh:` corpora in `scripts/calibrate.py` (same `AIHEALTH_SH_CORPORA`).
-Snapshots: all 6,536 non-zsh shell and Makefile files identical.
-
-Before that, M19 (shell scripts) was done:
-`lang/shell.py`, `tests/test_shell.py`, shebang routing in the registry
-(`is_supported`/`adapter_for` take a `head`; engine, delta, hooks, CLI,
-MCP and `scripts/snapshot.py` pass it), `sh:` corpora in
-`scripts/calibrate.py` (`AIHEALTH_SH_CORPORA`), autoconf/configure/libtool
-generated-file markers, and docs. The Makefile adapter now imports the
-bash roles from `lang/shell.py`.
-
-Before that, M18 (C, C++, Objective-C) was done, and
-Objective-C++ (`.mm`, language `objcpp`) was added after it:
-`lang/cfamily.py` (adapter, header router, source preparation),
-`lang/cfamily_decl.py` (declarators, params, types),
-`lang/cfamily_objc.py` (selectors, cohesion), `tests/test_cfamily.py`,
-units recovered from ERROR nodes,
-spike tests, `c:`/`cpp:`/`objc:` corpora in `scripts/calibrate.py`, and
-docs. Shared code changed only by adding hooks (`grammars`,
-`_grammar_for`, `_prepare` in `lang/base.py`), C-family default excludes
-and three generated-file markers (Qt, bison, flex). Snapshots of every
-earlier language (49,533 files plus 1,217 Makefiles) compare identical.
-Now 517 tests, ruff clean, CI green, and this repo scans at 10.00 (all 62
-files healthy).
+**2026-11-13.** M21 (Go) is done and released as 0.3.0; 0.3.1 simplified
+the install (clone + `make setup` / `make link`). 542 tests, ruff clean,
+CI green, this repo scans at 10.00. Per-milestone history is in git and
+`CHANGELOG.md`.
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
 Go, TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), shell scripts,
@@ -191,56 +160,18 @@ distribution checks on Makefiles and CMake files.
 Follow README "Adding a language". `lang/cfamily.py` shows several
 grammars in one adapter and source preparation; `lang/swift.py` a grammar
 without an `alternative` field; `lang/rust.py` a wrapped else-if, tests in
-the same file, and cohesion idiom exclusions.
+the same file, and cohesion idiom exclusions; `lang/go.py` an idiom
+exemption with a config switch. Prove existing languages are unaffected
+with `scripts/snapshot.py` before and after; the corpora and commands are
+in `cards/calibration-corpora.md`.
 
-**Prove existing languages are unaffected** with `scripts/snapshot.py
---lang python,dart,make` before and after, then `--compare` (exit 0 =
-identical). Corpora on this machine, all read-only:
-- Python: `.venv/lib/python3.12/site-packages`
-- Dart: `~/Development/Flutter/flutter/packages`, `~/.pub-cache/hosted/pub.dev`
-- Makefiles and CMake: `~/Development` (CMake: OrcaSlicer, Pico SDK,
-  Flutter, OpenSCAD; Xcode `SourcePackages/checkouts`)
-- TypeScript: shallow clones (zod, TanStack Query, tRPC, date-fns, Vite,
-  ky, TypeORM, Excalidraw, Nest), set `AIHEALTH_TS_CORPORA` for
-  `scripts/calibrate.py --only ts:`.
-- JavaScript: shallow clones (Express, axios, lodash, Preact, webpack,
-  ESLint, three.js), set `AIHEALTH_JS_CORPORA` for `--only js:`.
-- Rust: the crates in `~/.cargo/registry/src` (calibrate.py finds the
-  newest version of each by name).
-- Shell: shallow clones (bats-core, rbenv, pyenv, n, docker-install,
-  bash-it, Homebrew install, dehydrated, nvm, acme.sh, dokku; zsh:
-  ohmyzsh, prezto, zsh-completions, zsh-z, spaceship-prompt,
-  zsh-autocomplete, powerlevel10k, zinit, zimfw) in one directory, set
-  `AIHEALTH_SH_CORPORA` for `calibrate.py --only sh:` / `--only zsh:`.
-- C / C++ / Objective-C: Pico SDK (`~/Development/pico-sdk`), Flipper
-  (`~/Development/flipper/flipperzero-firmware`, skip its `toolchain/`),
-  OrcaSlicer `src/`, the Flutter engine, Xcode checkouts; shallow clones
-  (lua, cJSON, libuv, redis, curl, fmt, leveldb, googletest,
-  nlohmann/json, abseil, SDWebImage, AFNetworking, fmdb, Mantle,
-  KVOController, Texture, ComponentKit), set `AIHEALTH_C_CORPORA` for `calibrate.py --only c`
-  (C and C++) and `--only objc`.
-- Go: the Go toolchain's `src/` (`go env GOROOT`, read-only) and
-  `~/go/pkg/mod`; shallow clones (cobra, chi, zap, gin, bubbletea, hugo,
-  prometheus, caddy), set `AIHEALTH_GO_CORPORA` for `calibrate.py --only go:`.
-- Swift: shallow clones (Alamofire, swift-argument-parser,
-  swift-collections, swift-nio, Kingfisher, IceCubesApp, vapor,
-  swift-composable-architecture, SwiftLint), set
-  `AIHEALTH_SWIFT_CORPORA` for `scripts/calibrate.py --only swift:`.
-  firebase-ios-sdk is under `~/Library/Developer/Xcode/DerivedData/*/
-  SourcePackages/checkouts`.
-
-The full Dart corpus takes about 9 minutes, so run it in the background.
-
-**Refactoring:** no file below 10 is left after `smells.py` (8.64 →
-10.00: a `_Hit` parameter object, a `_DuplicateSite` accumulator, a
-union-find class, `Detector.detect` replacing the 5-parameter `detect`).
-The method that worked for metrics, dart, python, duplication and smells:
+**Refactoring:** no file below 10 is left. The method that worked:
 snapshot, refactor with small handlers / named predicates / parameter
 objects, then compare.
 
 **Environment notes:**
-- `pip install` is denied for the agent: edit `pyproject.toml`, then ask
-  the user to run `! make setup`.
+- The agent can't install packages (not even `.venv/bin/pip`): edit
+  `pyproject.toml`, then ask the user to run `! make setup`.
 - Auto mode blocks running downloaded scripts.
 - Hooks are active: every Edit/Write of a supported file reports
   regressions (fix them), and the Stop hook nudges once. The post-edit

@@ -1,7 +1,7 @@
 {
   "source": "https://ai.memention.net/setup",
-  "version": "2026-11-04.3",
-  "updated": "2026-11-07",
+  "version": "2026-11-13",
+  "updated": "2026-11-13",
   "applied": ["context-cards", "project-plan", "standing-defaults", "hooks-over-prose"],
   "declined": ["known-stack", "feature-first", "two-tier"],
   "copied": {

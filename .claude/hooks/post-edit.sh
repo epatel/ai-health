@@ -4,7 +4,9 @@
 # got worse). One script so health is checked after formatting, not racing it.
 # Fails open when a tool is missing.
 input=$(cat)
-f=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+py="$CLAUDE_PROJECT_DIR/.venv/bin/python"
+[ -x "$py" ] || py=python3
+f=$(printf '%s' "$input" | "$py" -I -c 'import json,sys; print(json.load(sys.stdin).get("tool_input",{}).get("file_path") or "")' 2>/dev/null)
 [ -n "$f" ] && [ -f "$f" ] || exit 0
 case "$f" in
   *.py)

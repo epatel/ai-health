@@ -4,7 +4,10 @@
       "Bash(pip install:*)",
       "Bash(pip3 install:*)",
       "Bash(python3 -m pip install:*)",
-      "Bash(python -m pip install:*)"
+      "Bash(python -m pip install:*)",
+      "Bash(pip3.* install:*)",
+      "Bash(python3.* -m pip install:*)",
+      "Bash(uv pip install:*)"
     ]
   },
   "hooks": {
