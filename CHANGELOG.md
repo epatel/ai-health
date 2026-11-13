@@ -7,6 +7,14 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
+## 0.3.1 (2026-11-13)
+
+- Simpler install: the README leads with one route (clone, `make setup`,
+  optional `make link` to put `aihealth` in `~/.local/bin`), other ways
+  after it. New Makefile targets `help` (the default), `link` and
+  `unlink`; AGENT-INSTALL.md "For you" offers the clone route too. Scores
+  unchanged.
+
 ## 0.3.0 (2026-11-13)
 
 - **Go** (`*.go`): functions, methods (one class per receiver type and

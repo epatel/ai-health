@@ -23,38 +23,30 @@ healthy ≥ 9, warning 4–9, alert < 4.
 
 ## Install
 
-Needs Python 3.11+ and git 2.24+. macOS ships Python 3.9 (`/usr/bin/python3`, from the
-Xcode Command Line Tools), so install a newer one first, e.g. `brew install python` or
-`uv python install 3.12`, and use it below if `python3 --version` still says 3.9 (e.g.
-`python3.12 -m venv .venv`). From a clone, `make setup` uses `python3` from your PATH; pick
-another with `make setup PYTHON=python3.12`.
+Needs Python 3.11+ and git 2.24+. macOS ships Python 3.9: install a newer one first
+(`brew install python`), then run `make setup PYTHON=python3.12`.
 
-The recommended way is into the venv of the project you want to check, so nothing is
-installed globally:
-
-```bash
-cd your-project
-python3 -m venv .venv                      # skip if the project already has one
-.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.3.0"
-.venv/bin/aihealth scan .
+```sh
+git clone https://github.com/epatel/ai-health && cd ai-health
+make setup   # creates .venv and installs aihealth into it
+make link    # optional: symlink aihealth into ~/.local/bin (PREFIX=... to change)
 ```
 
-`@v0.3.0` is the current release: scores can change between releases (see
-[CHANGELOG.md](CHANGELOG.md)), so pin a tag to get the same scores everywhere. Leave it out
-to follow `main`.
+The clone runs whatever is checked out. Scores can change between releases (see
+[CHANGELOG.md](CHANGELOG.md)), so for the same scores everywhere check out a release first:
+`git checkout v0.3.1`. `make help` lists the other targets.
 
-Or install it globally, or from a clone to work on aihealth itself:
+**Other ways:** a global tool, or into the venv of the project you want to check:
 
-```bash
-uv tool install "git+https://github.com/epatel/ai-health@v0.3.0"   # or: pipx install "git+..."
-python3 -m venv .venv && .venv/bin/pip install -e .         # from a clone (or: make setup)
+```sh
+uv tool install "git+https://github.com/epatel/ai-health@v0.3.1"   # or: pipx install "git+..."
+.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.3.1"   # in your project
 ```
 
-The examples below write `aihealth`: that is `.venv/bin/aihealth` with a venv install.
+The examples below write `aihealth`; with a project-venv install that is `.venv/bin/aihealth`.
 
-**Full setup** (MCP server, hooks; in a project's venv, for a project, or for you):
-[AGENT-INSTALL.md](AGENT-INSTALL.md) lists the exact commands and file changes, plus a short
-prompt that has your agent do the same steps.
+**Use it with Claude Code** (MCP server, hooks): [AGENT-INSTALL.md](AGENT-INSTALL.md) lists
+the exact commands and file changes, plus a short prompt that has your agent do them.
 
 ## CLI
 

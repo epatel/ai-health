@@ -11,7 +11,7 @@ this machine). Do it by hand with the steps below, or let your agent do the same
 
 | | In a project's venv | For a project | For you |
 |---|---|---|---|
-| CLI | `.venv/bin/aihealth` in the project | `aihealth` in `~/.local/bin`, each person once | `aihealth` in `~/.local/bin` |
+| CLI | `.venv/bin/aihealth` in the project | `aihealth` in `~/.local/bin`, each person once | `aihealth` in `~/.local/bin` (uv/pipx tool, or linked from a clone) |
 | MCP server | `.mcp.json` in the repo | `.mcp.json` in the repo | user config, via `claude mcp add` |
 | Hooks | `.claude/settings.json` in the repo | `.claude/settings.json` in the repo | `~/.claude/settings.json` |
 | Agent note | a section in `CLAUDE.md` | a section in `CLAUDE.md` | none |
@@ -30,11 +30,11 @@ aihealth's version.
 # 1. Install into the project's venv (needs Python 3.11+; macOS's python3 is 3.9,
 #    so check `python3 --version` and use e.g. python3.12 from brew or uv if needed)
 python3 -m venv .venv                # skip if the project already has one
-.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.3.0"
+.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.3.1"
 .venv/bin/aihealth --version
 ```
 
-`@v0.3.0` is the current release (scores can change between releases, see `CHANGELOG.md`).
+`@v0.3.1` is the current release (scores can change between releases, see `CHANGELOG.md`).
 Use the latest tag, or leave it out to follow `main`.
 
 2. Add to `.mcp.json` in the repo root. Claude Code starts the server in the project
@@ -97,12 +97,24 @@ Notes:
 
 ## For you
 
-```bash
-# 1. Install the CLI (needs Python 3.11+; with pipx: pipx install "git+...")
-uv tool install "git+https://github.com/epatel/ai-health@v0.3.0"   # the current release
-aihealth --version       # not found? run `uv tool update-shell`, open a new terminal
+1. Install the CLI (needs Python 3.11+), from a clone or as a uv/pipx tool:
 
-# 2. Register the MCP server for all your projects
+```bash
+# From a clone: aihealth stays in the clone's .venv, linked into ~/.local/bin
+git clone https://github.com/epatel/ai-health && cd ai-health
+git checkout v0.3.1      # the current release; skip to follow main
+make setup && make link  # macOS's python3 is 3.9: make setup PYTHON=python3.12
+cd -
+
+# Or as a tool (with pipx: pipx install "git+...")
+uv tool install "git+https://github.com/epatel/ai-health@v0.3.1"   # the current release
+
+aihealth --version       # not found? add ~/.local/bin to PATH (uv: `uv tool update-shell`)
+```
+
+2. Register the MCP server for all your projects:
+
+```bash
 claude mcp add --scope user aihealth -- "$(command -v aihealth)" mcp
 ```
 
@@ -180,6 +192,7 @@ it against this page before approving it.
 ```bash
 .venv/bin/pip uninstall aihealth       # in a project's venv
 uv tool uninstall aihealth             # global (or: pipx uninstall aihealth)
+make unlink                            # from a clone (in the clone), then delete it
 claude mcp remove --scope user aihealth    # if registered for you
 ```
 
