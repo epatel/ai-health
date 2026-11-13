@@ -7,13 +7,13 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
-## Unreleased
+## 0.3.0 (2026-11-13)
 
 - **Go** (`*.go`): functions, methods (one class per receiver type and
   file), named `func` values and `t.Run` subtests are scored. Error checks
   that only propagate (`if err != nil { return .., err }`) add no
   complexity, like Rust's `?`; `[go] count_error_checks = true` counts
-  them. New language, so this release is a minor bump: other languages
+  them. New language, so a minor release: other languages
   score as before.
 
 ## 0.2.2 (2026-11-09)

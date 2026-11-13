@@ -146,8 +146,7 @@ Status: `todo` / `wip` / `done`.
 (`count_error_checks`, `test_closure_calls`), `go:` corpora in
 `scripts/calibrate.py` (stdlib via `go env GOROOT`, clones in
 `AIHEALTH_GO_CORPORA`). Shared code changed only by registering the
-adapter and adding the config section. Not yet released: the CHANGELOG
-entry is under "Unreleased" (next release is 0.3.0, a minor bump).
+adapter and adding the config section. Released as 0.3.0.
 
 **2026-11-07, third session.** M20 (zsh) is done: `lang/shell_zsh.py`
 (zsh detection, `prepare_zsh`, the guarded `ZshParser` in
