@@ -7,6 +7,22 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
+## 0.4.0 (2026-11-23)
+
+- **Java** (`*.java`): methods, constructors, initializers and lambdas
+  bound to a name are scored; methods of anonymous classes and enum
+  constants on their own. Classes, interfaces, enums and records are
+  classes; accessors (getters, setters, fluent setters) and interfaces
+  are left out of Low Cohesion. Java 25 `import module`, statements
+  before `super(..)`/`this(..)` and annotated varargs
+  (`Object @Nullable ... args`) are parsed. Maven's
+  `target/generated-sources/` is excluded by default.
+- **Go**: generic methods (Go 1.27) and `new(expr)` (Go 1.26) now parse,
+  so files using them score fully instead of reporting syntax errors and
+  losing functions to recovery (in the Go 1.27 standard library: 12 of
+  7,975 files change). Other Go files and other languages score as
+  before.
+
 ## 0.3.1 (2026-11-13)
 
 - Simpler install: the README leads with one route (clone, `make setup`,

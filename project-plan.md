@@ -153,7 +153,7 @@ Status: `todo` / `wip` / `done`.
 
 **2026-11-23.** M22 (Java) is done, together with a Go fix: generic
 methods (Go 1.27) and `new(expr)` (Go 1.26) are rewritten before parsing.
-Both are uncommitted and unreleased (next: 0.4.0, a minor bump). 558
+Both are released as 0.4.0. 558
 tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
 `CHANGELOG.md`.
 
