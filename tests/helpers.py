@@ -119,3 +119,9 @@ ECMASCRIPT_EXPECTED = [
     ("loops", 3, 4, 2),  # while +1, do +2, `break outer` +1
     ("Walker.walk", 2, 2, 1),  # `this.walk(..)` is recursion
 ]
+
+
+def metric_table(table: str) -> dict[str, tuple[int, int, int]]:
+    """Lines `qualname cyclomatic cognitive nesting  # note` -> {qualname: triple}."""
+    rows = (line.split("#", 1)[0].split() for line in table.strip().splitlines())
+    return {q: (int(c), int(g), int(n)) for q, c, g, n in rows}

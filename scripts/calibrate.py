@@ -74,6 +74,10 @@ def goroot() -> Path:
 
 GOSRC = goroot()
 
+# shallow clones of the Java repos below, in one directory (the JDK as a sparse
+# checkout of src/java.base/share/classes)
+JAVA = Path(os.environ.get("AIHEALTH_JAVA_CORPORA", Path.home() / "Development/java-corpora"))
+
 # (name, path, expectation) - "lib": well-regarded library code, expected mostly
 # healthy; "complex": large, inherently complex code, expected lower.
 CORPORA = [
@@ -194,6 +198,18 @@ CORPORA = [
     ("go:hugo", GO / "hugo", "complex"),
     ("go:prometheus", GO / "prometheus", "complex"),
     ("go:caddy", GO / "caddy", "complex"),
+    ("java:guava", JAVA / "guava/guava", "lib"),
+    ("java:commons-lang", JAVA / "commons-lang", "lib"),
+    ("java:gson", JAVA / "gson/gson", "lib"),
+    ("java:jackson-databind", JAVA / "jackson-databind", "lib"),
+    ("java:javapoet", JAVA / "javapoet", "lib"),
+    ("java:junit5", JAVA / "junit-framework", "lib"),
+    ("java:retrofit", JAVA / "retrofit/retrofit", "lib"),
+    ("java:jdk-java.base", JAVA / "jdk/src/java.base/share/classes", "complex"),
+    ("java:spring-framework", JAVA / "spring-framework", "complex"),
+    ("java:netty", JAVA / "netty", "complex"),
+    ("java:jenkins", JAVA / "jenkins/core", "complex"),
+    ("java:kafka", JAVA / "kafka", "complex"),
 ]
 
 
@@ -263,6 +279,29 @@ SH_EXCLUDES = ["test/*", "tests/*", "*/test/*", "*/tests/*", "docs/*", "contrib/
 GO_EXCLUDES = ["*_test.go", "testdata/*", "*/testdata/*", "vendor/*", "examples/*", "_examples/*"]
 
 
+# Java repos: tests in src/test (Maven/Gradle layout) or separate test modules,
+# plus benchmarks, docs, examples and Maven archetype templates
+JAVA_EXCLUDES = [
+    "src/test/*",
+    "*/src/test/*",
+    "*/src/testFixtures/*",
+    "*/src/jmh/*",
+    "*/src/it/*",
+    "*/src/main/resources/*",
+    "test/*",
+    "*/test/*",
+    "*-tests/*",
+    "*/testsuite*",
+    "*/integration-tests/*",
+    "*/jmh-benchmarks/*",
+    "*/microbench/*",
+    "examples/*",
+    "*/examples/*",
+    "documentation/*",
+    "framework-docs/*",
+]
+
+
 def corpus_config(name: str) -> Config:
     config = Config()
     if name.startswith("ts:"):
@@ -275,6 +314,8 @@ def corpus_config(name: str) -> Config:
         config.data["scan"]["exclude"] = list(SH_EXCLUDES)
     elif name.startswith("go:"):
         config.data["scan"]["exclude"] = list(GO_EXCLUDES)
+    elif name.startswith("java:"):
+        config.data["scan"]["exclude"] = list(JAVA_EXCLUDES)
     return config
 
 

@@ -35,4 +35,5 @@ directory that holds them.
 | C, C++ | Pico SDK (`~/Development/pico-sdk`), Flipper (`~/Development/flipper/flipperzero-firmware`, skip its `toolchain/`), OrcaSlicer `src/`, the Flutter engine, Xcode checkouts; clones of lua, cJSON, libuv, redis, curl, fmt, leveldb, googletest, nlohmann/json, abseil | `c` / `AIHEALTH_C_CORPORA` |
 | Objective-C | clones of SDWebImage, AFNetworking, fmdb, Mantle, KVOController, Texture, ComponentKit | `objc` / `AIHEALTH_C_CORPORA` |
 | Go | the toolchain's `src/` (`go env GOROOT`), `~/go/pkg/mod`; clones of cobra, chi, zap, gin, bubbletea, hugo, prometheus, caddy | `go:` / `AIHEALTH_GO_CORPORA` |
+| Java | clones of guava, commons-lang, gson, jackson-databind, javapoet, junit-framework, retrofit, spring-framework, netty, jenkins, kafka; openjdk/jdk sparse (`src/java.base/share/classes`) | `java:` / `AIHEALTH_JAVA_CORPORA` |
 | Swift | Alamofire, swift-argument-parser, swift-collections, swift-nio, Kingfisher, IceCubesApp, vapor, swift-composable-architecture, SwiftLint; firebase-ios-sdk under `~/Library/Developer/Xcode/DerivedData/*/SourcePackages/checkouts` | `swift:` / `AIHEALTH_SWIFT_CORPORA` |

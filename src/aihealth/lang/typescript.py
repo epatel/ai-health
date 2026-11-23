@@ -19,9 +19,9 @@ from tree_sitter import Node
 from aihealth.lang.base import (
     ExtractionScope,
     LanguageAdapter,
+    scan_units,
     text,
     type_leaves,
-    walk_units,
 )
 from aihealth.metrics import Role
 from aihealth.model import Class, Function, Module, Param
@@ -328,11 +328,7 @@ class TypeScriptAdapter(LanguageAdapter):
         self._scan(ExtractionScope(module), module.root)
 
     def _scan(self, scope: ExtractionScope, parent: Node) -> None:
-        """Units under ``parent``: direct children in source order, deeper
-        ones (inside statements and expressions) as they are found."""
-        for child in parent.named_children:
-            if not self._add_unit(scope, child):
-                walk_units(child, lambda n: self._add_unit(scope, n))
+        scan_units(scope, parent, self._add_unit)
 
     def _add_unit(self, scope: ExtractionScope, node: Node) -> bool:
         """Add ``node`` if it is a unit; True if it was a boundary (its
@@ -370,14 +366,7 @@ class TypeScriptAdapter(LanguageAdapter):
         return True
 
     def _add_class(self, scope: ExtractionScope, node: Node) -> None:
-        cls = Class(
-            name=f"{scope.prefix}{_name_of(node) or 'default'}",
-            kind="class",
-            start_line=_line(node),
-            end_line=_end_line(node),
-            node=node,
-        )
-        scope.module.classes.append(cls)
+        cls = scope.add_class(_name_of(node) or "default", "class", node)
         body = node.child_by_field_name("body")
         if body is not None:
             self._scan(ExtractionScope(scope.module, cls, f"{cls.name}."), body)

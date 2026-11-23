@@ -6,7 +6,7 @@ A code-health tool that gives an AI coding agent fast, actionable feedback on
 its changes (delta mode) and gives humans an overview of where an existing
 codebase needs improvement (scan mode). Scores are on a CodeScene-inspired
 1–10 scale, derived from explainable code smells. Languages: **Python**,
-**Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **Go**, **TypeScript/TSX**,
+**Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **Go**, **Java**, **TypeScript/TSX**,
 **JavaScript/JSX**, **C**, **C++**, **Objective-C(++)**, **shell scripts** (bash, zsh),
 **Makefiles** and **CMake**
 (more via the adapter layer:
@@ -56,7 +56,8 @@ Status: `todo` / `wip` / `done`.
 | M19 | Shell scripts | done | `.sh`/`.bash` and shebang scripts scored (functions + top-level blocks), bash roles shared with the Makefile adapter, 0 crashes on 5.5k scripts, calibrated on 11 repos |
 | M20 | zsh | done | `.zsh`/`.zsh-theme`, zsh shebangs and `#compdef` functions via the shell adapter: zsh grammar guarded against endless loops and compared with the bash tree per file, 0 crashes on 1,158 files, calibrated on 9 repos |
 | M21 | Go adapter | done | `.go` scored (receiver types as classes, named func values and `t.Run` subtests as units, error propagation exempt), 137,188 of 137,189 bodies on 10.6k files, calibrated on 14 corpora |
-| M22 | Next language | todo | which one is the user's call: ask first (see handoff) |
+| M22 | Java adapter | done | `.java` scored (records, sealed types, pattern switches, anonymous-class and enum-constant methods as units, accessors left out of cohesion), Java 25 syntax rewritten before parsing, 100 % of 390k bodies on 32k files, calibrated on 12 corpora |
+| M23 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
 
@@ -129,7 +130,16 @@ Status: `todo` / `wip` / `done`.
   `[go] count_error_checks` restores it. A receiver type's methods in one
   file form one class. `t.Run` closures are units. `vendor/` not excluded
   by default (consistent with the C family). Generic methods and
-  `new(expr)` are not in the grammar yet. See the Go sections of both cards.
+  `new(expr)` are not in the grammar yet, so the adapter rewrites them
+  before parsing (same length). See the Go sections of both cards.
+- **Java** (M22, user's choice of language): generic thresholds.
+  Getters, setters and fluent setters are left out of Low Cohesion (40 %
+  of its findings were JavaBean accessors), interfaces too. Lambdas bound
+  to a name are units; anonymous-class and enum-constant methods are
+  units named after the enclosing unit. Java 25 syntax (`import module`,
+  statements before `super(..)`) and annotated varargs are rewritten
+  before parsing (tree-sitter-java has not released since Dec 2024). See
+  the Java sections of both cards.
 - **Dependencies** (after the re-assessment): tree-sitter and the
   grammar pack pinned to the tested minor version, other runtime
   dependencies below their next major, ruff to a minor. CI
@@ -141,27 +151,29 @@ Status: `todo` / `wip` / `done`.
 
 ## Current state / handoff
 
-**2026-11-13.** M21 (Go) is done and released as 0.3.0; 0.3.1 simplified
-the install (clone + `make setup` / `make link`). 542 tests, ruff clean,
-CI green, this repo scans at 10.00. Per-milestone history is in git and
+**2026-11-23.** M22 (Java) is done, together with a Go fix: generic
+methods (Go 1.27) and `new(expr)` (Go 1.26) are rewritten before parsing.
+Both are uncommitted and unreleased (next: 0.4.0, a minor bump). 558
+tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
 `CHANGELOG.md`.
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
-Go, TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), shell scripts,
+Go, Java, TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), shell scripts,
 Makefiles and CMake
 (13 generic smells plus Makefile `missing_phony`). Interfaces: CLI `scan`
 (dir or file) / `delta` / `history` / `serve` / `mcp` / `hook`, an MCP
 server (5 tools), SQLite history with migrations, a dashboard, and
-Claude Code hooks. Scoring is calibrated on 104 corpora, plus
+Claude Code hooks. Scoring is calibrated on 116 corpora, plus
 distribution checks on Makefiles and CMake files.
 
-**Next task (M22): ask the user which language.** Candidates: Kotlin
-(Compose maps onto widget depth; labelled args like Swift), C#, Java.
+**Next task (M23): ask the user which language.** Candidates: Kotlin
+(Compose maps onto widget depth; labelled args like Swift), C#.
 Follow README "Adding a language". `lang/cfamily.py` shows several
 grammars in one adapter and source preparation; `lang/swift.py` a grammar
 without an `alternative` field; `lang/rust.py` a wrapped else-if, tests in
 the same file, and cohesion idiom exclusions; `lang/go.py` an idiom
-exemption with a config switch. Prove existing languages are unaffected
+exemption with a config switch; `lang/java.py` source rewrites for syntax
+newer than the grammar, and accessors left out of cohesion. Prove existing languages are unaffected
 with `scripts/snapshot.py` before and after; the corpora and commands are
 in `cards/calibration-corpora.md`.
 

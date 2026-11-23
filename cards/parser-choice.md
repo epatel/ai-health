@@ -218,10 +218,15 @@ type information (e.g. Primitive Obsession on inferred types).
   parameters, `~int | ~float64` constraints, generic receivers
   `func (s *Stack[T])`), range-over-func and `for range 10` with zero
   errors in the fixture.
-- **Not yet in the grammar**: generic methods (`func (r *Rand) N[T any]()`,
-  Go 1.27) and `new(expr)` (Go 1.26). In the Go 1.27 stdlib these are the
-  only parse errors outside `testdata/`: 2 source files and 5 test files
-  (`encoding/json/v2/arshal_test.go` loses one function to recovery).
+- **Not yet in the grammar** (tree-sitter-go 0.25.0 is still the latest,
+  with no grammar change since Aug 2025; upstream PRs #198 and #202 are open):
+  generic methods (`func (r *Rand) N[T any]()`, Go 1.27) and `new(expr)`
+  (Go 1.26). `go.prepare` rewrites both before parsing, keeping length and
+  line breaks: a method's `[..]` after its name is blanked (gofmt puts
+  `func` at line start), and `new(` becomes `n_w(` unless its argument can
+  only be a type (`[`, `<-`, `map`, `chan`, `struct`, `interface`, `func`),
+  outside strings, runes and comments. `new(T)` parses the same either way.
+  Drop the rewrite once the grammar pack ships a grammar with these.
   Parse errors stay reported.
 - Units: `function_declaration`, `method_declaration` (fields `receiver`,
   `name`, `parameters`, `result`, `body`), `func_literal`. A body `block`
@@ -245,6 +250,45 @@ type information (e.g. Primitive Obsession on inferred types).
 - Coverage: 10,642 files (Go 1.27 `src/` plus `~/go/pkg/mod`), 0 crashes,
   137,188 of 137,189 function/method bodies extracted; 60 files with parse
   errors, 53 of them in `testdata/` (much of it deliberately invalid).
+
+## Java (M22)
+
+- Grammar `java` (tree-sitter-java 0.23.5, last released Dec 2024).
+  Parses records, sealed types, pattern-matching switches with guards and
+  record patterns, `yield`, text blocks, `_`, `module-info` and Java 25
+  compact source files (top-level methods: units with no class).
+- **Rewritten before parsing** (`java.prepare`, same length and line
+  breaks, outside strings, text blocks, chars and comments): `import
+  module` (Java 25) has `module` blanked; `super(`/`this(` become `s_per(`
+  and `t_is(` (plain calls), since Java 25 allows statements before them
+  and the grammar only takes them first; a type annotation before `...`
+  or `[` (`Object @Nullable ... args`, JSpecify style) is blanked. The
+  annotation rewrite took parse errors on 12 corpora (32k files) from 83
+  files to 6: 3 Maven archetype templates (`${package}`), a fuzz test,
+  `case A _, B _ ->` (Java 22) and a qualified record pattern
+  (`instanceof Cache.Some(int n)`).
+- Units: `method_declaration`, `constructor_declaration`,
+  `compact_constructor_declaration` (fields `name`, `parameters`, `body`),
+  `static_initializer` (a `block` child) and an instance initializer (a
+  `block` directly in a `class_body`). A constructor body is a
+  `constructor_body`, not a `block`.
+- Parameters: `formal_parameter` (`type`, `name`), `spread_parameter`
+  (varargs: the type is an unnamed child, the name a `variable_declarator`).
+  A lambda's `parameters` is an `identifier`, `inferred_parameters` or
+  `formal_parameters`.
+- **Else-if is not wrapped**: the `alternative` of an `if_statement` is
+  another `if_statement` or a `block`.
+- Switches: `switch_expression` is both the statement and the expression.
+  Its `switch_block` holds `switch_rule` (`->`) or
+  `switch_block_statement_group` (`:`; `case 1: case 2:` are two groups)
+  arms; the default arm's `switch_label` has an anonymous `default` child
+  (also in `case null, default`).
+- Anonymous classes: `object_creation_expression > class_body`; an enum
+  constant with methods: `enum_constant > class_body`. Enum members sit in
+  `enum_body_declarations`.
+- Coverage: 32,142 files (the corpora in the calibration card, tests
+  included), 0 crashes, 389,695 of 389,695 method, constructor and
+  initializer bodies extracted, 4 ms per file.
 
 ## TypeScript (M15)
 

@@ -13,6 +13,7 @@ from aihealth.lang.cfamily import CFamilyAdapter
 from aihealth.lang.cmake import CMakeAdapter
 from aihealth.lang.dart import DartAdapter
 from aihealth.lang.go import GoAdapter
+from aihealth.lang.java import JavaAdapter
 from aihealth.lang.javascript import JavaScriptAdapter
 from aihealth.lang.make import MakeAdapter
 from aihealth.lang.python import PythonAdapter
@@ -39,6 +40,7 @@ ADAPTERS: tuple[type[LanguageAdapter], ...] = (
     CFamilyAdapter,
     ShellAdapter,
     GoAdapter,
+    JavaAdapter,
 )
 
 _BY_EXT = {ext: cls for cls in ADAPTERS for ext in cls.extensions}
@@ -47,7 +49,7 @@ _BY_NAME = {name: cls for cls in ADAPTERS for name in cls.filenames}
 SUPPORTED_EXTENSIONS = frozenset(_BY_EXT)
 # for messages: keep in sync with ADAPTERS
 SUPPORTED_LANGUAGES = (
-    "Python, Dart, Swift, Rust, Go, TypeScript, JavaScript, C, C++, Objective-C(++), "
+    "Python, Dart, Swift, Rust, Go, Java, TypeScript, JavaScript, C, C++, Objective-C(++), "
     "shell scripts (bash, zsh), Makefiles and CMake"
 )
 

@@ -300,14 +300,7 @@ class RustAdapter(LanguageAdapter):
                 self._scan_items(scope.nested(f"{scope.prefix}{name}"), body)
 
     def _add_container(self, scope: ExtractionScope, node: Node) -> None:
-        cls = Class(
-            name=f"{scope.prefix}{_container_name(node)}",
-            kind=_CONTAINERS[node.type],
-            start_line=_line(node),
-            end_line=_end_line(node),
-            node=node,
-        )
-        scope.module.classes.append(cls)
+        cls = scope.add_class(_container_name(node), _CONTAINERS[node.type], node)
         body = node.child_by_field_name("body")
         if body is not None:
             self._scan_items(ExtractionScope(scope.module, cls, f"{cls.name}."), body)

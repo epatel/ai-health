@@ -1,4 +1,4 @@
-"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift, Rust, Go,
+"""M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift, Rust, Go, Java,
 TypeScript, CMake, C, C++, Objective-C and shell code.
 
 These tests pin the node type names the M2 adapters will rely on, so a
@@ -48,6 +48,7 @@ def _errors(node) -> list[tuple[int, str]]:
         ("swift", "sample.swift"),
         ("rust", "sample.rs"),
         ("go", "sample.go"),
+        ("java", "sample.java"),
         ("typescript", "sample.ts"),
         ("tsx", "sample.tsx"),
         ("javascript", "sample.js"),
@@ -217,6 +218,26 @@ selector_expression call_expression short_var_declaration var_spec comment
 def test_go_node_types():
     types = _types(_parse("go", "sample.go"))
     assert set(GO_NODE_TYPES.split()) <= types
+
+
+JAVA_NODE_TYPES = """
+class_declaration interface_declaration enum_declaration record_declaration
+class_body interface_body enum_body enum_body_declarations enum_constant
+method_declaration constructor_declaration compact_constructor_declaration
+constructor_body static_initializer formal_parameters formal_parameter
+spread_parameter field_declaration variable_declarator lambda_expression
+object_creation_expression block if_statement for_statement
+enhanced_for_statement while_statement do_statement switch_expression
+switch_block switch_rule switch_block_statement_group switch_label guard
+catch_clause ternary_expression labeled_statement break_statement
+continue_statement binary_expression method_invocation field_access this
+line_comment block_comment
+"""
+
+
+def test_java_node_types():
+    types = _types(_parse("java", "sample.java"))
+    assert set(JAVA_NODE_TYPES.split()) <= types
 
 
 def test_go_blocks_hold_a_statement_list_and_else_if_is_direct():

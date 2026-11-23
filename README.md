@@ -7,7 +7,7 @@
 # aihealth
 
 Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter**,
-**Swift/SwiftUI**, **Rust**, **Go**, **TypeScript/TSX**, **JavaScript/JSX**, **C**, **C++**,
+**Swift/SwiftUI**, **Rust**, **Go**, **Java**, **TypeScript/TSX**, **JavaScript/JSX**, **C**, **C++**,
 **Objective-C** / **Objective-C++**, **shell scripts** (bash, zsh), **Makefiles** and **CMake**,
 built as feedback for AI coding agents.
 
@@ -196,8 +196,29 @@ aihealth isn't installed there; for a global install see [AGENT-INSTALL.md](AGEN
   counts as a normal branch. Set `count_error_checks = true` under `[go]` to count them all.
 - **Skipped**: generated files (`// Code generated ... DO NOT EDIT.`, the Go convention).
   `vendor/` is not skipped by default: add it to `[scan] exclude` if you vendor.
-- Generic methods (`func (r *Rand) N[T any]()`) and `new(expr)` (Go 1.26+) are not in the
-  grammar yet: such files report "syntax errors", and the rest of the file is still scored.
+- Generic methods (`func (r *Rand) N[T any]()`, Go 1.27) and `new(expr)` (Go 1.26) are not in
+  the grammar yet; the adapter rewrites them before parsing, so they score like other code.
+
+## Java
+
+`*.java` files are scored with the generic smells.
+
+- **Units**: methods, constructors (record compact constructors too), static and instance
+  initializers, and lambdas bound to a name (`Runnable task = () -> {..}`, fields too).
+  Methods of anonymous classes and enum constants are scored on their own, named after the
+  enclosing unit (`process.Comparator.compare`), so a method full of listeners isn't one
+  giant function. Other lambdas stay part of their method.
+- **Classes**: classes, interfaces, enums and records, nested and local ones too. Low
+  Cohesion sees fields used bare or through `this` (record components are fields).
+  Interfaces have no state and aren't judged, and neither are accessors: getters, setters
+  and fluent setters (`this.x = x; return this;`) each touch one field by design.
+- **Branching**: `else if`, both switch forms (`case ->` and `case :`; `default` and
+  `case null, default` are not paths), `catch`, ternaries, labeled `break`/`continue`.
+- **Skipped**: generated files (`@Generated`, protobuf's `DO NOT EDIT`) and Maven's
+  `target/generated-sources/`. Tests in `src/test/java` are scored like other code.
+- Java 25's `import module` and statements before `super(..)`/`this(..)` are not in the
+  grammar yet, nor are type annotations before varargs or array brackets
+  (`Object @Nullable ... args`); the adapter rewrites them before parsing.
 
 ## TypeScript
 
@@ -373,7 +394,7 @@ boundaries) with a comment (strings and docstrings don't count):
 All metrics, smells and scoring are language-neutral. A language is **one adapter file**
 that tells the engine what the syntax tree means, plus tests that pin that meaning. Python
 (`src/aihealth/lang/python.py`), Dart (`lang/dart.py`), Swift (`lang/swift.py`), Rust
-(`lang/rust.py`), Go (`lang/go.py`), TypeScript (`lang/typescript.py`), JavaScript (`lang/javascript.py`, a
+(`lang/rust.py`), Go (`lang/go.py`), Java (`lang/java.py`), TypeScript (`lang/typescript.py`), JavaScript (`lang/javascript.py`, a
 subclass for a grammar that shares node names) and C/C++/Objective-C(++) (`lang/cfamily.py`,
 one adapter that picks a grammar per file) are the reference adapters; `lang/shell.py` is
 the smallest, and shows units for top-level blocks. Copy the one whose language is closer.

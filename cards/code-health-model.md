@@ -460,6 +460,61 @@ cognitive 116, and its doc generators copy each other. Excess Arguments
 and Primitive Obsession needed no Go change (`context.Context` is a
 domain type).
 
+## Java (M22)
+
+Generic thresholds; one Java rule, measured. Units and grammar notes are in
+the parser card.
+
+**Accessors are not judged for cohesion.** A getter (`return x;`,
+`return this.x;`), a setter (`this.x = x;`) or a fluent setter
+(`this.x = x; return this;`) touches one field by design, so a JavaBean
+splits into one group per field. Measured on the 12 corpora: 548 of 1,376
+Low Cohesion findings (40 %) disappear without them; in 363 flagged
+classes at least half the judged methods were such accessors. Project
+scores move by at most 0.1, healthy files +1 to +6 points. Interfaces
+have no state and aren't judged, as Rust traits.
+
+**`equals()` needs nothing.** Chained field comparisons are 17 of 3,157
+Complex Conditional findings.
+
+**Named units.** Lambdas bound to a name (local or field) are units, as
+named function values are in TypeScript and Go. Methods of anonymous
+classes and enum constant bodies are units named after the enclosing
+unit (`process.Comparator.compare`, `Status.OPEN.label`), with no class.
+
+**Calibration** (`scripts/calibrate.py --only java:`; clones in
+`AIHEALTH_JAVA_CORPORA`, the JDK as a sparse checkout of
+`src/java.base/share/classes`; `src/test`, test modules, benchmarks,
+examples and docs left out):
+
+| Corpus | kind | kLoC | project | median file | healthy % | alert LoC % |
+|---|---|---:|---:|---:|---:|---:|
+| junit5 | lib | 49.9 | 9.5 | 10 | 95 | 1 |
+| retrofit | lib | 4.3 | 8.2 | 10 | 92 | 0 |
+| guava | lib | 96.7 | 8.1 | 10 | 79 | 5 |
+| gson | lib | 10.7 | 8.0 | 10 | 78 | 12 |
+| javapoet | lib | 3.6 | 7.9 | 9.4 | 53 | 0 |
+| jackson-databind | lib | 87.7 | 7.2 | 10 | 69 | 12 |
+| commons-lang | lib | 33.7 | 6.6 | 10 | 81 | 23 |
+| spring-framework | complex | 377.6 | 8.3 | 10 | 83 | 3 |
+| jenkins (core) | complex | 123.4 | 8.2 | 10 | 84 | 0 |
+| netty | complex | 259.4 | 7.8 | 10 | 76 | 5 |
+| kafka | complex | 450.7 | 7.8 | 10 | 80 | 5 |
+| JDK java.base | complex | 542.0 | 6.6 | 10 | 68 | 16 |
+
+Duplication is the top penalty almost everywhere (20–46 %), as in other
+languages, and the largest clones are real: commons-lang's `StringUtils`
+overloads, jackson's `BuilderBasedDeserializer` vs `BeanDeserializer`,
+netty's two bzip2 decoders, kafka's `ConsoleConsumerOptions` vs
+`ConsoleShareConsumerOptions`, retrofit's `parseParameterAnnotation`
+(cyclomatic 80, near-identical branches). The JDK's locale data tables
+and Spring's repackaged ASM `ClassReader` are copies too. **Known gap,
+accepted:** large frameworks (Spring, Jenkins) score above the 5–7 the
+guide aims for complex code: most of their files are small and healthy,
+and their penalties sit in a few big classes. commons-lang is lower than
+a library should be, for real reasons (`StringUtils` alone is 9k lines
+of overloads).
+
 ## TypeScript (M15)
 
 Units and grammar notes are in the parser card. **What counts as a

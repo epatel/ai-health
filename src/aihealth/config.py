@@ -108,6 +108,8 @@ DEFAULT_EXCLUDES: list[str] = [
     "*.d.ts",  # TypeScript declarations: signatures only
     "*.min.js",  # minified bundles
     "*.bundle.js",
+    "target/generated-sources/*",  # Maven annotation processors, protoc, ...
+    "*/target/generated-sources/*",
     "target/debug/*",  # Cargo build output (build-script generated code)
     "target/release/*",
     "*.docc/*",  # DocC catalogs: tutorial step files repeat each other

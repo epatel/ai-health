@@ -23,6 +23,7 @@ from aihealth.lang.base import (
     ExtractionScope,
     LanguageAdapter,
     member_refs_by_method,
+    names_in,
     split_top,
     text,
     type_leaves,
@@ -290,17 +291,11 @@ def _is_member_ref(node: Node, members: set[str]) -> bool:
     return is_name and not _is_foreign_member(node)
 
 
+_NESTED_DECLARATIONS = frozenset({"function_declaration", "class_declaration"})
+
+
 def _member_names_in(body: Node, members: set[str]) -> set[str]:
-    names: set[str] = set()
-    stack = list(body.children)
-    while stack:
-        n = stack.pop()
-        if n.type in ("function_declaration", "class_declaration"):
-            continue
-        if _is_member_ref(n, members):
-            names.add(text(n))
-        stack.extend(n.children)
-    return names
+    return names_in(body, _NESTED_DECLARATIONS, lambda n: _is_member_ref(n, members))
 
 
 # --- roles that depend on context -------------------------------------------------------

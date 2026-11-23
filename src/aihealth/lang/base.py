@@ -38,6 +38,32 @@ def walk_units(body: Node, visit: Callable[[Node], bool]) -> None:
             stack.extend(n.children)
 
 
+def scan_units(
+    scope: ExtractionScope, parent: Node, add_unit: Callable[[ExtractionScope, Node], bool]
+) -> None:
+    """Units under ``parent``: direct children in source order, deeper ones
+    (inside statements and expressions) as they are found. ``add_unit``
+    returns True at a unit boundary, as for `walk_units`."""
+    for child in parent.named_children:
+        if not add_unit(scope, child):
+            walk_units(child, lambda n: add_unit(scope, n))
+
+
+def names_in(body: Node, skip: frozenset[str], is_ref: Callable[[Node], bool]) -> set[str]:
+    """Texts of the nodes under ``body`` that ``is_ref`` picks, not entering
+    ``skip`` node types (nested declarations)."""
+    names: set[str] = set()
+    stack = list(body.children)
+    while stack:
+        n = stack.pop()
+        if n.type in skip:
+            continue
+        if is_ref(n):
+            names.add(text(n))
+        stack.extend(n.children)
+    return names
+
+
 def member_refs_by_method(
     cls: Class, fields: set[str], names_in: Callable[[Node, set[str]], set[str]]
 ) -> dict[str, set[str]]:
@@ -195,6 +221,19 @@ class ExtractionScope:
     def in_class(self, cls: Class) -> ExtractionScope:
         """Scope for the members of ``cls`` (its name becomes the prefix)."""
         return ExtractionScope(self.module, cls, f"{cls.name}.")
+
+    def add_class(self, name: str, kind: str, node: Node) -> Class:
+        """A class spanning ``node``, named ``name`` under this scope's prefix,
+        added to the module."""
+        cls = Class(
+            name=f"{self.prefix}{name}",
+            kind=kind,
+            start_line=node.start_point[0] + 1,
+            end_line=node.end_point[0] + 1,
+            node=node,
+        )
+        self.module.classes.append(cls)
+        return cls
 
 
 @dataclass(frozen=True)

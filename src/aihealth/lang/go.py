@@ -16,10 +16,16 @@ a closure of its enclosing function.
 
 Error checks that only propagate (`if err != nil { return .., err }`) add
 no complexity by default, like Rust's `?` (see cards/code-health-model.md).
+
+Newer syntax the grammar (tree-sitter-go 0.25) cannot parse is rewritten
+before parsing, keeping length and line breaks (`prepare`): a method's type
+parameters (Go 1.27) are blanked, and `new(expr)` (Go 1.26) is read as an
+ordinary call.
 """
 
 from __future__ import annotations
 
+import re
 from typing import ClassVar
 
 from tree_sitter import Node
@@ -242,6 +248,49 @@ def _string_arg(call: Node) -> str | None:
     return text(first)[1:-1] or None
 
 
+# --- source preparation: Go 1.26/1.27 syntax the grammar lacks ------------------------
+
+# `func (r *Rand) N` followed by `[`: a method with type parameters (gofmt: line start)
+_GENERIC_METHOD = re.compile(rb"(?m)^func\s*\([^()]*\)\s*[\w\x80-\xff]+\s*(?=\[)")
+# the builtin `new(`, unless its argument reads as a type (`[`, `<-`, a type keyword,
+# or a `*`/qualified name ending in `)` or `[`): those parse already and keep their
+# tree. `n_w` keeps the length and makes `new(expr)` an ordinary call. Strings, runes
+# and comments match first and stay as they are (subtest names come from strings).
+_NEW_CALL = re.compile(
+    rb'(?P<keep>"(?:[^"\\\n]|\\.)*"|`[^`]*`|\'(?:[^\'\\\n]|\\.)*\'|//[^\n]*|/\*.*?\*/)'
+    rb"|(?<![\w\x80-\xff.])(?<!func )new"
+    rb"(?=\s*\((?!\s*(?:\[|<-|(?:map|chan|struct|interface|func)\b"
+    rb"|\**[A-Za-z_\x80-\xff][\w\x80-\xff.]*\s*[)\[])))",
+    re.DOTALL,
+)
+
+
+def _renamed_new(match: re.Match[bytes]) -> bytes:
+    return match["keep"] or b"n_w"
+
+
+def _closing_bracket(source: bytes, start: int) -> int:
+    """Index of the `]` matching the `[` at ``start``, or -1."""
+    depth = 0
+    for i in range(start, len(source)):
+        depth += {0x5B: 1, 0x5D: -1}.get(source[i], 0)
+        if depth == 0:
+            return i
+    return -1
+
+
+def prepare(source: bytes) -> bytes:
+    """``source`` with method type parameters blanked and `new(` renamed to
+    `n_w(`; same length and line breaks."""
+    buf = bytearray(_NEW_CALL.sub(_renamed_new, source))
+    for match in _GENERIC_METHOD.finditer(source):
+        end = _closing_bracket(source, match.end())
+        for i in range(match.end(), end + 1):
+            if buf[i] not in b"\r\n":
+                buf[i] = 0x20
+    return bytes(buf)
+
+
 class GoAdapter(LanguageAdapter):
     language = "go"
     extensions = (".go",)
@@ -290,6 +339,9 @@ class GoAdapter(LanguageAdapter):
         self.count_error_checks = count_error_checks
         self.test_calls = test_calls
         self._units: set[int] = set()  # ids of func literals scored as units
+
+    def _prepare(self, source: bytes, language: str) -> bytes:
+        return prepare(source)
 
     # --- metric hooks --------------------------------------------------------------------
 

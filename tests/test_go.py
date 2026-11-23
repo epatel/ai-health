@@ -254,6 +254,33 @@ func (w *Wrapper) Write(p []byte) { w.inner.Write(p); other.Write(p) }
     assert m["Wrapper.Write"] == (1, 0, 0)  # delegating to another writer
 
 
+# --- Go 1.26/1.27 syntax the grammar lacks --------------------------------------------
+
+NEWER_SYNTAX = """package p
+func (r *Rand) N[T any, M Map[K, V]](x T,
+\ty M) T {
+\tif x > 0 { return x }
+\treturn x
+}
+func f() *int64 { a := new(int64(300)); b := new(x.f() + 1); return a }
+func g() { a := new([]int); b := new(map[string]int); c := new(T); d := new(*T) }
+func new(x int) int { return x }
+func TestX(t *testing.T) { t.Run("new(x)", func(t *testing.T) { _ = new(1) }) }
+"""
+
+
+def test_generic_methods_and_new_expr_parse():
+    from aihealth.lang.go import prepare
+
+    assert len(prepare(NEWER_SYNTAX.encode())) == len(NEWER_SYNTAX.encode())
+    m = triples(NEWER_SYNTAX)  # asserts no parse errors
+    assert m["Rand.N"] == (2, 1, 1)
+    module = parse_source(NEWER_SYNTAX.encode(), "x_test.go")
+    rand_n = next(f for f in module.all_functions() if f.qualname == "Rand.N")
+    assert (rand_n.start_line, rand_n.end_line, len(rand_n.params)) == (2, 6, 2)
+    assert {"f", "g", "new", "TestX", "TestX.new(x)"} <= set(m)
+
+
 # --- error checks ---------------------------------------------------------------------
 
 ERRORS = """package p
