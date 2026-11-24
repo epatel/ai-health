@@ -179,11 +179,23 @@ def _is_composable(fn: Node | None) -> bool:
     )
 
 
+def _starts_composition(lam: Node) -> bool:
+    """A lambda passed to `setContent` or bound to a `@Composable` property
+    (`val card: @Composable () -> Unit = { .. }`)."""
+    if type_of(lam.parent) == "property_declaration":
+        return "@Composable" in text(first_child(lam.parent, "variable_declaration"))
+    call = _lambda_call(lam)
+    return call is not None and _callee(call) == "setContent"
+
+
 def _in_composable(node: Node) -> bool:
-    fn = node.parent
-    while fn is not None and fn.type != "function_declaration":
-        fn = fn.parent
-    return _is_composable(fn)
+    """Inside a `@Composable` function or a composition lambda."""
+    up = node.parent
+    while up is not None and up.type != "function_declaration":
+        if up.type == "lambda_literal" and _starts_composition(up):
+            return True
+        up = up.parent
+    return _is_composable(up)
 
 
 def _is_layout_call(call: Node) -> bool:
@@ -265,12 +277,14 @@ def _is_foreign(ident: Node) -> bool:
 
 
 def _own_name(node: Node | None) -> str | None:
-    """`x` for `x` or `this.x` (an expression or an assignment target)."""
-    kids = node.named_children if node is not None else []
+    """`x` for `x` or `this.x`, as an expression or an assignment target."""
     if type_of(node) == "simple_identifier":
         return text(node)
-    if len(kids) == 1 and kids[0].type == "simple_identifier":  # assignment target `x`
-        return text(kids[0])
+    if type_of(node) not in ("navigation_expression", "directly_assignable_expression"):
+        return None
+    kids = node.named_children
+    if len(kids) == 1:  # assignment target `x`
+        return _own_name(kids[0])
     if len(kids) == 2 and kids[0].type == "this_expression":  # `this.x`
         return text(first_child(kids[1], "simple_identifier"))
     return None
@@ -287,12 +301,14 @@ def _single_expression(body: Node) -> Node | None:
     return only
 
 
-def _accessed_property(expr: Node | None) -> str | None:
-    """The property `x` that `x` / `this.x` returns or `x = value` stores."""
+def _accessed_property(expr: Node | None, fields: set[str]) -> str | None:
+    """The property `x` that `x` / `this.x` returns or `x = value` stores
+    (``value`` a name that isn't a property too)."""
     if type_of(expr) != "assignment":
         return _own_name(expr)
     target, value = expr.named_children[0], expr.named_children[-1]
-    return _own_name(target) if value.type == "simple_identifier" else None
+    is_value = value.type == "simple_identifier" and text(value) not in fields
+    return _own_name(target) if is_value else None
 
 
 def _is_member_ref(node: Node, members: set[str]) -> bool:
@@ -398,9 +414,9 @@ class KotlinAdapter(LanguageAdapter):
         )
 
     def widget_depth(self, body: Node) -> int:
-        """Deepest nesting of capitalised calls in a `@Composable` function
+        """Deepest nesting of capitalised calls in composable code
         (`Column { Row { Text() } }`)."""
-        return call_nesting(body, _is_layout_call, self.role) if _is_composable(body.parent) else 0
+        return call_nesting(body, lambda c: _is_layout_call(c) and _in_composable(c), self.role)
 
     def hint(self, smell: str) -> str | None:
         if smell == "deep_widget_tree":
@@ -422,7 +438,7 @@ class KotlinAdapter(LanguageAdapter):
         fields = _instance_fields(cls)
 
         def is_accessor(fn: Function) -> bool:
-            in_fields = _accessed_property(_single_expression(fn.body)) in fields
+            in_fields = _accessed_property(_single_expression(fn.body), fields) in fields
             return fn.kind in ("getter", "setter") or in_fields
 
         return member_refs_by_method(cls, fields, _member_names_in, is_accessor)

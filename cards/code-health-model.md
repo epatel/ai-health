@@ -528,7 +528,9 @@ function, a lambda passed to a capitalised call (`Column { }`, `Card(onClick
 = { })`, `Scaffold(topBar = { })`) gets no role, as SwiftUI view builders,
 and those calls make up the widget tree. Effects that run code
 (`LaunchedEffect`, `DisposableEffect`, `SideEffect`) keep the closure
-penalty, as Swift's `Task`. Unlike Swift, the rule needs the annotation:
+penalty, as Swift's `Task`. Lambdas passed to `setContent` and bound to a
+`@Composable` property count as composable code. Unlike Swift, the rule
+needs that context:
 outside composables a capitalised call is a constructor or SAM conversion
 (`Comparator { a, b -> .. }`, `A(B(C(..)))`), not layout. Without the
 exemption, Compose code had 12-23 % more cognitive points and a third to

@@ -532,3 +532,33 @@ class C(var x: Int, val y: Int) {
 }
 """)
     assert refs == {"sum": {"x", "y"}}
+
+
+def test_composition_lambdas_outside_composable_functions():
+    """`setContent { }` (Activities, ComposeView, test rules) and a lambda
+    bound to a `@Composable` property are composable code too."""
+    src = """
+class Main : ComponentActivity() {
+    override fun onCreate(state: Bundle?) {
+        setContent { AppTheme { Column { if (ready) Text("x") } } }
+    }
+}
+val card: @Composable () -> Unit = { Column { Row { if (ready) Text("x") } } }
+"""
+    got = metrics(src)
+    assert (got["Main.onCreate"].cognitive, got["Main.onCreate"].widget_depth) == (2, 3)
+    assert (got["card"].cognitive, got["card"].widget_depth) == (1, 3)
+
+
+def test_accessors_are_single_property_reads_and_stores():
+    """`!flag` and `n!!` are expressions, not accessors; `n = m` copies one
+    property into another and touches both."""
+    [(refs, _)] = cohesion("""
+class C(var n: Int?, val m: Int, val flag: Boolean) {
+    fun neg() = !flag
+    fun bang() = n!!
+    fun copyM() { n = m }
+    fun store(v: Int) { n = v }
+}
+""")
+    assert refs == {"neg": {"flag"}, "bang": {"n"}, "copyM": {"m", "n"}}

@@ -241,7 +241,8 @@ aihealth isn't installed there; for a global install see [AGENT-INSTALL.md](AGEN
   (`else` is not a path; `0, 1 ->` is one), `when` branch conditions and guards
   (`is X if c ->`) can be Complex Conditionals, labeled `break@`/`continue@`. `?.`, `?:` and
   `!!` add nothing (null plumbing, as `??` elsewhere).
-- **Compose**: in a `@Composable` function, a lambda passed to a capitalised call
+- **Compose**: in composable code (`@Composable` functions, `setContent { }`, lambdas bound
+  to a `@Composable` property), a lambda passed to a capitalised call
   (`Column { }`, `Card(onClick = { })`) is layout and adds no cognitive nesting, like SwiftUI
   view builders, and capitalised calls feed Deep Widget Tree. Elsewhere they are constructors
   and SAM conversions (`Comparator { }`) and count as usual. Effects (`LaunchedEffect`, `DisposableEffect`, `SideEffect`) and

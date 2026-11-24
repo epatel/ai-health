@@ -172,7 +172,7 @@ listing every setting with its default, value and meaning. 0.5.1 adds
 `aihealth config --file` (one file's values and which override set them).
 
 **2026-11-26.** M23 (Kotlin) is done as a contributed pull request, not
-released yet. 609 tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
+released yet. 611 tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
 `CHANGELOG.md`.
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
