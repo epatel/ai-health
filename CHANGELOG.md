@@ -7,6 +7,21 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
+## Unreleased
+
+- **Kotlin** (`*.kt`): functions (top-level, members, extensions,
+  local), secondary constructors, `init` blocks, property accessors and
+  lambdas bound to a name are scored; methods of object expressions and
+  enum constants on their own, Kotest/Spek closures as test units
+  (`[kotlin] test_closure_calls`). Classes, data/sealed/value/enum
+  classes, interfaces, objects and companions are classes; accessors and
+  interfaces are left out of Low Cohesion. Lambdas passed to a
+  capitalised call (Compose layout) add no cognitive nesting, and
+  capitalised calls feed Deep Widget Tree; `?.`, `?:` and `!!` add no
+  complexity; parameters with a default value count half for Excess
+  Arguments. `.kts` scripts are not scored yet. New language, so this
+  release is a minor bump: other languages score as before.
+
 ## 0.5.1 (2026-11-25)
 
 - **`aihealth config --file FILE`** (MCP `list_config(file=...)`) shows

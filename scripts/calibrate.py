@@ -78,6 +78,9 @@ GOSRC = goroot()
 # checkout of src/java.base/share/classes)
 JAVA = Path(os.environ.get("AIHEALTH_JAVA_CORPORA", Path.home() / "Development/java-corpora"))
 
+# shallow clones of the Kotlin repos below, in one directory
+KOTLIN = Path(os.environ.get("AIHEALTH_KOTLIN_CORPORA", Path.home() / "Development/kotlin-corpora"))
+
 # (name, path, expectation) - "lib": well-regarded library code, expected mostly
 # healthy; "complex": large, inherently complex code, expected lower.
 CORPORA = [
@@ -210,6 +213,17 @@ CORPORA = [
     ("java:netty", JAVA / "netty", "complex"),
     ("java:jenkins", JAVA / "jenkins/core", "complex"),
     ("java:kafka", JAVA / "kafka", "complex"),
+    ("kt:kotlinx.serialization", KOTLIN / "kotlinx.serialization", "lib"),
+    ("kt:kotlinx.coroutines", KOTLIN / "kotlinx.coroutines", "lib"),
+    ("kt:okhttp", KOTLIN / "okhttp", "lib"),
+    ("kt:moshi", KOTLIN / "moshi", "lib"),
+    ("kt:exposed", KOTLIN / "Exposed", "lib"),
+    ("kt:nowinandroid", KOTLIN / "nowinandroid", "lib"),
+    ("kt:compose-samples", KOTLIN / "compose-samples", "lib"),
+    ("kt:tivi", KOTLIN / "tivi", "lib"),
+    ("kt:ktor", KOTLIN / "ktor", "complex"),
+    ("kt:detekt", KOTLIN / "detekt", "complex"),
+    ("kt:mihon", KOTLIN / "mihon", "complex"),
 ]
 
 
@@ -302,6 +316,21 @@ JAVA_EXCLUDES = [
 ]
 
 
+# Kotlin repos: tests in src/test, src/*Test (multiplatform source sets) or test
+# modules, plus benchmarks and Gradle build output (not `samples/`: package
+# paths such as `com/google/samples/` would match)
+KOTLIN_EXCLUDES = [
+    "*/src/test/*",
+    "*/src/*Test/*",
+    "*/src/androidTest/*",
+    "*/test/*",
+    "*/testFixtures/*",
+    "*/benchmarks/*",
+    "*/benchmark/*",
+    "*/build/*",
+]
+
+
 def corpus_config(name: str) -> Config:
     config = Config()
     if name.startswith("ts:"):
@@ -316,6 +345,8 @@ def corpus_config(name: str) -> Config:
         config.data["scan"]["exclude"] = list(GO_EXCLUDES)
     elif name.startswith("java:"):
         config.data["scan"]["exclude"] = list(JAVA_EXCLUDES)
+    elif name.startswith("kt:"):
+        config.data["scan"]["exclude"] = list(KOTLIN_EXCLUDES)
     return config
 
 

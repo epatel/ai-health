@@ -7,7 +7,7 @@
 # aihealth
 
 Code health estimates (1–10, CodeScene-style) for **Python**, **Dart/Flutter**,
-**Swift/SwiftUI**, **Rust**, **Go**, **Java**, **TypeScript/TSX**, **JavaScript/JSX**, **C**, **C++**,
+**Swift/SwiftUI**, **Rust**, **Go**, **Java**, **Kotlin/Compose**, **TypeScript/TSX**, **JavaScript/JSX**, **C**, **C++**,
 **Objective-C** / **Objective-C++**, **shell scripts** (bash, zsh), **Makefiles** and **CMake**,
 built as feedback for AI coding agents.
 
@@ -18,7 +18,7 @@ built as feedback for AI coding agents.
 
 Scores come from 13 explainable code smells: Brain Method, Large/Complex Method, Cognitive
 Complexity, Deep Nesting, Bumpy Road, Excess Arguments, Complex Conditional, Deep Widget
-Tree (Flutter, SwiftUI, JSX), Large File, Low Cohesion, Primitive Obsession and Code Duplication. Bands:
+Tree (Flutter, SwiftUI, Compose, JSX), Large File, Low Cohesion, Primitive Obsession and Code Duplication. Bands:
 healthy ≥ 9, warning 4–9, alert < 4.
 
 ## Install
@@ -221,6 +221,32 @@ aihealth isn't installed there; for a global install see [AGENT-INSTALL.md](AGEN
   grammar yet, nor are type annotations before varargs or array brackets
   (`Object @Nullable ... args`); the adapter rewrites them before parsing.
 
+## Kotlin
+
+`*.kt` files are scored with the generic smells. Gradle scripts (`*.kts`) are not scored yet.
+
+- **Units**: functions (top-level, members, extensions as `String.shout`, local), secondary
+  constructors, `init` blocks, property getters and setters, and lambdas or anonymous
+  functions bound to a name (`val onClick = { .. }`). Methods of object expressions and enum
+  constants are scored on their own, named after the enclosing unit (`start.Runnable.run`,
+  `Status.OPEN.next`). Kotest and Spek closures (`describe`, `it`, `test`, `should`, ...)
+  are test units, like Dart's; configure them with `[kotlin] test_closure_calls`. JUnit and
+  kotlin.test methods are ordinary methods.
+- **Classes**: classes (data, sealed, value, enum), interfaces, objects and companion
+  objects. Low Cohesion sees `val`/`var` constructor parameters and body properties used
+  bare or through `this`; interfaces and accessors (property getters and setters, functions
+  that only return or store one property) aren't judged.
+- **Branching**: `if`/`else if` (also as expressions), loops, `catch`, `when` branches
+  (`else` is not a path; `0, 1 ->` is one), `when` branch conditions and guards
+  (`is X if c ->`) can be Complex Conditionals, labeled `break@`/`continue@`. `?.`, `?:` and
+  `!!` add nothing (null plumbing, as `??` elsewhere).
+- **Compose**: a lambda passed to a capitalised call (`Column { }`, `Card(onClick = { })`)
+  is layout and adds no cognitive nesting, like SwiftUI view builders; capitalised calls
+  feed Deep Widget Tree. Effects (`LaunchedEffect`, `DisposableEffect`, `SideEffect`) and
+  lowercase calls (`let`, `map`, `forEach`, `launch`) keep the usual closure nesting.
+- **Excess Arguments**: a parameter with a default value counts half (callers skip it or
+  name it, as with `modifier: Modifier = Modifier`).
+
 ## TypeScript
 
 `*.ts`, `*.mts`, `*.cts` and `*.tsx` files are scored with the generic smells.
@@ -383,6 +409,9 @@ test_closure_calls = ["describe", "it", "test"]
 [javascript]                     # .js, .mjs, .cjs and .jsx
 test_closure_calls = ["describe", "it", "test"]
 
+[kotlin]
+test_closure_calls = ["describe", "it", "test"]   # Kotest / Spek specs
+
 [go]
 count_error_checks = true        # count `if err != nil { return .. }` (default: false)
 test_closure_calls = ["Run"]     # `t.Run("name", func(t *testing.T) {..})`
@@ -411,7 +440,7 @@ boundaries) with a comment (strings and docstrings don't count):
 All metrics, smells and scoring are language-neutral. A language is **one adapter file**
 that tells the engine what the syntax tree means, plus tests that pin that meaning. Python
 (`src/aihealth/lang/python.py`), Dart (`lang/dart.py`), Swift (`lang/swift.py`), Rust
-(`lang/rust.py`), Go (`lang/go.py`), Java (`lang/java.py`), TypeScript (`lang/typescript.py`), JavaScript (`lang/javascript.py`, a
+(`lang/rust.py`), Go (`lang/go.py`), Java (`lang/java.py`), Kotlin (`lang/kotlin.py`), TypeScript (`lang/typescript.py`), JavaScript (`lang/javascript.py`, a
 subclass for a grammar that shares node names) and C/C++/Objective-C(++) (`lang/cfamily.py`,
 one adapter that picks a grammar per file) are the reference adapters; `lang/shell.py` is
 the smallest, and shows units for top-level blocks. Copy the one whose language is closer.
@@ -498,10 +527,12 @@ I'd do it in this order. Each step has a check before you move on.
 - **Idiomatic branching**: Go's `if err != nil { return err }` would add a branch to every
   call. Measure its share in calibration before exempting it (Go does: 5–15 % of
   cognitive points; shell `cmd || die` doesn't: 3 %).
-- **Named arguments**: Kotlin, Swift and C# have them, and they should count half,
-  consistent with Dart and Python.
+- **Named arguments**: where a name is required at the call site (Swift labels, Dart `{}`,
+  Python keyword-only) the parameter counts half. Where naming is optional (Kotlin, C#),
+  Kotlin counts only parameters with a default value half: callers skip or name those.
 - **UI trees**: JSX, SwiftUI `body` and Compose `@Composable` functions map onto
-  `widget_depth` and the Deep Widget Tree smell.
+  `widget_depth` and the Deep Widget Tree smell. Layout closures (SwiftUI, Compose) add no
+  cognitive nesting; measure that on a UI codebase before and after.
 - **Tests inside `src/`** (TypeScript `__tests__/`, `*.test.ts`): calibrate on library code
   only, or the test files' copy-paste dominates the numbers.
 - **Tests in the same file** (Rust `#[cfg(test)] mod tests`): repetitive test code then

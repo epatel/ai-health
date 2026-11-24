@@ -290,6 +290,52 @@ type information (e.g. Primitive Obsession on inferred types).
   included), 0 crashes, 389,695 of 389,695 method, constructor and
   initializer bodies extracted, 4 ms per file.
 
+## Kotlin (M23)
+
+- Grammar `kotlin` (tree-sitter-language-pack 1.25.2). Parses Kotlin 2.x
+  with zero errors in the fixture, including what tree-sitter-kotlin 0.3.8
+  lacked: `when` guards (`is X if c ->`, a `guard_condition`), context
+  parameters (`context(x: T)`, a `context_receiver` in the modifiers) and
+  multi-dollar strings (`$$"..."`). No source rewrites needed.
+- **Almost no fields.** Only `if_expression` has `condition` /
+  `consequence` / `alternative`, and `function_declaration` a `receiver`.
+  Names are the first `simple_identifier` (functions, properties) or
+  `type_identifier` (classes) child; a body is a `function_body` (`= expr`
+  or `{ statements }`). `init { }` and secondary constructors hold their
+  `statements` directly.
+- **Else-if is wrapped**: the `alternative` is a `control_structure_body`
+  holding one `if_expression` (`else_if` hook). An `if` inside an else
+  *block* sits in `control_structure_body > statements` and is a nested if.
+- **Accessors move**: a getter or setter on the same line is a child of its
+  `property_declaration`, on its own line a *sibling* in the class body. The
+  adapter pairs it with the property declared before it. A misparse of
+  object expressions with several generic supertypes puts members inside a
+  lambda; the getter there is found the same way.
+- Classes: `class_declaration` covers class, interface (anonymous
+  `interface` token), enum (`enum` token, `enum_class_body` with
+  `enum_entry` children), data / sealed / value / annotation (words in
+  `modifiers`); `object_declaration`, `companion_object` (name optional,
+  `Companion`) and `object_literal` (expression) are separate.
+- Parameters: `parameter` (name + type); a default value is the *sibling*
+  after it, `vararg` a `parameter_modifiers` sibling before it. Primary
+  constructors (`class_parameter`, `val`/`var` = `binding_pattern_kind`)
+  have no body, so they are not units.
+- Lambdas: `lambda_literal`, trailing in `annotated_lambda` under the
+  `call_suffix`, or in a `value_argument` (`content = { }`). The callee is
+  the call's first child, or the last `navigation_suffix` of
+  `x?.let { }`. Jumps are all `jump_expression`; the first token tells
+  `break@` / `continue@` (labeled) from `break` / `return@`. A loop label
+  (`outer@`) is a `label` sibling before the loop.
+- Boolean operators: `conjunction_expression` / `disjunction_expression`
+  with `&&` / `||` tokens; precedence is correct in the tree.
+  `elvis_expression` (`?:`), `?.` and `!!` (in `postfix_expression`) get no
+  role.
+- Coverage: 9,096 files (1.18M lines: the calibration clones, tests
+  included, and a 36k-line Compose app), 0 crashes, 62,376 of 62,376
+  function, accessor, constructor and initializer bodies extracted, about
+  10 ms per file. Parse errors: 2 files (Maven archetype templates with
+  `{{packageName}}`).
+
 ## TypeScript (M15)
 
 - Grammars `typescript` (`.ts`, `.mts`, `.cts`) and `tsx` (`.tsx`) from
