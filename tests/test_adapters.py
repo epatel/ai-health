@@ -26,8 +26,8 @@ def test_adapter_by_extension(path, lang):
 
 
 def test_unsupported_extension():
-    assert adapter_for("Main.kt") is None
-    assert parse_source(b"package main", "Main.kt") is None
+    assert adapter_for("Program.cs") is None
+    assert parse_source(b"namespace App;", "Program.cs") is None
 
 
 def test_partial_parse_counts_errors():

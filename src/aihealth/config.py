@@ -28,6 +28,9 @@ Example `.aihealth.toml`::
     [javascript]                # .js, .mjs, .cjs and .jsx
     test_closure_calls = ["describe", "it", "test"]
 
+    [kotlin]
+    test_closure_calls = ["describe", "it", "test"]   # Kotest / Spek specs
+
     [go]
     count_error_checks = true   # score `if err != nil { return .. }` (default: false)
     test_closure_calls = ["Run"]   # `t.Run("name", func(t *testing.T) {..})`
@@ -150,6 +153,7 @@ DEFAULTS: dict[str, Any] = {
     "rust": {"score_test_modules": False},
     "typescript": {"test_closure_calls": None},  # for .ts and .tsx
     "javascript": {"test_closure_calls": None},
+    "kotlin": {"test_closure_calls": None},
     # error checks that only return: no complexity by default (code-health-model)
     "go": {"count_error_checks": False, "test_closure_calls": None},
 }
@@ -280,7 +284,7 @@ class Config:
         return base + list(scan["exclude"])
 
     def adapter_options(self, language: str) -> dict[str, Any]:
-        if language in ("dart", "swift", "typescript", "tsx", "javascript"):
+        if language in ("dart", "swift", "typescript", "tsx", "javascript", "kotlin"):
             section = "typescript" if language == "tsx" else language
             calls = self.data[section]["test_closure_calls"]
             return {} if calls is None else {"test_calls": frozenset(calls)}

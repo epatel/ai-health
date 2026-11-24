@@ -1,5 +1,5 @@
 """M1 spike: tree-sitter grammars parse real Python, Dart 3 / Flutter, Swift, Rust, Go, Java,
-TypeScript, CMake, C, C++, Objective-C and shell code.
+Kotlin, TypeScript, CMake, C, C++, Objective-C and shell code.
 
 These tests pin the node type names the M2 adapters will rely on, so a
 grammar upgrade that renames them fails loudly here.
@@ -49,6 +49,7 @@ def _errors(node) -> list[tuple[int, str]]:
         ("rust", "sample.rs"),
         ("go", "sample.go"),
         ("java", "sample.java"),
+        ("kotlin", "sample.kt"),
         ("typescript", "sample.ts"),
         ("tsx", "sample.tsx"),
         ("javascript", "sample.js"),
@@ -238,6 +239,48 @@ line_comment block_comment
 def test_java_node_types():
     types = _types(_parse("java", "sample.java"))
     assert set(JAVA_NODE_TYPES.split()) <= types
+
+
+KOTLIN_NODE_TYPES = """
+class_declaration object_declaration companion_object class_body enum_class_body
+enum_entry primary_constructor class_parameter binding_pattern_kind
+delegation_specifier function_declaration receiver_type function_value_parameters
+parameter parameter_modifiers function_body statements property_declaration
+variable_declaration getter setter anonymous_initializer secondary_constructor
+lambda_literal annotated_lambda lambda_parameters object_literal call_expression
+call_suffix value_arguments value_argument navigation_expression navigation_suffix
+if_expression control_structure_body when_expression when_subject when_entry
+when_condition guard_condition for_statement while_statement label jump_expression
+try_expression catch_block conjunction_expression disjunction_expression
+elvis_expression context_receiver this_expression line_comment multiline_comment
+"""
+
+
+def test_kotlin_node_types():
+    types = _types(_parse("kotlin", "sample.kt"))
+    assert set(KOTLIN_NODE_TYPES.split()) <= types
+
+
+def test_kotlin_else_if_is_wrapped_and_accessors_can_be_siblings():
+    """Kotlin quirks: the `alternative` of an if is a `control_structure_body`
+    (holding an `if_expression` for else-if), and a getter on its own line is
+    a sibling of its property, not a child."""
+    src = b"""class A {
+    val x: Int
+        get() = 1
+    fun f(a: Int) = if (a > 1) 1 else if (a > 0) 2 else 3
+}"""
+    root = get_parser("kotlin").parse(src).root_node
+    body = root.named_children[0].named_children[-1]
+    assert [c.type for c in body.named_children] == [
+        "property_declaration",
+        "getter",
+        "function_declaration",
+    ]
+    outer = body.named_children[2].named_children[-1].named_children[0]
+    alt = outer.child_by_field_name("alternative")
+    assert alt.type == "control_structure_body"
+    assert [c.type for c in alt.named_children] == ["if_expression"]
 
 
 def test_go_blocks_hold_a_statement_list_and_else_if_is_direct():
