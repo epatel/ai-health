@@ -2,10 +2,12 @@
 
 from pathlib import Path
 
+import pytest
 from helpers import check_base_types, findings_of, metric_table
 
 from aihealth.config import Config
 from aihealth.lang import adapter_for, is_supported, parse_file, parse_source
+from aihealth.lang.kotlin import DEFAULT_TEST_CALLS
 from aihealth.metrics import function_metrics
 from aihealth.smells import _effective_args, lcom4
 
@@ -70,13 +72,13 @@ def test_fixture_units_and_kinds():
 
 FIXTURE_CLASSES = """
 Shape interface
-Shape.Circle data class
-Shape.Empty object
-Status enum
-OrderId value class
+Shape.Circle class
+Shape.Empty class
+Status class
+OrderId class
 Priced interface
 OrderRepository class
-OrderRepository.Companion companion object
+OrderRepository.Companion class
 OrderSpec class
 """
 
@@ -127,7 +129,7 @@ class Cart {
 """
     assert units(src) == [
         ("List.second", "function"),
-        ("total", "getter"),
+        ("Order.total", "getter"),
         ("Cart.checkout", "method"),
         ("Cart.checkout.validate", "function"),
         ("Cart.checkout.fmt", "function"),
@@ -400,7 +402,7 @@ List<Order> => Order
 Map<String, Int?> => String Int
 kotlin.Long => Long
 MutableList<out Shape> => Shape
-List<*> => List
+List<*> => -
 Array<String> => String
 IntArray => IntArray
 @Composable () -> Unit => -
@@ -463,3 +465,70 @@ class MediaType(val type: String, val subtype: String, private val params: Array
 """)
     assert refs == {"charset": {"params", "subtype"}}
     assert groups is None  # too few judged methods
+
+
+# --- review regressions ------------------------------------------------------------------
+
+
+def test_annotated_and_suspend_parameter_types():
+    src = "fun f(content: @Composable () -> Unit, load: suspend () -> Unit, n: @Ann Int) {}"
+    (fn,) = parse_source(src.encode(), "X.kt").all_functions()
+    types = [p.type_text for p in fn.params]
+    assert types == ["@Composable () -> Unit", "suspend () -> Unit", "@Ann Int"]
+    adapter = adapter_for("X.kt")
+    assert [adapter.is_primitive(t) for t in types] == [None, None, True]
+
+
+def test_lambda_parameters_have_names_and_types():
+    src = "val f = { a: Int, (k, v): Pair<String, Int> -> a }"
+    (fn,) = parse_source(src.encode(), "X.kt").all_functions()
+    assert [(p.name, p.type_text) for p in fn.params] == [("a", "Int"), ("(k, v)", None)]
+
+
+def test_lambdas_bound_to_class_properties_are_methods():
+    src = "class C { val onClick = { go() }; val f = fun() { go() } }"
+    assert units(src) == [("C.f", "method"), ("C.onClick", "method")]  # same line: by name
+
+
+def test_layout_rules_apply_only_in_composable_functions():
+    """Outside `@Composable` functions a capitalised call is a constructor
+    or SAM conversion (`Comparator { }`): its lambda keeps the closure
+    penalty and it builds no widget tree."""
+    src = """
+fun sorter() = Comparator<Int> { a, b -> if (a > b) 1 else -1 }
+fun nested() = A(B(C(D(E(F(G(H(I(1)))))))))
+"""
+    got = metrics(src)
+    assert got["sorter"].cognitive == 3  # if +2 (in a lambda), else +1
+    assert got["nested"].widget_depth == 0
+
+
+@pytest.mark.parametrize("effect", ["LaunchedEffect", "DisposableEffect", "SideEffect"])
+def test_compose_effects_keep_closure_nesting(effect):
+    src = f"@Composable fun S(k: Int) {{ {effect}(k) {{ if (k > 0) run() }} }}"
+    assert metrics(src)["S"].cognitive == 2
+
+
+@pytest.mark.parametrize("call", sorted(DEFAULT_TEST_CALLS))
+def test_default_test_closure_calls(call):
+    src = f'class S : Spec({{ {call}("x") {{ run() }} }})'
+    assert units(src) == [(f'S.{call}("x")', "test")]
+
+
+def test_string_spec_styles_are_not_units():
+    """Kotest's `"name" { }` and infix styles are not calls by name: the
+    closures stay part of the spec's body (documented gap)."""
+    assert units('class S : StringSpec({ "adds" { check() } })') == []
+
+
+def test_accessor_detection_needs_a_property():
+    """`fun id(p: Int) = p` returns a parameter, not a property: judged.
+    `this.x = v` stores a property: an accessor."""
+    [(refs, _)] = cohesion("""
+class C(var x: Int, val y: Int) {
+    fun setX(v: Int) { this.x = v }
+    fun id(p: Int) = p
+    fun sum() = x + y
+}
+""")
+    assert refs == {"sum": {"x", "y"}}

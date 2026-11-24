@@ -308,7 +308,8 @@ type information (e.g. Primitive Obsession on inferred types).
   *block* sits in `control_structure_body > statements` and is a nested if.
 - **Accessors move**: a getter or setter on the same line is a child of its
   `property_declaration`, on its own line a *sibling* in the class body. The
-  adapter pairs it with the property declared before it. A misparse of
+  adapter pairs it with the property declared before it (the unit is named
+  `Order.total` for an extension property). A misparse of
   object expressions with several generic supertypes puts members inside a
   lambda; the getter there is found the same way.
 - Classes: `class_declaration` covers class, interface (anonymous

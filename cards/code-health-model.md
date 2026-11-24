@@ -523,15 +523,18 @@ are in the parser card. Decisions on the open questions were taken by
 three independent reviewers (Kotlin/Compose practice, this model's
 conventions, the Sonar / detekt specs), with measurement as the tie-break.
 
-**Compose layout lambdas add no cognitive nesting.** A lambda passed to a
-capitalised call (`Column { }`, `Card(onClick = { })`, `Scaffold(topBar =
-{ })`) gets no role, as SwiftUI view builders. Effects that run code
-(`LaunchedEffect`, `DisposableEffect`, `SideEffect`, `Thread`, `Runnable`,
-`Callable`) keep the closure penalty, as Swift's `Task`. Without the
+**Compose layout lambdas add no cognitive nesting.** In a `@Composable`
+function, a lambda passed to a capitalised call (`Column { }`, `Card(onClick
+= { })`, `Scaffold(topBar = { })`) gets no role, as SwiftUI view builders,
+and those calls make up the widget tree. Effects that run code
+(`LaunchedEffect`, `DisposableEffect`, `SideEffect`) keep the closure
+penalty, as Swift's `Task`. Unlike Swift, the rule needs the annotation:
+outside composables a capitalised call is a constructor or SAM conversion
+(`Comparator { a, b -> .. }`, `A(B(C(..)))`), not layout. Without the
 exemption, Compose code had 12-23 % more cognitive points and a third to
 three quarters more Cognitive Complexity findings (the app below 23 → 35,
-mihon 70 → 94, compose-samples 9 → 14, tivi 4 → 7); non-UI corpora moved
-by 0-0.5 %. Deep
+mihon 71 → 94, compose-samples 9 → 14, tivi 4 → 7); non-UI corpora are
+unaffected. Deep
 Nesting is unaffected either way: closures never deepen it.
 
 **Scope functions keep the closure penalty.** `x?.let { }` is a null check
@@ -562,7 +565,7 @@ Widget Tree (> 8) fits unchanged.
 **Accessors are not judged for cohesion**, as in Java: property getters
 and setters, and functions that only return or store one property
 (`fun type() = type`, okhttp's `MediaType`). Low Cohesion findings 151 →
-98 on the corpora, project scores within 0.1. Interfaces aren't judged.
+99 on the corpora, project scores within 0.1. Interfaces aren't judged.
 
 **`Boolean` is neutral** for Primitive Obsession, as `bool` everywhere.
 `Int`, `Long`, `String`, `Any`, unsigned types, collections and
@@ -581,7 +584,7 @@ output left out):
 | moshi | lib | 10.1 | 8.6 | 10 | 78 | 0 |
 | Exposed | lib | 44.2 | 8.0 | 10 | 79 | 4 |
 | nowinandroid | app | 14.0 | 9.2 | 10 | 92 | 0 |
-| compose-samples | app | 36.9 | 8.8 | 10 | 86 | 0 |
+| compose-samples | app | 36.9 | 8.8 | 10 | 85 | 0 |
 | tivi | app | 25.2 | 9.2 | 10 | 92 | 0 |
 | ktor | complex | 116.1 | 9.1 | 10 | 87 | 0 |
 | detekt | complex | 31.8 | 9.6 | 10 | 96 | 0 |

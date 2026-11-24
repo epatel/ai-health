@@ -27,6 +27,32 @@ def text(node: Node | None) -> str:
     return node.text.decode("utf-8", "replace") if node is not None else ""
 
 
+def type_of(node: Node | None) -> str:
+    return node.type if node is not None else ""
+
+
+def first_child(node: Node | None, *types: str) -> Node | None:
+    """First named child of one of ``types``."""
+    if node is None:
+        return None
+    return next((c for c in node.named_children if c.type in types), None)
+
+
+def start_line(node: Node) -> int:
+    return node.start_point[0] + 1
+
+
+def end_line(node: Node) -> int:
+    return node.end_point[0] + 1
+
+
+def short_label(desc: str) -> str:
+    """A test description as a unit name: whitespace collapsed, at most 60
+    characters."""
+    desc = " ".join(desc.split())
+    return desc if len(desc) <= 60 else desc[:57] + "..."
+
+
 def walk_units(body: Node, visit: Callable[[Node], bool]) -> None:
     """Visit ``body``'s descendants for nested units (local functions, test
     closures). ``visit`` returns True at a unit boundary, whose insides belong

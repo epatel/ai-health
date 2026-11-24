@@ -15,9 +15,9 @@ release here.
   enum constants on their own, Kotest/Spek closures as test units
   (`[kotlin] test_closure_calls`). Classes, data/sealed/value/enum
   classes, interfaces, objects and companions are classes; accessors and
-  interfaces are left out of Low Cohesion. Lambdas passed to a
-  capitalised call (Compose layout) add no cognitive nesting, and
-  capitalised calls feed Deep Widget Tree; `?.`, `?:` and `!!` add no
+  interfaces are left out of Low Cohesion. In `@Composable` functions,
+  lambdas passed to a capitalised call (layout) add no cognitive nesting,
+  and capitalised calls feed Deep Widget Tree; `?.`, `?:` and `!!` add no
   complexity; parameters with a default value count half for Excess
   Arguments. `.kts` scripts are not scored yet. New language, so this
   release is a minor bump: other languages score as before.

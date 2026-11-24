@@ -230,8 +230,9 @@ aihealth isn't installed there; for a global install see [AGENT-INSTALL.md](AGEN
   functions bound to a name (`val onClick = { .. }`). Methods of object expressions and enum
   constants are scored on their own, named after the enclosing unit (`start.Runnable.run`,
   `Status.OPEN.next`). Kotest and Spek closures (`describe`, `it`, `test`, `should`, ...)
-  are test units, like Dart's; configure them with `[kotlin] test_closure_calls`. JUnit and
-  kotlin.test methods are ordinary methods.
+  are test units, like Dart's; configure them with `[kotlin] test_closure_calls`. Kotest's
+  string styles (`"adds" { }`, `"a" should { }`) aren't calls by name and stay part of the
+  spec. JUnit and kotlin.test methods are ordinary methods.
 - **Classes**: classes (data, sealed, value, enum), interfaces, objects and companion
   objects. Low Cohesion sees `val`/`var` constructor parameters and body properties used
   bare or through `this`; interfaces and accessors (property getters and setters, functions
@@ -240,9 +241,10 @@ aihealth isn't installed there; for a global install see [AGENT-INSTALL.md](AGEN
   (`else` is not a path; `0, 1 ->` is one), `when` branch conditions and guards
   (`is X if c ->`) can be Complex Conditionals, labeled `break@`/`continue@`. `?.`, `?:` and
   `!!` add nothing (null plumbing, as `??` elsewhere).
-- **Compose**: a lambda passed to a capitalised call (`Column { }`, `Card(onClick = { })`)
-  is layout and adds no cognitive nesting, like SwiftUI view builders; capitalised calls
-  feed Deep Widget Tree. Effects (`LaunchedEffect`, `DisposableEffect`, `SideEffect`) and
+- **Compose**: in a `@Composable` function, a lambda passed to a capitalised call
+  (`Column { }`, `Card(onClick = { })`) is layout and adds no cognitive nesting, like SwiftUI
+  view builders, and capitalised calls feed Deep Widget Tree. Elsewhere they are constructors
+  and SAM conversions (`Comparator { }`) and count as usual. Effects (`LaunchedEffect`, `DisposableEffect`, `SideEffect`) and
   lowercase calls (`let`, `map`, `forEach`, `launch`) keep the usual closure nesting.
 - **Excess Arguments**: a parameter with a default value counts half (callers skip it or
   name it, as with `modifier: Modifier = Modifier`).

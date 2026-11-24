@@ -142,8 +142,9 @@ Status: `todo` / `wip` / `done`.
   before parsing (tree-sitter-java has not released since Dec 2024). See
   the Java sections of both cards.
 - **Kotlin** (M23, contributed): generic thresholds, no source
-  rewrites (the pack's grammar parses Kotlin 2.x). Lambdas passed to a
-  capitalised call (Compose) add no cognitive nesting, effects excepted;
+  rewrites (the pack's grammar parses Kotlin 2.x). In `@Composable`
+  functions, lambdas passed to a capitalised call add no cognitive
+  nesting, effects excepted;
   scope functions keep it (0.7-3.5 % of cognitive points, below the 5 %
   set for an exemption). `?.`/`?:`/`!!` add nothing. Parameters with a
   default count half (Kotlin names are optional). `@Composable` keeps the
@@ -168,8 +169,10 @@ Both are released as 0.4.0.
 **2026-11-25.** Released 0.5.0: per-path `[[overrides]]` of weights and
 thresholds in `.aihealth.toml`, and `aihealth config` / MCP `list_config`
 listing every setting with its default, value and meaning. 0.5.1 adds
-`aihealth config --file` (one file's values and which override set them). 577
-tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
+`aihealth config --file` (one file's values and which override set them).
+
+**2026-11-26.** M23 (Kotlin) is done as a contributed pull request, not
+released yet. 609 tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
 `CHANGELOG.md`.
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
@@ -180,9 +183,6 @@ Makefiles and CMake
 server (6 tools), SQLite history with migrations, a dashboard, and
 Claude Code hooks. Scoring is calibrated on 127 corpora, plus
 distribution checks on Makefiles and CMake files.
-
-**M23 (Kotlin)** was contributed as a pull request (not released yet):
-see the Kotlin sections of both cards.
 
 **Next task (M24): ask the user which language.** Candidates: C#,
 Kotlin `.kts` (Gradle scripts, after a distribution check).
