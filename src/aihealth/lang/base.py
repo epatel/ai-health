@@ -65,12 +65,35 @@ def names_in(body: Node, skip: frozenset[str], is_ref: Callable[[Node], bool]) -
 
 
 def member_refs_by_method(
-    cls: Class, fields: set[str], names_in: Callable[[Node, set[str]], set[str]]
+    cls: Class,
+    fields: set[str],
+    names_in: Callable[[Node, set[str]], set[str]],
+    unjudged: Callable[[Function], bool] | None = None,
 ) -> dict[str, set[str]]:
     """Per method qualname: the class members (``fields`` plus non-constructor
-    method names, setters `x=` as `x`) that ``names_in(body, members)`` finds."""
+    method names, setters `x=` as `x`) that ``names_in(body, members)`` finds.
+    Methods ``unjudged`` picks (accessors) touch nothing."""
     members = {m.name.rstrip("=") for m in cls.methods if m.kind != "constructor"} | fields
-    return {fn.qualname: names_in(fn.body, members) for fn in cls.methods}
+    return {
+        fn.qualname: set() if unjudged and unjudged(fn) else names_in(fn.body, members)
+        for fn in cls.methods
+    }
+
+
+def call_nesting(body: Node, is_ui_call: Callable[[Node], bool], role) -> int:
+    """Deepest nesting of `call_expression` nodes ``is_ui_call`` picks
+    (`VStack { Text(..) }`, `Column { Row { } }`), not entering nested units
+    (``role`` STOP)."""
+    best = 0
+    stack = [(body, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if node.type == "call_expression" and is_ui_call(node):
+            depth += 1
+            best = max(best, depth)
+        if node is body or role(node) is not Role.STOP:
+            stack.extend((c, depth) for c in node.children)
+    return best
 
 
 def code_lines(root: Node, skip: Callable[[Node], bool]) -> set[int]:
@@ -265,6 +288,9 @@ class LanguageAdapter:
     block_types: ClassVar[frozenset[str]] = frozenset({"block"})
     # nodes between two boolean expressions that don't break the sequence
     bool_transparent: ClassVar[frozenset[str]] = frozenset({"parenthesized_expression"})
+    # nodes whose boolean child is a branch condition without an IF/LOOP owner
+    # (Kotlin `when` branch conditions and guards)
+    condition_types: ClassVar[frozenset[str]] = frozenset()
 
     # --- metric hooks -------------------------------------------------------
 
