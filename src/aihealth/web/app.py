@@ -120,7 +120,7 @@ def create_app(repo: str | Path, db: str | Path | None = None, host: str = "127.
         data = views.file_view(c, scan_id, path) if scan_id is not None else None
         if data is None:
             raise HTTPException(404, f"{path} not in scan {scan_id}")
-        limits = load_config(repo).section("thresholds")
+        limits = load_config(repo).for_path(path).section("thresholds")
         return page(request, "file.html", scan_id=scan_id, limits=limits, **data)
 
     @app.post("/scan")

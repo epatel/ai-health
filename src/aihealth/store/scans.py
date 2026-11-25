@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
@@ -39,7 +39,10 @@ def connect(path: str | Path) -> sqlite3.Connection:
 
 
 def config_hash(config: Config) -> str:
-    blob = json.dumps(config.data, sort_keys=True, default=str).encode()
+    data = dict(config.data)
+    if config.rules:  # left out when unused, so existing histories keep their hash
+        data["overrides"] = [asdict(rule) for rule in config.rules]
+    blob = json.dumps(data, sort_keys=True, default=str).encode()
     return hashlib.sha256(blob).hexdigest()[:12]
 
 

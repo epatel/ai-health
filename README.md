@@ -382,6 +382,17 @@ count_error_checks = true        # count `if err != nil { return .. }` (default:
 test_closure_calls = ["Run"]     # `t.Run("name", func(t *testing.T) {..})`
 ```
 
+Tune weights and thresholds for some files with `[[overrides]]` tables. Every table whose
+`paths` match a file applies to it, later tables win. Paths are relative to the project root
+and match like `[scan] exclude`. Only `weights` and `thresholds` can be overridden:
+
+```toml
+[[overrides]]
+paths = ["tests/*", "legacy/*"]
+weights = { code_duplication = 0.25 }   # 0 switches the smell off for these files
+thresholds = { large_method = 120 }
+```
+
 Turn smells off for one file where they are imposed by an interface (e.g. CLI/JSON/MCP
 boundaries) with a comment (strings and docstrings don't count):
 

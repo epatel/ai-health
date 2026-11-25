@@ -31,6 +31,11 @@ Example `.aihealth.toml`::
     [go]
     count_error_checks = true   # score `if err != nil { return .. }` (default: false)
     test_closure_calls = ["Run"]   # `t.Run("name", func(t *testing.T) {..})`
+
+    [[overrides]]               # for some files (see overrides.py); later tables win
+    paths = ["tests/*", "legacy/*"]   # same matching as scan.exclude
+    weights = { code_duplication = 0.25 }
+    thresholds = { large_method = 120 }
 """
 
 from __future__ import annotations
@@ -40,6 +45,10 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+# the config API is keyed by smell and table names: strings by nature
+# aihealth: disable=primitive_obsession
+from aihealth.overrides import OVERRIDABLE, PathRule, parse_rules, path_matches
 
 CONFIG_FILE = ".aihealth.toml"
 
@@ -154,6 +163,10 @@ class ConfigError(ValueError):
 class Config:
     data: dict[str, Any] = field(default_factory=lambda: copy.deepcopy(DEFAULTS))
     source: Path | None = None
+    rules: list[PathRule] = field(default_factory=list)  # `[[overrides]]`
+    _per_path: dict[tuple[int, ...], Config] = field(
+        default_factory=dict, repr=False, compare=False
+    )
 
     def threshold(self, smell: str) -> float:
         return float(self.data["thresholds"][smell])
@@ -163,6 +176,25 @@ class Config:
 
     def section(self, name: str) -> dict[str, Any]:
         return self.data[name]
+
+    def for_path(self, rel_path: str) -> Config:
+        """This config with the `[[overrides]]` that match ``rel_path`` applied."""
+        rules = self.rules
+        matched = tuple(i for i, rule in enumerate(rules) if path_matches(rel_path, rule.paths))
+        if not matched:
+            return self
+        if matched not in self._per_path:
+            data = copy.deepcopy(self.data)
+            for i in matched:
+                for table, values in rules[i].tables.items():
+                    data[table].update(values)
+            self._per_path[matched] = Config(data, self.source)
+        return self._per_path[matched]
+
+    def weight_anywhere(self, smell: str) -> bool:
+        """Whether ``smell`` has a positive weight for at least some files."""
+        weights = [self.weight(smell)] + [r.value("weights", smell) for r in self.rules]
+        return any(w is not None and w > 0 for w in weights)
 
     @property
     def excludes(self) -> list[str]:
@@ -214,6 +246,14 @@ def load_config(repo: str | Path | None = None, path: str | Path | None = None) 
         overrides = tomllib.loads(file.read_text())
     except tomllib.TOMLDecodeError as e:
         raise ConfigError(f"{file}: {e}") from e
+    cfg.rules = _parse_rules(overrides.pop("overrides", []))
     _merge(cfg.data, overrides)
     cfg.source = file
     return cfg
+
+
+def _parse_rules(raw: Any) -> list[PathRule]:
+    try:
+        return parse_rules(raw, {t: DEFAULTS[t] for t in OVERRIDABLE})
+    except (TypeError, ValueError) as e:
+        raise ConfigError(str(e)) from e

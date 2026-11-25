@@ -7,6 +7,15 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
+## Unreleased
+
+- **Per-path overrides**: `[[overrides]]` tables in `.aihealth.toml` set
+  `weights` and `thresholds` for the files their `paths` globs match
+  (for example `code_duplication = 0.25` for `tests/*`). They apply in
+  scan, delta, the hooks, the MCP tools and the dashboard's file view.
+  Configs without overrides score exactly as before, and their saved
+  scans keep the same config hash.
+
 ## 0.4.0 (2026-11-23)
 
 - **Java** (`*.java`): methods, constructors, initializers and lambdas

@@ -324,6 +324,74 @@ def test_config_overrides(tmp_path):
     assert "gen/*" in cfg.excludes and "*.g.dart" in cfg.excludes
 
 
+OVERRIDES_TOML = """
+[weights]
+code_duplication = 0
+[[overrides]]
+paths = ["legacy/*"]
+weights = { code_duplication = 0.5 }
+thresholds = { large_method = 5 }
+[[overrides]]
+paths = ["legacy/old.py"]
+weights = { code_duplication = 2 }
+"""
+
+
+def test_config_path_overrides(tmp_path):
+    (tmp_path / ".aihealth.toml").write_text(OVERRIDES_TOML)
+    cfg = load_config(tmp_path)
+    assert cfg.for_path("src/a.py") is cfg
+    legacy = cfg.for_path("legacy/a.py")
+    assert legacy.weight("code_duplication") == 0.5 and legacy.threshold("large_method") == 5
+    assert legacy.threshold("complex_method") == cfg.threshold("complex_method")
+    assert cfg.for_path("legacy/old.py").weight("code_duplication") == 2  # later table wins
+    assert cfg.for_path("legacy/b.py") is legacy  # cached per set of matching tables
+    assert cfg.weight("code_duplication") == 0 and cfg.threshold("large_method") == 70
+
+
+def test_path_overrides_change_scores(tmp_path):
+    src = f"def a(items):{CLONE_BODY}\ndef b(items):{CLONE_BODY}"
+    for rel in ("src/a.py", "legacy/a.py", "legacy/old.py"):
+        (tmp_path / rel).parent.mkdir(exist_ok=True)
+        (tmp_path / rel).write_text(src)
+    (tmp_path / ".aihealth.toml").write_text(OVERRIDES_TOML)
+    files = {f.path: f for f in scan(tmp_path, load_config(tmp_path)).files}
+    dup = {p: [x for x in f.findings if x.smell == "code_duplication"] for p, f in files.items()}
+    assert dup["src/a.py"] == []  # disabled project-wide
+    assert {x.weight for x in dup["legacy/a.py"]} == {0.5}
+    assert {x.weight for x in dup["legacy/old.py"]} == {2.0}
+    assert files["legacy/old.py"].score < files["legacy/a.py"].score < files["src/a.py"].score
+    assert any(x.smell == "large_method" for x in files["legacy/a.py"].findings)
+
+
+def test_config_path_overrides_unchanged_hash(tmp_path):
+    from aihealth.store.scans import config_hash
+
+    (tmp_path / ".aihealth.toml").write_text("[weights]\nlarge_file = 0\n")
+    plain = load_config(tmp_path)
+    assert config_hash(plain) == config_hash(Config(plain.data))  # no rules: hash as before
+    (tmp_path / ".aihealth.toml").write_text(OVERRIDES_TOML)
+    assert config_hash(load_config(tmp_path)) != config_hash(plain)
+
+
+@pytest.mark.parametrize(
+    ("toml", "error"),
+    [
+        ("[[overrides]]\nweights = { large_file = 0 }\n", "paths"),
+        ('[[overrides]]\npaths = ["x/*"]\nscan = { exclude = [] }\n', "not scan"),
+        (
+            '[[overrides]]\npaths = ["x/*"]\nweights = { dupe = 1 }\n',
+            r"overrides\[0\]\.weights\.dupe",
+        ),
+        ("overrides = 1\n", "array of tables"),
+    ],
+)
+def test_config_path_overrides_rejected(tmp_path, toml, error):
+    (tmp_path / ".aihealth.toml").write_text(toml)
+    with pytest.raises(ConfigError, match=error):
+        load_config(tmp_path)
+
+
 def test_config_rejects_unknown_keys(tmp_path):
     (tmp_path / ".aihealth.toml").write_text("[thresholds]\nlarge_methd = 5\n")
     with pytest.raises(ConfigError, match="large_methd"):

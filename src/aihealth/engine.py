@@ -5,7 +5,6 @@ Everything user-facing (CLI, MCP, dashboard, delta) goes through here.
 
 from __future__ import annotations
 
-import fnmatch
 import os
 import subprocess
 from collections.abc import Iterable
@@ -19,11 +18,13 @@ from aihealth.lang import adapter_for, file_head, is_supported, may_be_script
 from aihealth.lang.base import is_generated
 from aihealth.metrics import function_metrics
 from aihealth.model import Module
+from aihealth.overrides import path_matches
 from aihealth.scoring import FileScore, ScoreParams, file_score, project_score
 from aihealth.smells import Detector
 
 
 def score_module(module: Module, config: Config, clones=None) -> FileScore:
+    config = config.for_path(module.path)
     adapter = adapter_for(module.path, config, module.source)
     metrics = [function_metrics(fn, adapter) for fn in module.all_functions()]
     findings = Detector(module, adapter, config).detect(metrics, clones)
@@ -54,7 +55,7 @@ def score_source(source: bytes, path: str, config: Config | None = None) -> File
 
 def _clones(modules: list[Module], config: Config):
     dup = config.section("duplication")
-    if config.weight("code_duplication") <= 0:
+    if not config.weight_anywhere("code_duplication"):
         return []
     index = DuplicationIndex(min_tokens=dup["min_tokens"], min_lines=dup["min_lines"])
     for m in modules:
@@ -89,10 +90,8 @@ def project_path(path: str | Path) -> tuple[Path, str]:
 
 
 def is_excluded(rel_path: str, patterns: Iterable[str]) -> bool:
-    """fnmatch where `*` also crosses `/`; a pattern matches the path itself
-    or any suffix starting at a directory boundary."""
-    candidates = [rel_path] + [rel_path[i + 1 :] for i, ch in enumerate(rel_path) if ch == "/"]
-    return any(fnmatch.fnmatch(c, p) for p in patterns for c in candidates)
+    """See `config.path_matches`."""
+    return path_matches(rel_path, patterns)
 
 
 def too_large(size: int, config: Config) -> str | None:
