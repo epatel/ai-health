@@ -106,7 +106,7 @@ Tools:
 | `score_file` | All smells in one file |
 | `scan_project` | Project overview |
 | `explain_smell` | What a smell measures and how to fix it |
-| `list_config` | Every `.aihealth.toml` setting: default, project value, meaning (`output="toml"`: a commented config file) |
+| `list_config` | Every `.aihealth.toml` setting: default, project value, meaning (`output="toml"`: a commented config file; `file`: one file's values and which override set them) |
 
 All tools return markdown by default (`output: "json"` for machine use).
 
@@ -354,7 +354,9 @@ Scoring one file by hand (`aihealth scan big.py`) has no limit.
 Optional `.aihealth.toml` at the repository root. `aihealth config [PATH]` lists every setting
 with its default, the project's value and what it means (`--format json` for agents,
 `--format toml` for a complete commented config file that loads back unchanged; keep only the
-keys you change). The MCP tool `list_config` returns the same. A few common settings:
+keys you change). `--file FILE` shows the values one file is scored with, and which
+`[[overrides]]` table (below) set each one. The MCP tool `list_config` returns the same
+(`file` argument). A few common settings:
 
 ```toml
 [thresholds]

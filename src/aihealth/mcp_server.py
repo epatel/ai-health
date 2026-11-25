@@ -167,17 +167,26 @@ def explain_smell(smell: str) -> str:
     )
 
 
-def list_config(path: str = ".", output: Literal["text", "json", "toml"] = "text") -> str:
+def list_config(
+    path: str = ".", output: Literal["text", "json", "toml"] = "text", file: str | None = None
+) -> str:
     """Every `.aihealth.toml` setting of the project at `path`: its default,
     the project's value and what it means, plus how `[[overrides]]` tune
     weights and thresholds per path. output="toml" is a complete, commented
-    config file that loads back unchanged; keep only the keys you change."""
-    from aihealth.config_report import render_config
+    config file that loads back unchanged; keep only the keys you change.
+    `file` (text/json): the values that file is scored with, and which
+    `[[overrides]]` table set each one."""
+    from aihealth.config_report import project_relative, render_config
 
     root = _base_dir(path)
     if not root.is_dir():
         raise ToolInputError(f"not a directory: {root}")
-    return render_config(load_config(root), output)
+    config = load_config(root)
+    try:
+        rel = project_relative(root, file) if file else None
+        return render_config(config, output, rel)
+    except ValueError as e:
+        raise ToolInputError(str(e)) from e
 
 
 def _smell_key(smell: str) -> str:

@@ -173,7 +173,7 @@ def _cmd_delta(args: argparse.Namespace) -> int:
 
 
 def _cmd_config(args: argparse.Namespace) -> int:
-    from aihealth.config_report import render_config
+    from aihealth.config_report import project_relative, render_config
 
     root = Path(args.path).resolve()
     if not root.is_dir():
@@ -181,10 +181,12 @@ def _cmd_config(args: argparse.Namespace) -> int:
         return 2
     try:
         config = load_config(root, args.config)
-    except ConfigError as e:
-        print(f"config error: {e}", file=sys.stderr)
+        file = project_relative(root, args.file) if args.file else None
+        out = render_config(config, args.format, file)
+    except ValueError as e:  # ConfigError too
+        print(f"error: {e}", file=sys.stderr)
         return 2
-    print(render_config(config, args.format), end="" if args.format == "toml" else "\n")
+    print(out, end="" if args.format == "toml" else "\n")
     return 0
 
 
@@ -320,11 +322,17 @@ def _add_config_parser(sub) -> None:
         "config",
         help="list every .aihealth.toml setting: default, project value, meaning",
         description="text: grouped overview; json: one entry per key (for agents); "
-        "toml: a complete commented .aihealth.toml with the project's values.",
+        "toml: a complete commented .aihealth.toml with the project's values. "
+        "Settings can differ per file through [[overrides]] tables: --file shows one file's.",
     )
     config.add_argument("path", nargs="?", default=".", help="project directory (default: .)")
     config.add_argument("--format", choices=("text", "json", "toml"), default="text")
     config.add_argument("--config", help="config file (default: <path>/.aihealth.toml)")
+    config.add_argument(
+        "--file",
+        metavar="FILE",
+        help="show the values FILE is scored with and which [[overrides]] set them (text or json)",
+    )
     config.set_defaults(func=_cmd_config)
 
 

@@ -7,6 +7,12 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
+## Unreleased
+
+- **`aihealth config --file FILE`** (MCP `list_config(file=...)`) shows
+  the values one file is scored with, and which `[[overrides]]` table
+  set each one. `text` and `json` only.
+
 ## 0.5.0 (2026-11-25)
 
 - **Per-path overrides**: `[[overrides]]` tables in `.aihealth.toml` set

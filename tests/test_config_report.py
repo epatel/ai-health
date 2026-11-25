@@ -3,9 +3,11 @@
 import json
 import tomllib
 
+import pytest
+
 from aihealth.cli import main
 from aihealth.config import DEFAULTS, KEY_DOCS, SECTION_DOCS, load_config
-from aihealth.config_report import render_config, settings
+from aihealth.config_report import project_relative, render_config, settings
 from aihealth.smells import LABELS
 
 CUSTOM = """
@@ -75,3 +77,79 @@ def test_cli_config(tmp_path, capsys):
     (tmp_path / ".aihealth.toml").write_text("[weights]\nnope = 1\n")
     assert main(["config", str(tmp_path)]) == 2
     assert "nope" in capsys.readouterr().err
+
+
+FILE_RULES = """
+[thresholds]
+large_method = 90
+[[overrides]]
+paths = ["legacy/*"]
+weights = { code_duplication = 0.5 }
+thresholds = { large_method = 120 }
+[[overrides]]
+paths = ["legacy/old.py"]
+weights = { code_duplication = 0 }
+"""
+
+
+def _by_key(items):
+    return {(s.section, s.key): s for s in items}
+
+
+def test_settings_for_a_file_show_origin(tmp_path):
+    (tmp_path / ".aihealth.toml").write_text(FILE_RULES)
+    config = load_config(tmp_path)
+    old = _by_key(settings(config, "legacy/old.py"))
+    assert (old["thresholds", "large_method"].value, old["thresholds", "large_method"].origin) == (
+        120,
+        "overrides[0]",
+    )
+    assert (
+        old["weights", "code_duplication"].value,
+        old["weights", "code_duplication"].origin,
+    ) == (
+        0,
+        "overrides[1]",
+    )
+    assert old["thresholds", "complex_method"].origin == "default"
+    other = _by_key(settings(config, "src/a.py"))
+    assert (
+        other["thresholds", "large_method"].value,
+        other["thresholds", "large_method"].origin,
+    ) == (
+        90,
+        "project",
+    )
+
+
+def test_render_for_a_file(tmp_path):
+    (tmp_path / ".aihealth.toml").write_text(FILE_RULES)
+    config = load_config(tmp_path)
+    text = render_config(config, "text", "legacy/old.py")
+    assert "Values for legacy/old.py, with overrides[0]" in text
+    assert "code_duplication = 0  (default 1.0, set by overrides[1])" in text
+    assert "no [[overrides]] table matches" in render_config(config, "text", "src/a.py")
+    data = json.loads(render_config(config, "json", "legacy/a.py"))
+    assert data["file"] == "legacy/a.py" and data["matched_overrides"] == [0]
+    with pytest.raises(ValueError, match="toml"):
+        render_config(config, "toml", "legacy/a.py")
+
+
+def test_project_relative(tmp_path, monkeypatch):
+    (tmp_path / "legacy").mkdir()
+    (tmp_path / "legacy" / "old.py").write_text("")
+    monkeypatch.chdir(tmp_path / "legacy")
+    assert project_relative(tmp_path, "old.py") == "legacy/old.py"  # from the cwd
+    assert project_relative(tmp_path, str(tmp_path / "legacy/old.py")) == "legacy/old.py"
+    assert project_relative(tmp_path, "src/new.py") == "src/new.py"  # not on disk: project-relative
+    with pytest.raises(ValueError, match="not inside"):
+        project_relative(tmp_path / "legacy", str(tmp_path / ".aihealth.toml"))
+
+
+def test_cli_config_file(tmp_path, capsys, monkeypatch):
+    (tmp_path / ".aihealth.toml").write_text(FILE_RULES)
+    monkeypatch.chdir(tmp_path)
+    assert main(["config", "--file", "legacy/old.py", "--format", "json"]) == 0
+    assert json.loads(capsys.readouterr().out)["matched_overrides"] == [0, 1]
+    assert main(["config", "--file", "legacy/old.py", "--format", "toml"]) == 2
+    assert "toml" in capsys.readouterr().err

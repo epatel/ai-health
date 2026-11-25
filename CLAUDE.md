@@ -19,7 +19,8 @@ parsing via tree-sitter, history in SQLite.
 - Scan: `.venv/bin/aihealth scan PATH [--format text|markdown|json] [--max-findings N] [-v] [--fail-under 7] [--report [AI-HEALTH.md|x.html]]`
   (PATH = directory, or a single file scored on its own with its project's config)
   (config: `PATH/.aihealth.toml`; `.venv/bin/aihealth config [PATH] [--format text|json|toml]`
-  lists every key with its default, value and meaning)
+  lists every key with its default, value and meaning; `--file FILE` shows one file's values
+  and which `[[overrides]]` table set them)
 - Delta: `.venv/bin/aihealth delta [PATHS] [--staged | --base REV [--head REV]] [-v] [--format text|markdown|json]`
   (default: working tree incl. untracked vs HEAD; exit 1 = degraded)
 - Run `aihealth delta` on your own changes before committing. Fix new or worsened smells

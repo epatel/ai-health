@@ -168,3 +168,6 @@ def test_list_config(repo):
     assert "code_duplication = 0.5" in srv.list_config(str(repo))
     with pytest.raises(srv.ToolInputError):
         srv.list_config(str(repo / "nope"))
+    assert "Values for pkg/app.py" in srv.list_config(str(repo), file="pkg/app.py")
+    with pytest.raises(srv.ToolInputError, match="toml"):
+        srv.list_config(str(repo), output="toml", file="pkg/app.py")

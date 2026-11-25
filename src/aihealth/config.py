@@ -253,7 +253,7 @@ class Config:
     def for_path(self, rel_path: str) -> Config:
         """This config with the `[[overrides]]` that match ``rel_path`` applied."""
         rules = self.rules
-        matched = tuple(i for i, rule in enumerate(rules) if path_matches(rel_path, rule.paths))
+        matched = self.matching_rules(rel_path)
         if not matched:
             return self
         if matched not in self._per_path:
@@ -263,6 +263,10 @@ class Config:
                     data[table].update(values)
             self._per_path[matched] = Config(data, self.source)
         return self._per_path[matched]
+
+    def matching_rules(self, rel_path: str) -> tuple[int, ...]:
+        """Indexes of the `[[overrides]]` whose paths match ``rel_path``."""
+        return tuple(i for i, rule in enumerate(self.rules) if path_matches(rel_path, rule.paths))
 
     def weight_anywhere(self, smell: str) -> bool:
         """Whether ``smell`` has a positive weight for at least some files."""
