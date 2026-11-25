@@ -157,7 +157,8 @@ Both are released as 0.4.0.
 
 **2026-11-25.** Released 0.5.0: per-path `[[overrides]]` of weights and
 thresholds in `.aihealth.toml`, and `aihealth config` / MCP `list_config`
-listing every setting with its default, value and meaning. 573
+listing every setting with its default, value and meaning. 0.5.1 adds
+`aihealth config --file` (one file's values and which override set them). 577
 tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
 `CHANGELOG.md`.
 

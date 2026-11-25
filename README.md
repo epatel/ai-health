@@ -39,8 +39,8 @@ The clone runs whatever is checked out. Scores can change between releases (see
 **Other ways:** a global tool, or into the venv of the project you want to check:
 
 ```sh
-uv tool install "git+https://github.com/epatel/ai-health@v0.5.0"   # or: pipx install "git+..."
-.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.5.0"   # in your project
+uv tool install "git+https://github.com/epatel/ai-health@v0.5.1"   # or: pipx install "git+..."
+.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.5.1"   # in your project
 ```
 
 The examples below write `aihealth`; with a project-venv install that is `.venv/bin/aihealth`.
