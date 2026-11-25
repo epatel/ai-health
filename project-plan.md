@@ -153,7 +153,11 @@ Status: `todo` / `wip` / `done`.
 
 **2026-11-23.** M22 (Java) is done, together with a Go fix: generic
 methods (Go 1.27) and `new(expr)` (Go 1.26) are rewritten before parsing.
-Both are released as 0.4.0. 558
+Both are released as 0.4.0.
+
+**2026-11-25.** Released 0.5.0: per-path `[[overrides]]` of weights and
+thresholds in `.aihealth.toml`, and `aihealth config` / MCP `list_config`
+listing every setting with its default, value and meaning. 573
 tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
 `CHANGELOG.md`.
 
