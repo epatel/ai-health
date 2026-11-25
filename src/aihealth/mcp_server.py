@@ -41,6 +41,8 @@ is DEGRADED, fix the listed new/worsened smells in the code you touched before f
 against the current file without touching disk.
 - `score_file` shows all smells in one file; `scan_project` lists the worst files and top \
 refactoring targets; `explain_smell` explains a smell and how to fix it.
+- `list_config` lists every `.aihealth.toml` setting (default, project value, meaning); \
+output="toml" gives a complete commented config file to edit.
 Scores: healthy >= 9, warning 4-9, alert < 4. Fix hints are suggestions; keep behaviour unchanged.
 """
 
@@ -165,6 +167,19 @@ def explain_smell(smell: str) -> str:
     )
 
 
+def list_config(path: str = ".", output: Literal["text", "json", "toml"] = "text") -> str:
+    """Every `.aihealth.toml` setting of the project at `path`: its default,
+    the project's value and what it means, plus how `[[overrides]]` tune
+    weights and thresholds per path. output="toml" is a complete, commented
+    config file that loads back unchanged; keep only the keys you change."""
+    from aihealth.config_report import render_config
+
+    root = _base_dir(path)
+    if not root.is_dir():
+        raise ToolInputError(f"not a directory: {root}")
+    return render_config(load_config(root), output)
+
+
 def _smell_key(smell: str) -> str:
     wanted = smell.strip().lower().replace(" ", "_").replace("-", "_")
     for key, label in LABELS.items():
@@ -173,7 +188,7 @@ def _smell_key(smell: str) -> str:
     raise ToolInputError(f"unknown smell {smell!r}; known: {', '.join(sorted(LABELS))}")
 
 
-TOOLS = (review_changes, score_file, preview_change, scan_project, explain_smell)
+TOOLS = (review_changes, score_file, preview_change, scan_project, explain_smell, list_config)
 
 
 def _as_tool_errors(fn, tool_error):

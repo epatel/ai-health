@@ -155,6 +155,79 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
+# What each section and key means: `aihealth config` and the `list_config` MCP
+# tool print these. Weights are described from the smell labels; every other
+# key needs an entry here (a test checks).
+SECTION_DOCS: dict[str, str] = {
+    "thresholds": "A smell triggers when its value exceeds the threshold; "
+    "severity grows with value / threshold, up to 3x.",
+    "weights": "Penalty multiplier per smell; 0 turns the smell off.",
+    "scan": "Which files are scored.",
+    "score": "How penalties become the 1-10 file score (calibrated; change with care).",
+    "primitive_obsession": "When the file-level Primitive Obsession check runs.",
+    "duplication": "Clone detection for the Code Duplication smell.",
+    "delta": "Verdict rules of `aihealth delta`.",
+    "dart": "Dart/Flutter adapter.",
+    "swift": "Swift adapter.",
+    "rust": "Rust adapter.",
+    "typescript": "TypeScript adapter (.ts, .mts, .cts, .tsx).",
+    "javascript": "JavaScript adapter (.js, .mjs, .cjs, .jsx).",
+    "go": "Go adapter.",
+}
+
+KEY_DOCS: dict[str, str] = {
+    "thresholds.large_method": "Code lines in a function.",
+    "thresholds.large_method_build": "Code lines in a Dart widget build() method.",
+    "thresholds.complex_method": "Cyclomatic complexity of a function.",
+    "thresholds.cognitive_complexity": "Cognitive complexity of a function.",
+    "thresholds.deep_nesting": "Maximum nesting depth in a function.",
+    "thresholds.bumpy_road": "Separate chunks of nested logic in a function.",
+    "thresholds.excess_arguments": "Parameters of a function (Dart named and Swift "
+    "labelled parameters count half).",
+    "thresholds.complex_conditional": "and/or operators in one boolean expression.",
+    "thresholds.deep_widget_tree": "Nesting of widget/view/JSX constructors "
+    "(Flutter, SwiftUI, JSX).",
+    "thresholds.large_file": "Code lines in a file.",
+    "thresholds.low_cohesion": "LCOM4: groups of methods and fields that don't use each other.",
+    "thresholds.primitive_obsession": "Share (0-1) of a file's typed parameters "
+    "that are primitives.",
+    "thresholds.missing_phony": "Makefile targets that look phony but aren't in .PHONY.",
+    "scan.exclude": "Glob patterns added to the default excludes (`*` crosses `/`, "
+    "matched against every path suffix).",
+    "scan.use_default_excludes": "Keep the built-in excludes (generated code, "
+    "build output, vendored dependency folders).",
+    "scan.max_file_kb": "Files larger than this are not scored in scan, delta, the hooks and MCP.",
+    "score.decay": "score = 10 - 9 x (1 - exp(-penalty / decay)): larger is more lenient.",
+    "score.symbol_cap": "Cap on the summed penalty of one function or class.",
+    "score.density_loc": "Function/class penalties of files above this many code lines "
+    "are divided by sqrt(loc / density_loc).",
+    "primitive_obsession.min_params": "Minimum typed parameters in a file before the check runs.",
+    "duplication.min_tokens": "Minimum tokens in a clone.",
+    "duplication.min_lines": "Minimum lines in a clone.",
+    "duplication.cross_file": "Also find clones across files in a scan "
+    "(delta compares within each file).",
+    "delta.tolerance": "Score drops up to this are ignored when no smell is new or worse.",
+    "dart.test_closure_calls": "Calls whose closure arguments are scored as units "
+    "of their own (test closures).",
+    "swift.test_closure_calls": "Calls whose closure arguments are scored as units "
+    "of their own (Quick specs).",
+    "rust.score_test_modules": "Score `#[cfg(test)]` modules too.",
+    "typescript.test_closure_calls": "Calls whose callback arguments are scored as "
+    "units of their own (describe/it/test).",
+    "javascript.test_closure_calls": "Calls whose callback arguments are scored as "
+    "units of their own (describe/it/test).",
+    "go.count_error_checks": "Count `if err != nil { return .. }` towards complexity.",
+    "go.test_closure_calls": "Methods whose func literal argument is a unit of its own "
+    "(t.Run subtests).",
+}
+
+OVERRIDES_DOC = (
+    "[[overrides]] tables set weights and thresholds for the files their `paths` globs "
+    "match (relative to the project root, matched like scan.exclude). Every matching "
+    "table applies, later tables win."
+)
+
+
 class ConfigError(ValueError):
     pass
 

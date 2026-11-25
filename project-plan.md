@@ -162,7 +162,7 @@ Go, Java, TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), shell scripts
 Makefiles and CMake
 (13 generic smells plus Makefile `missing_phony`). Interfaces: CLI `scan`
 (dir or file) / `delta` / `history` / `serve` / `mcp` / `hook`, an MCP
-server (5 tools), SQLite history with migrations, a dashboard, and
+server (6 tools), SQLite history with migrations, a dashboard, and
 Claude Code hooks. Scoring is calibrated on 116 corpora, plus
 distribution checks on Makefiles and CMake files.
 

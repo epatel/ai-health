@@ -15,6 +15,10 @@ release here.
   scan, delta, the hooks, the MCP tools and the dashboard's file view.
   Configs without overrides score exactly as before, and their saved
   scans keep the same config hash.
+- **`aihealth config [PATH]`** and the MCP tool **`list_config`** list
+  every `.aihealth.toml` setting with its default, the project's value
+  and what it means: `text`, `json` (one entry per key, for agents) or
+  `toml` (a complete commented config file that loads back unchanged).
 
 ## 0.4.0 (2026-11-23)
 

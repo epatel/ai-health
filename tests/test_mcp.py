@@ -133,6 +133,7 @@ def test_stdio_server_round_trip(repo):
         "preview_change",
         "scan_project",
         "explain_smell",
+        "list_config",
     }
     assert "**DEGRADED**" in review.content[0].text  # cwd = repo is the default
     assert bad.is_error and "unknown smell" in bad.content[0].text
@@ -157,3 +158,13 @@ def test_tools_refuse_files_over_max_file_kb(repo):
     md = srv.review_changes(str(repo))
     assert "No changed files were scored." in md
     assert "Not scored: `pkg/app.py` (over scan.max_file_kb: 2 KB > 1 KB)." in md
+
+
+def test_list_config(repo):
+    (repo / ".aihealth.toml").write_text("[weights]\ncode_duplication = 0.5\n")
+    data = json.loads(srv.list_config(str(repo), output="json"))
+    dup = next(s for s in data["settings"] if s["key"] == "code_duplication")
+    assert dup["value"] == 0.5 and dup["default"] == 1.0 and dup["changed"]
+    assert "code_duplication = 0.5" in srv.list_config(str(repo))
+    with pytest.raises(srv.ToolInputError):
+        srv.list_config(str(repo / "nope"))

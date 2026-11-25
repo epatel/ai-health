@@ -169,6 +169,25 @@ def _cmd_delta(args: argparse.Namespace) -> int:
     return 1 if result.verdict == DEGRADED else 0
 
 
+# --- config -------------------------------------------------------------------
+
+
+def _cmd_config(args: argparse.Namespace) -> int:
+    from aihealth.config_report import render_config
+
+    root = Path(args.path).resolve()
+    if not root.is_dir():
+        print(f"not a directory: {root}", file=sys.stderr)
+        return 2
+    try:
+        config = load_config(root, args.config)
+    except ConfigError as e:
+        print(f"config error: {e}", file=sys.stderr)
+        return 2
+    print(render_config(config, args.format), end="" if args.format == "toml" else "\n")
+    return 0
+
+
 # --- mcp ----------------------------------------------------------------------
 
 
@@ -279,6 +298,8 @@ def build_parser() -> argparse.ArgumentParser:
     delta.add_argument("--config", help="config file (default: <repo root>/.aihealth.toml)")
     delta.set_defaults(func=_cmd_delta)
 
+    _add_config_parser(sub)
+
     mcp = sub.add_parser("mcp", help="run the MCP server over stdio")
     mcp.set_defaults(func=_cmd_mcp)
 
@@ -289,6 +310,25 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", type=int, default=8765)
     serve.set_defaults(func=_cmd_serve)
 
+    _add_hook_parser(sub)
+
+    return parser
+
+
+def _add_config_parser(sub) -> None:
+    config = sub.add_parser(
+        "config",
+        help="list every .aihealth.toml setting: default, project value, meaning",
+        description="text: grouped overview; json: one entry per key (for agents); "
+        "toml: a complete commented .aihealth.toml with the project's values.",
+    )
+    config.add_argument("path", nargs="?", default=".", help="project directory (default: .)")
+    config.add_argument("--format", choices=("text", "json", "toml"), default="text")
+    config.add_argument("--config", help="config file (default: <path>/.aihealth.toml)")
+    config.set_defaults(func=_cmd_config)
+
+
+def _add_hook_parser(sub) -> None:
     hook = sub.add_parser(
         "hook",
         help="Claude Code hook: read hook JSON on stdin, report regressions",
@@ -297,8 +337,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     hook.add_argument("event", choices=("post-edit", "stop"))
     hook.set_defaults(func=_cmd_hook)
-
-    return parser
 
 
 def main(argv: list[str] | None = None) -> int:
