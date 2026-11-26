@@ -177,6 +177,7 @@ SECTION_DOCS: dict[str, str] = {
     "typescript": "TypeScript adapter (.ts, .mts, .cts, .tsx).",
     "javascript": "JavaScript adapter (.js, .mjs, .cjs, .jsx).",
     "go": "Go adapter.",
+    "kotlin": "Kotlin adapter (.kt).",
 }
 
 KEY_DOCS: dict[str, str] = {
@@ -186,11 +187,11 @@ KEY_DOCS: dict[str, str] = {
     "thresholds.cognitive_complexity": "Cognitive complexity of a function.",
     "thresholds.deep_nesting": "Maximum nesting depth in a function.",
     "thresholds.bumpy_road": "Separate chunks of nested logic in a function.",
-    "thresholds.excess_arguments": "Parameters of a function (Dart named and Swift "
-    "labelled parameters count half).",
+    "thresholds.excess_arguments": "Parameters of a function (Dart named, Swift "
+    "labelled and Kotlin defaulted parameters count half).",
     "thresholds.complex_conditional": "and/or operators in one boolean expression.",
     "thresholds.deep_widget_tree": "Nesting of widget/view/JSX constructors "
-    "(Flutter, SwiftUI, JSX).",
+    "(Flutter, SwiftUI, Compose, JSX).",
     "thresholds.large_file": "Code lines in a file.",
     "thresholds.low_cohesion": "LCOM4: groups of methods and fields that don't use each other.",
     "thresholds.primitive_obsession": "Share (0-1) of a file's typed parameters "
@@ -223,6 +224,8 @@ KEY_DOCS: dict[str, str] = {
     "go.count_error_checks": "Count `if err != nil { return .. }` towards complexity.",
     "go.test_closure_calls": "Methods whose func literal argument is a unit of its own "
     "(t.Run subtests).",
+    "kotlin.test_closure_calls": "Calls whose trailing lambda is scored as a unit "
+    "of its own (Kotest/Spek specs).",
 }
 
 OVERRIDES_DOC = (
