@@ -7,6 +7,17 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
+## 0.7.1 (2026-11-27)
+
+- **Security: scan and delta no longer follow symlinks out of the
+  project.** A repository with `link.py -> ../elsewhere/file.py` made
+  aihealth read and parse that file, so function names from outside the
+  project could appear in reports. Such files are now listed as not
+  scored ("symlink outside the project") and never read. Symlinks inside
+  the project are followed as before. The text and markdown scan
+  reports now also count files that weren't scored (JSON lists them).
+  Scores are unchanged unless a project had such links.
+
 ## 0.7.0 (2026-11-27)
 
 - **Python scripts without an extension are scored** (#3), by their

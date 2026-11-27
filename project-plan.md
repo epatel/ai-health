@@ -197,7 +197,9 @@ listing every setting with its default, value and meaning. 0.5.1 adds
 released as 0.6.0. 0.7.0 the same day: extensionless Python scripts
 scored by their shebang, virtual environments skipped by `pyvenv.cfg`
 (#3), and unknown names in `aihealth: disable=` reported (#6). Design
-principles added above. 645 tests, ruff clean, this repo scans at 10.00.
+principles added above. 0.7.1: scan and delta don't follow symlinks out
+of the project (found checking SECURITY.md). 648 tests, ruff clean, this
+repo scans at 10.00.
 Per-milestone history is in git and `CHANGELOG.md`.
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
