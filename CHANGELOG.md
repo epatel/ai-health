@@ -7,7 +7,7 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
-## Unreleased
+## 0.7.0 (2026-11-27)
 
 - **Python scripts without an extension are scored** (#3), by their
   shebang, as shell scripts already were: `python`, `python3`,
@@ -15,7 +15,7 @@ release here.
   `env -S uv run --script`. Virtual environments (any folder with a
   `pyvenv.cfg`) are skipped with the default excludes, so pip's
   generated `bin/` scripts aren't scored. Project scores can change
-  where such scripts exist (minor release).
+  where such scripts exist.
 
 - **Unknown names in `aihealth: disable=` comments are reported** (#6):
   a typo, or a reason without ` -- ` (`disable=x because tests`), used

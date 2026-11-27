@@ -194,8 +194,11 @@ listing every setting with its default, value and meaning. 0.5.1 adds
 `aihealth config --file` (one file's values and which override set them).
 
 **2026-11-27.** M23 (Kotlin), a contributed pull request (#5), is
-released as 0.6.0. 629 tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
-`CHANGELOG.md`.
+released as 0.6.0. 0.7.0 the same day: extensionless Python scripts
+scored by their shebang, virtual environments skipped by `pyvenv.cfg`
+(#3), and unknown names in `aihealth: disable=` reported (#6). Design
+principles added above. 645 tests, ruff clean, this repo scans at 10.00.
+Per-milestone history is in git and `CHANGELOG.md`.
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
 Go, Java, Kotlin, TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), shell scripts,
