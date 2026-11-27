@@ -191,6 +191,27 @@ def test_disable_comment_switches_off_smells_for_file():
     assert "primitive_obsession" in smells(in_string, "p.py")
 
 
+def test_unknown_disable_names_are_reported_and_switch_nothing_off():
+    src = "\n".join(f"def f{i}(a: str, b: int, c: dict) -> None: ..." for i in range(4))
+    head = (
+        "# aihealth: disable=primitive_obsession because tests, excess_arguments\n"
+        "# aihealth: disable=large_methd -- a typo\n"
+        '"""aihealth: disable=nonsense (a docstring is not a comment)"""\n'
+    )
+    fs = score_source((head + src).encode(), "p.py")
+    assert [(s.line, s.name) for s in fs.unknown_suppressions] == [
+        (1, "primitive_obsession because tests"),
+        (2, "large_methd"),
+    ]
+    assert "primitive_obsession" in {f.smell for f in fs.findings}
+    assert fs.to_dict()["unknown_suppressions"][1] == {"line": 2, "name": "large_methd"}
+    # known names, with a reason after ` -- `, and the line inside a block comment
+    ok = "/* header\n * aihealth: disable=excess_arguments -- generated API\n */\nint f();"
+    assert score_source(ok.encode(), "a.c").unknown_suppressions == []
+    bad = "/* header\n * aihealth: disable=excess_args\n */\nint f();"
+    assert [s.line for s in score_source(bad.encode(), "a.c").unknown_suppressions] == [2]
+
+
 def test_weight_zero_disables_smell():
     cfg = Config()
     cfg.data["weights"]["excess_arguments"] = 0

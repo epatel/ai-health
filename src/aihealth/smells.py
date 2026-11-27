@@ -12,6 +12,8 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING
 
+from aihealth.model import Suppression
+
 if TYPE_CHECKING:
     from aihealth.config import Config
     from aihealth.duplication import Clone, CloneSide
@@ -584,18 +586,35 @@ class _DisjointSets:
 _DISABLE = re.compile(r"aihealth:[ \t]*disable=([\w, \t]+)")
 
 
-def disabled_smells(module: Module, adapter: LanguageAdapter) -> set[str]:
-    """Smells switched off for a file by a *comment* such as
-    `# aihealth: disable=primitive_obsession, excess_arguments` (strings and
-    docstrings don't count). Meant for boundaries where the smell is imposed,
-    e.g. MCP/CLI/JSON API functions that must take primitives."""
-    found: set[str] = set()
+def suppressions(module: Module, adapter: LanguageAdapter) -> list[Suppression]:
+    """The names in a file's `aihealth: disable=` *comments* (strings and
+    docstrings don't count), in line order. A name runs to the next comma, so
+    `disable=x because y` is the one unknown name `x because y`; a reason
+    goes after ` -- `."""
+    found: list[Suppression] = []
     stack = [module.root]
     while stack:
         node = stack.pop()
         if node.type in adapter.comment_types:
-            for match in _DISABLE.finditer(node.text.decode("utf-8", "replace")):
-                found.update(x.strip() for x in match.group(1).split(","))
+            comment = node.text.decode("utf-8", "replace")
+            for match in _DISABLE.finditer(comment):
+                line = node.start_point[0] + 1 + comment.count("\n", 0, match.start())
+                names = (" ".join(x.split()) for x in match.group(1).split(","))
+                found += [Suppression(line, name) for name in names if name]
             continue
         stack.extend(node.children)
-    return found & set(LABELS)
+    return sorted(found, key=lambda s: s.line)
+
+
+def disabled_smells(module: Module, adapter: LanguageAdapter) -> set[str]:
+    """Smells switched off for a file by a comment such as
+    `# aihealth: disable=primitive_obsession, excess_arguments`. Meant for
+    boundaries where the smell is imposed, e.g. MCP/CLI/JSON API functions
+    that must take primitives."""
+    return {s.name for s in suppressions(module, adapter)} & set(LABELS)
+
+
+def unknown_suppressions(module: Module, adapter: LanguageAdapter) -> list[Suppression]:
+    """Names in `aihealth: disable=` comments that are no smell: a typo or a
+    reason without ` -- `. They switch nothing off, so they are reported."""
+    return [s for s in suppressions(module, adapter) if s.name not in LABELS]

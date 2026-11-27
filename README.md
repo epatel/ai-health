@@ -435,8 +435,12 @@ Turn smells off for one file where they are imposed by an interface (e.g. CLI/JS
 boundaries) with a comment (strings and docstrings don't count):
 
 ```python
-# aihealth: disable=primitive_obsession, excess_arguments
+# aihealth: disable=primitive_obsession, excess_arguments -- MCP tools take JSON primitives
 ```
+
+Names are the `[weights]` keys, separated by commas; a reason goes after ` -- `. A name
+that is no smell (a typo, or a reason without ` -- `) switches nothing off, so `scan`,
+`delta` and the MCP tools report it, in JSON as `unknown_suppressions`.
 
 ## Adding a language
 

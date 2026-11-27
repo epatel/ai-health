@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from aihealth.metrics import FunctionMetrics
+    from aihealth.model import Suppression
     from aihealth.smells import Finding
 
 HEALTHY, WARNING, ALERT = "healthy", "warning", "alert"
@@ -86,6 +87,7 @@ class FileScore:
     findings: list[Finding] = field(default_factory=list)
     functions: list[FunctionMetrics] = field(default_factory=list)
     parse_errors: int = 0
+    unknown_suppressions: list[Suppression] = field(default_factory=list)
 
     @property
     def band(self) -> str:
@@ -99,6 +101,7 @@ class FileScore:
             "score": self.score,
             "band": self.band,
             "parse_errors": self.parse_errors,
+            "unknown_suppressions": suppressions_json(self.unknown_suppressions),
             "findings": [f.to_dict() for f in sorted(self.findings, key=lambda f: -f.penalty)],
         }
         if with_functions:
@@ -124,3 +127,8 @@ def project_score(files: list[FileScore]) -> float | None:
     if loc == 0:
         return None
     return round(sum(f.score * f.loc for f in files) / loc, 2)
+
+
+def suppressions_json(items: list[Suppression]) -> list[dict]:
+    """`aihealth: disable=` names that are no smell, for JSON output."""
+    return [{"line": s.line, "name": s.name} for s in items]

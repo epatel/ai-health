@@ -846,7 +846,12 @@ comment nodes count, not strings or docstrings: an example in a docstring
 once silenced `smells.py` itself. This is meant for boundaries where a
 smell is imposed by an interface. For example, MCP tool parameters are a
 JSON schema, so primitives and flat argument lists are required. Use it
-sparingly and always with a reason in the comment.
+sparingly and always with a reason in the comment, after ` -- `.
+
+A name runs to the next comma, so `disable=x because y` is the one name
+`x because y`. Names that are no smell switch nothing off and are
+reported (`unknown_suppressions` on each file score, shown by scan,
+delta and the MCP tools) instead of being dropped silently (issue #6).
 
 ### Complex Conditional = conditions only (M10)
 

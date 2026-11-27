@@ -7,6 +7,14 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
+## Unreleased
+
+- **Unknown names in `aihealth: disable=` comments are reported** (#6):
+  a typo, or a reason without ` -- ` (`disable=x because tests`), used
+  to switch nothing off without a word. `scan`, `delta`, `scan FILE` and
+  the MCP tools now list them with their line, and JSON has
+  `unknown_suppressions` per file. Scores are unchanged (patch release).
+
 ## 0.6.0 (2026-11-27)
 
 - **Kotlin** (`*.kt`): functions (top-level, members, extensions,

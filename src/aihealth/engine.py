@@ -20,7 +20,7 @@ from aihealth.metrics import function_metrics
 from aihealth.model import Module
 from aihealth.overrides import path_matches
 from aihealth.scoring import FileScore, ScoreParams, file_score, project_score
-from aihealth.smells import Detector
+from aihealth.smells import Detector, unknown_suppressions
 
 
 def score_module(module: Module, config: Config, clones=None) -> FileScore:
@@ -36,6 +36,7 @@ def score_module(module: Module, config: Config, clones=None) -> FileScore:
         findings=findings,
         functions=metrics,
         parse_errors=module.error_count,
+        unknown_suppressions=unknown_suppressions(module, adapter),
     )
 
 

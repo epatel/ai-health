@@ -84,6 +84,23 @@ def test_delta_markdown_new_file_and_syntax_warning():
     assert "Syntax errors" in md
 
 
+TYPO = "# aihealth: disable=large_methd\n" + CLEAN
+
+
+def test_unknown_suppressions_in_delta_and_scan(tmp_path):
+    result = _delta(("a.py", CLEAN, TYPO))
+    assert '! L1 "large_methd" in aihealth: disable= is no smell' in render_delta(result, "text")
+    assert "`a.py:1` `large_methd`" in render_delta(result, "markdown")
+    assert json.loads(render_delta(result, "json"))["files"][0]["unknown_suppressions"] == [
+        {"line": 1, "name": "large_methd"}
+    ]
+    # shown even when the project has no smells at all
+    (tmp_path / "t.py").write_text(TYPO)
+    scanned = scan(tmp_path, Config())
+    assert '! t.py:1 "large_methd"' in render_scan(scanned, "text")
+    assert "`t.py:1` `large_methd`" in render_scan(scanned, "markdown")
+
+
 def test_delta_json_matches_to_dict():
     result = _delta(("a.py", CLEAN, SMELLY))
     assert json.loads(render_delta(result, "json")) == result.to_dict()

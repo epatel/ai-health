@@ -25,7 +25,7 @@ from aihealth.engine import is_excluded, score_source, too_large
 from aihealth.gitutil import ChangedFile, Revisions
 from aihealth.lang import is_supported, may_be_script
 from aihealth.lang.base import is_generated
-from aihealth.scoring import FileScore
+from aihealth.scoring import FileScore, suppressions_json
 from aihealth.smells import Finding
 
 EPS = 1e-6
@@ -83,6 +83,9 @@ class FileDelta:
             "score_after": self.score_after,
             "score_delta": self.score_delta,
             "parse_errors": self.after.parse_errors if self.after else 0,
+            "unknown_suppressions": suppressions_json(
+                self.after.unknown_suppressions if self.after else []
+            ),
             "changes": [c.to_dict() for c in self.changes],
         }
 

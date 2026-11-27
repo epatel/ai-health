@@ -67,3 +67,11 @@ class Module:
         for cls in self.classes:
             funcs.extend(cls.methods)
         return sorted(funcs, key=lambda f: (f.start_line, f.qualname))
+
+
+@dataclass(frozen=True)
+class Suppression:
+    """One name in an `aihealth: disable=` comment, and the line it is on."""
+
+    line: int
+    name: str

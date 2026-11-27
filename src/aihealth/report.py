@@ -18,10 +18,14 @@ from aihealth.scoring import band
 if TYPE_CHECKING:
     from aihealth.delta import Change, DeltaResult, FileDelta
     from aihealth.engine import ScanResult
+    from aihealth.model import Suppression
     from aihealth.scoring import FileScore
     from aihealth.smells import Finding
 
 FORMATS = ("text", "markdown", "json")
+
+# after the unknown `aihealth: disable=` names in every format
+SUPPRESSION_HELP = "names as in [weights], comma-separated; a reason goes after ` -- `"
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,7 @@ def render_file(fs: FileScore, fmt: str, opts: ReportOptions | None = None) -> s
     ]
     if fs.parse_errors:
         out.append(f"⚠ {fs.parse_errors} syntax error(s): score may be partial.")
+    out += _unknown_markdown([(fs.path, s) for s in fs.unknown_suppressions])
     groups = _group_by_symbol(fs.findings)
     if not groups:
         return "\n".join([*out, "", "No code smells found."])
@@ -199,6 +204,7 @@ def file_text(fs: FileScore, opts: ReportOptions) -> str:
     ]
     if fs.parse_errors:
         out.append(f"! {fs.parse_errors} syntax error(s): results may be partial")
+    out += _unknown_text([(fs.path, s) for s in fs.unknown_suppressions], with_path=False)
     out += _finding_lines(fs.findings, opts.verbose, indent=2)
     return "\n".join(out)
 
@@ -213,6 +219,7 @@ def scan_text(result: ScanResult, opts: ReportOptions) -> str:
         ),
         f"files: {counts['healthy']} healthy, {counts['warning']} warning, {counts['alert']} alert",
     ]
+    out += _unknown_text(_all_unknown(result.files))
     worst = _worst_files(result, opts.top)
     if not worst:
         return "\n".join([*out, "", "no code smells found"])
@@ -234,6 +241,7 @@ def scan_markdown(result: ScanResult, opts: ReportOptions) -> str:
             "(scores 1-10, LoC-weighted; healthy ≥ 9, alert < 4)"
         ),
     ]
+    out += _unknown_markdown(_all_unknown(result.files))
     worst = _worst_files(result, opts.top)
     if not worst:
         return "\n".join([*out, "", "No code smells found."])
@@ -329,8 +337,7 @@ def _skipped_note(result: DeltaResult) -> list[str]:
 def _file_delta_text(fd: FileDelta, verbose: bool) -> list[str]:
     rename = f" (from {fd.old_path})" if fd.status == "renamed" else ""
     out = ["", f"  {fd.verdict:9} {fd.path}{rename}  {_score_label(fd)}"]
-    if fd.after and fd.after.parse_errors:
-        out.append(f"            ! {fd.after.parse_errors} syntax error(s): results may be partial")
+    out += ["            " + line for line in _after_notes(fd.after)]
     shown = fd.changes if verbose else fd.of_kind("new", "worsened")
     for ch in shown:
         out += _change_text(ch)
@@ -338,6 +345,16 @@ def _file_delta_text(fd: FileDelta, verbose: bool) -> list[str]:
     if hidden:
         out.append(f"    ({hidden} improvement(s), -v to list)")
     return out
+
+
+def _after_notes(after: FileScore | None) -> list[str]:
+    """Syntax errors and unknown suppression names in a changed file."""
+    if after is None:
+        return []
+    out = [f"! {after.parse_errors} syntax error(s): results may be partial"]
+    out = out if after.parse_errors else []
+    unknown = [(after.path, s) for s in after.unknown_suppressions]
+    return out + _unknown_text(unknown, with_path=False)
 
 
 def _was(ch: Change) -> str:
@@ -368,6 +385,7 @@ def delta_markdown(result: DeltaResult, opts: ReportOptions) -> str:
     out += ["", "| File | Before | After | Δ | Verdict |", "|---|---:|---:|---:|---|"]
     out += [_delta_row(fd) for fd in result.files]
     out += _partial_parse_note(result)
+    out += _unknown_markdown(_all_unknown([fd.after for fd in result.files if fd.after]))
     out += _skipped_note(result)
     out += _regressions_section(result, opts.max_findings)
     out += _improvements_section(result, opts.max_findings)
@@ -424,3 +442,28 @@ def _change_label(changes: list[Change]):
         return f"{f.label} (worse, was {ch.value_before:g})"
 
     return label
+
+
+def _all_unknown(files: list[FileScore]) -> list[tuple[str, Suppression]]:
+    return [(fs.path, s) for fs in files for s in fs.unknown_suppressions]
+
+
+def _unknown_text(items: list[tuple[str, Suppression]], with_path: bool = True) -> list[str]:
+    """`! L12 "x because y" in aihealth: disable= is no smell, ignored`."""
+    if not items:
+        return []
+    out = [
+        f'! {f"{path}:" if with_path else "L"}{s.line} "{s.name}" in aihealth: disable= '
+        "is no smell, ignored"
+        for path, s in items
+    ]
+    return [*out, f"  ({SUPPRESSION_HELP})"]
+
+
+def _unknown_markdown(items: list[tuple[str, Suppression]]) -> list[str]:
+    """The same as a markdown note: a typo'd suppression switches nothing off."""
+    if not items:
+        return []
+    names = ", ".join(f"{code(f'{path}:{s.line}')} {code(s.name)}" for path, s in items)
+    note = f"⚠ Unknown names in `aihealth: disable=` switch nothing off: {names}"
+    return ["", f"{note} ({SUPPRESSION_HELP})."]
