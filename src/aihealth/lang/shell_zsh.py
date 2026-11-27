@@ -22,17 +22,18 @@ from typing import NamedTuple
 from tree_sitter import Node, Parser, Tree
 from tree_sitter_language_pack import get_parser
 
+from aihealth.lang.base import SHEBANG_PATH
+
 try:
     import resource
 except ImportError:  # Windows: no fork either, see _finishes
     resource = None
 
 ZSH_EXTENSIONS = (".zsh", ".zsh-theme")
-_SHEBANG_PATH = rb"#![ \t]*\S*?(?:/|env[ \t]+(?:-\S+[ \t]+)*)"
 # completion (`_docker`) and autoload functions start with these, no shebang
 _ZSH_MARKERS = rb"|#compdef\b|#autoload\b"
-_SHELL_HEAD = re.compile(_SHEBANG_PATH + rb"(?:ba|da|k|z)?sh\b" + _ZSH_MARKERS)
-_ZSH_HEAD = re.compile(_SHEBANG_PATH + rb"zsh\b" + _ZSH_MARKERS)
+_SHELL_HEAD = re.compile(SHEBANG_PATH + rb"(?:ba|da|k|z)?sh\b" + _ZSH_MARKERS)
+_ZSH_HEAD = re.compile(SHEBANG_PATH + rb"zsh\b" + _ZSH_MARKERS)
 
 # `for k v in ...`: the grammar takes one loop variable (at most 8 more, so
 # a line of many `for` words isn't backtracked over once per `for`)

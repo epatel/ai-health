@@ -110,21 +110,27 @@ def discover(root: Path, config: Config) -> list[str]:
     files = _git_files(root)
     if files is None:
         files = _walk_files(root)
-    out = []
-    for rel in files:
-        head = file_head(root / rel) if may_be_script(rel) else None
-        if not is_supported(rel, head):
-            continue
-        if is_excluded(rel, config.excludes):
-            continue
-        p = root / rel
-        try:
-            if not p.is_file() or too_large(p.stat().st_size, config):
-                continue
-        except OSError:
-            continue
-        out.append(rel)
-    return sorted(out)
+    venvs = _venv_dirs(files) if config.section("scan")["use_default_excludes"] else ()
+    return sorted(rel for rel in files if not rel.startswith(venvs) and _wanted(root, rel, config))
+
+
+def _wanted(root: Path, rel: str, config: Config) -> bool:
+    """A supported, not excluded, regular file of acceptable size."""
+    head = file_head(root / rel) if may_be_script(rel) else None
+    if not is_supported(rel, head) or is_excluded(rel, config.excludes):
+        return False
+    p = root / rel
+    try:
+        return p.is_file() and not too_large(p.stat().st_size, config)
+    except OSError:
+        return False
+
+
+def _venv_dirs(files: list[str]) -> tuple[str, ...]:
+    """Folders holding a `pyvenv.cfg`: virtual environments, whatever their
+    name (`.venv/` and `venv/` are excluded anyway). Their `bin/` holds
+    generated scripts with Python shebangs."""
+    return tuple(rel.removesuffix("pyvenv.cfg") for rel in files if rel.endswith("/pyvenv.cfg"))
 
 
 def _git_files(root: Path) -> list[str] | None:

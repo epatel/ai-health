@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from aihealth.config import Config
+from aihealth.engine import scan
 from aihealth.lang import adapter_for, parse_file, parse_source
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -23,6 +25,48 @@ def _fns(name: str) -> dict:
 )
 def test_adapter_by_extension(path, lang):
     assert adapter_for(path).language == lang
+
+
+# extensionless `bin/tool` starting with this line => its language
+SHEBANGS = """
+#!/usr/bin/env python3 => python
+#!/usr/bin/env python => python
+#!/usr/bin/python3.12 => python
+#!/opt/homebrew/bin/python3.12 => python
+#!/Users/me/proj/.venv/bin/python => python
+#!/usr/bin/env -S python3 -u => python
+#!/usr/bin/env -S uv run --script => python
+#!/usr/bin/env -S uv run --quiet --script => python
+#!/usr/bin/env bash => bash
+#!/usr/bin/env python3-config => none
+#!/usr/bin/env pythonista => none
+#!/usr/bin/env -S uv run => none
+#!/usr/bin/env ruby => none
+"""
+
+
+@pytest.mark.parametrize("line", SHEBANGS.strip().splitlines())
+def test_extensionless_script_by_shebang(line):
+    head, lang = line.rsplit(" => ", 1)
+    adapter = adapter_for("bin/tool", head=f"{head}\nx = 1\n".encode())
+    assert (adapter.language if adapter else "none") == lang
+    assert adapter_for("tool.txt", head=f"{head}\n".encode()) is None  # has an extension
+
+
+def test_python_script_is_scored_but_not_a_venvs_bin(tmp_path):
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin/tool").write_text("#!/usr/bin/env python3\ndef main():\n    pass\n")
+    # a virtual environment not named .venv/venv: pip's generated wrappers
+    (tmp_path / "env/bin").mkdir(parents=True)
+    (tmp_path / "env/pyvenv.cfg").write_text("home = /usr/bin\n")
+    (tmp_path / "env/bin/pip").write_text("#!/x/env/bin/python3\nimport sys\n")
+    assert [f.path for f in scan(tmp_path, Config()).files] == ["bin/tool"]
+    module = parse_source(b"#!/usr/bin/env python3\ndef main():\n    pass\n", "bin/tool")
+    assert [f.qualname for f in module.all_functions()] == ["main"]
+    # without the default excludes the venv is scanned like any folder
+    config = Config()
+    config.data["scan"]["use_default_excludes"] = False
+    assert "env/bin/pip" in [f.path for f in scan(tmp_path, config).files]
 
 
 def test_unsupported_extension():

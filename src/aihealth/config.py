@@ -200,7 +200,7 @@ KEY_DOCS: dict[str, str] = {
     "scan.exclude": "Glob patterns added to the default excludes (`*` crosses `/`, "
     "matched against every path suffix).",
     "scan.use_default_excludes": "Keep the built-in excludes (generated code, "
-    "build output, vendored dependency folders).",
+    "build output, vendored dependency folders, virtual environments).",
     "scan.max_file_kb": "Files larger than this are not scored in scan, delta, the hooks and MCP.",
     "score.decay": "score = 10 - 9 x (1 - exp(-penalty / decay)): larger is more lenient.",
     "score.symbol_cap": "Cap on the summed penalty of one function or class.",

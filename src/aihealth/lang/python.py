@@ -2,18 +2,37 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from typing import ClassVar
 
 from tree_sitter import Node
 
-from aihealth.lang.base import ExtractionScope, LanguageAdapter, iter_nodes, text, type_leaves
+from aihealth.lang.base import (
+    SHEBANG_PATH,
+    ExtractionScope,
+    LanguageAdapter,
+    iter_nodes,
+    text,
+    type_leaves,
+)
 from aihealth.metrics import Role
 from aihealth.model import Class, Function, Module, Param
 
 _PARAM_TYPED = {"typed_parameter", "typed_default_parameter"}
 _PARAM_DEFAULT = {"default_parameter", "typed_default_parameter"}
 _SPLATS = {"list_splat_pattern", "dictionary_splat_pattern"}
+
+# an extensionless script run by Python: `python`, `python3`, `python3.12` at
+# any path (a venv's too) or via `env`, or `uv run --script`
+_PYTHON_HEAD = re.compile(
+    SHEBANG_PATH + rb"(?:python(?:\d+(?:\.\d+)*)?(?=\s|$)|uv[ \t]+run\b[^\n]*--script\b)"
+)
+
+
+def is_python_head(head: bytes) -> bool:
+    """A shebang that runs Python."""
+    return _PYTHON_HEAD.match(head) is not None
 
 
 def _unwrap(node: Node) -> Node:

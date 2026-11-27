@@ -319,6 +319,11 @@ end up outside any scored function.
 smells. So is **zsh**: `*.zsh`, `*.zsh-theme`, zsh shebangs and completion/autoload
 functions (`_docker`, starting with `#compdef` or `#autoload`).
 
+Extensionless files with a **Python shebang** are scored as Python: `python`, `python3`,
+`python3.12` at any path (a venv's too) or via `env`, and `env -S uv run --script`.
+Virtual environments (folders with a `pyvenv.cfg`, whatever their name) are skipped, so
+pip's generated `bin/` scripts aren't scored; `[scan] use_default_excludes = false` keeps them.
+
 - **Units**: functions (`f() { ... }`, `function f { ... }`), wherever they're defined, named
   plainly because shell functions are global; and top-level `if` / `for` / `while` /
   `until` / `case` blocks (zsh also `repeat`, `select`, `for x (a b)`), named by their
@@ -498,7 +503,7 @@ I'd do it in this order. Each step has a check before you move on.
    | `member_refs(cls)` | which fields/methods each method touches (LCOM4 cohesion). It can return `{}` at first, which simply disables the smell. |
    | `widget_depth(body)` | optional UI-tree depth. It suits JSX, SwiftUI and Compose as well as Flutter. |
    | `grammars`, `_grammar_for()` | optional: further grammars and the per-file choice, when one extension can hold several languages (C-family `.h`). The choice becomes `module.language`. |
-   | shebang routing | extensionless files are routed by content only for shell scripts (`is_shell_head` in `lang/shell_zsh.py`); callers pass the file's first bytes as `head` to `is_supported` / `adapter_for` |
+   | shebang routing | extensionless files are routed by content only for shell and Python scripts (`is_shell_head` in `lang/shell_zsh.py`, `is_python_head` in `lang/python.py`, both on `base.SHEBANG_PATH`); callers pass the file's first bytes as `head` to `is_supported` / `adapter_for` |
    | `_prepare(source, language)` | optional: what the grammar parses, same length and line breaks (the C family blanks `#if` lines and lone macros the grammars trip over) |
 
 3. **Register it**: add the class to `ADAPTERS` in `src/aihealth/lang/__init__.py`. Add

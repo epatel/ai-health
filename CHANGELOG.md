@@ -9,11 +9,19 @@ release here.
 
 ## Unreleased
 
+- **Python scripts without an extension are scored** (#3), by their
+  shebang, as shell scripts already were: `python`, `python3`,
+  `python3.12` at any path (a venv's too) or via `env`, and
+  `env -S uv run --script`. Virtual environments (any folder with a
+  `pyvenv.cfg`) are skipped with the default excludes, so pip's
+  generated `bin/` scripts aren't scored. Project scores can change
+  where such scripts exist (minor release).
+
 - **Unknown names in `aihealth: disable=` comments are reported** (#6):
   a typo, or a reason without ` -- ` (`disable=x because tests`), used
   to switch nothing off without a word. `scan`, `delta`, `scan FILE` and
   the MCP tools now list them with their line, and JSON has
-  `unknown_suppressions` per file. Scores are unchanged (patch release).
+  `unknown_suppressions` per file. Scores are unchanged.
 
 ## 0.6.0 (2026-11-27)
 

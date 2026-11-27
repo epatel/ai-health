@@ -23,6 +23,11 @@ def iter_nodes(node: Node) -> Iterator[Node]:
         stack.extend(reversed(n.children))
 
 
+# what precedes the interpreter's name in a shebang: `#!/usr/bin/`,
+# `#!/path/to/.venv/bin/`, `#!/usr/bin/env `, `#!/usr/bin/env -S `
+SHEBANG_PATH = rb"#![ \t]*\S*?(?:/|env[ \t]+(?:-\S+[ \t]+)*)"
+
+
 def text(node: Node | None) -> str:
     return node.text.decode("utf-8", "replace") if node is not None else ""
 

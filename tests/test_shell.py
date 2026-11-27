@@ -57,7 +57,7 @@ deploy | #!/bin/zsh => yes
 deploy | #!/usr/bin/env zsh => yes
 _docker | #compdef docker dockerd => yes
 _git | #autoload => yes
-deploy | #!/usr/bin/env python3 => no
+deploy | #!/usr/bin/env ruby => no
 deploy | #!/usr/bin/env node => no
 deploy | echo hi => no
 deploy.txt | #!/bin/bash => no
@@ -82,7 +82,7 @@ def test_a_shebang_script_is_bash_and_needs_its_head():
 def test_scan_and_file_check_find_extensionless_scripts(tmp_path):
     (tmp_path / "bin").mkdir()
     (tmp_path / "bin/deploy").write_text("#!/usr/bin/env bash\nmain() {\n  echo hi\n}\n")
-    (tmp_path / "bin/tool").write_text("#!/usr/bin/env python3\nprint('hi')\n")
+    (tmp_path / "bin/tool").write_text("#!/usr/bin/env node\nconsole.log('hi')\n")
     (tmp_path / "LICENSE").write_text("MIT\n")
     result = scan(tmp_path, Config())
     assert [f.path for f in result.files] == ["bin/deploy"]

@@ -17,7 +17,7 @@ from aihealth.lang.java import JavaAdapter
 from aihealth.lang.javascript import JavaScriptAdapter
 from aihealth.lang.kotlin import KotlinAdapter
 from aihealth.lang.make import MakeAdapter
-from aihealth.lang.python import PythonAdapter
+from aihealth.lang.python import PythonAdapter, is_python_head
 from aihealth.lang.rust import RustAdapter
 from aihealth.lang.shell import ShellAdapter
 from aihealth.lang.shell_zsh import is_shell_head
@@ -57,7 +57,8 @@ SUPPORTED_LANGUAGES = (
 
 # An extensionless file starting with a sh/bash/dash/ksh/zsh shebang is a
 # shell script (`bin/deploy`, rbenv's `libexec/rbenv-init`), and so is a zsh
-# completion or autoload function (`_docker`: `#compdef docker`).
+# completion or autoload function (`_docker`: `#compdef docker`). One with a
+# Python shebang (`#!/usr/bin/env python3`) is Python.
 _HEAD_BYTES = 128
 
 
@@ -82,14 +83,16 @@ def file_head(path: str | Path) -> bytes | None:
 def _adapter_class(path: str | Path, head: bytes | None) -> type[LanguageAdapter] | None:
     p = Path(path)
     cls = _BY_NAME.get(p.name) or _BY_EXT.get(p.suffix.lower())
-    if cls is None and _is_shell_script(p, head):
+    return cls or _script_class(p, head)
+
+
+def _script_class(path: Path, head: bytes | None) -> type[LanguageAdapter] | None:
+    """An extensionless script's adapter, by the shebang in ``head``."""
+    if not head or not may_be_script(path):
+        return None
+    if is_shell_head(head):
         return ShellAdapter
-    return cls
-
-
-def _is_shell_script(path: Path, head: bytes | None) -> bool:
-    """Extensionless, starting with a shell shebang (``head``)."""
-    return bool(head) and may_be_script(path) and is_shell_head(head)
+    return PythonAdapter if is_python_head(head) else None
 
 
 def is_supported(path: str | Path, head: bytes | None = None) -> bool:
