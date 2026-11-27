@@ -7,7 +7,7 @@ Saved scans record the version (`scan.tool_version`), and `aihealth
 history` notes when it changes, so a score jump can be traced to a
 release here.
 
-## Unreleased
+## 0.6.0 (2026-11-27)
 
 - **Kotlin** (`*.kt`): functions (top-level, members, extensions,
   local), secondary constructors, `init` blocks, property accessors and
@@ -19,8 +19,8 @@ release here.
   lambdas passed to a capitalised call (layout) add no cognitive nesting,
   and capitalised calls feed Deep Widget Tree; `?.`, `?:` and `!!` add no
   complexity; parameters with a default value count half for Excess
-  Arguments. `.kts` scripts are not scored yet. New language, so this
-  release is a minor bump: other languages score as before.
+  Arguments. `.kts` scripts are not scored yet. Other languages score
+  as before. Contributed in #5.
 
 ## 0.5.1 (2026-11-25)
 

@@ -30,11 +30,11 @@ aihealth's version.
 # 1. Install into the project's venv (needs Python 3.11+; macOS's python3 is 3.9,
 #    so check `python3 --version` and use e.g. python3.12 from brew or uv if needed)
 python3 -m venv .venv                # skip if the project already has one
-.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.5.1"
+.venv/bin/pip install "git+https://github.com/epatel/ai-health@v0.6.0"
 .venv/bin/aihealth --version
 ```
 
-`@v0.5.1` is the current release (scores can change between releases, see `CHANGELOG.md`).
+`@v0.6.0` is the current release (scores can change between releases, see `CHANGELOG.md`).
 Use the latest tag, or leave it out to follow `main`.
 
 2. Add to `.mcp.json` in the repo root. Claude Code starts the server in the project
@@ -107,7 +107,7 @@ make setup && make link  # macOS's python3 is 3.9: make setup PYTHON=python3.12
 cd -
 
 # Or as a tool (with pipx: pipx install "git+...")
-uv tool install "git+https://github.com/epatel/ai-health@v0.5.1"   # the current release
+uv tool install "git+https://github.com/epatel/ai-health@v0.6.0"   # the current release
 
 aihealth --version       # not found? add ~/.local/bin to PATH (uv: `uv tool update-shell`)
 ```

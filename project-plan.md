@@ -171,8 +171,8 @@ thresholds in `.aihealth.toml`, and `aihealth config` / MCP `list_config`
 listing every setting with its default, value and meaning. 0.5.1 adds
 `aihealth config --file` (one file's values and which override set them).
 
-**2026-11-26.** M23 (Kotlin) is done as a contributed pull request, not
-released yet. 611 tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
+**2026-11-27.** M23 (Kotlin), a contributed pull request (#5), is
+released as 0.6.0. 629 tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
 `CHANGELOG.md`.
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
