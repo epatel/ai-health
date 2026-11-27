@@ -28,6 +28,28 @@ Delivered as three faces over one engine:
 - Auto-fixing code. We explain and hint; the agent refactors.
 - A JS build step for the dashboard.
 
+## Design principles
+
+aihealth runs regularly but not often (a gate in CI, a hook, an agent's
+check), so nobody remembers a flag between runs: a committed file does.
+Check new features and issue requests against these.
+
+1. **Policy in the file, invocation on the command line.** What is
+   measured and what fails (weights, thresholds, excludes, overrides,
+   language switches, tolerances, gates) lives in `.aihealth.toml`. What
+   to look at this time and how to show it (path, revisions, format,
+   verbosity, output file, `--db`) are options. Test: would CI, a
+   teammate, the hooks and the MCP agent need the same value to get the
+   same answer? Then it goes in the file. Known exception: `--fail-under`
+   is policy but only a flag.
+2. **One file for every interface.** CLI, MCP tools and hooks read the
+   same config; none gets a policy option the others lack, so an agent
+   and CI reach the same verdict.
+3. **Nothing ignored silently.** An unknown config key fails; an unknown
+   name in `aihealth: disable=` or a file left unscored is reported.
+4. **A config key over a new command or flag**, off by default when it
+   changes scores.
+
 ## Milestones
 
 Status: `todo` / `wip` / `done`.
