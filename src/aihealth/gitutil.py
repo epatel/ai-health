@@ -141,11 +141,27 @@ def _blob(rev: str | None, path: str) -> str:
     return f":{path}" if rev == INDEX else f"{_rev(rev)}:{path}"
 
 
+def within_root(root: Path, path: str) -> bool:
+    """``root / path`` resolves inside ``root``. A symlink pointing out of the
+    project is not followed: a scanned repository must not make aihealth read
+    other files on the machine (SECURITY.md)."""
+    try:
+        return (root / path).resolve().is_relative_to(root.resolve())
+    except (OSError, RuntimeError):  # unreadable, or a symlink loop
+        return False
+
+
+def _worktree_file(root: Path, path: str) -> Path | None:
+    """``root / path`` if it is a regular file inside the project."""
+    p = root / path
+    return p if p.is_file() and within_root(root, path) else None
+
+
 def read_file(root: Path, rev: str | None, path: str) -> bytes | None:
     """Content of ``path`` at ``rev`` (WORKTREE, INDEX or a commit); None if absent."""
     if rev is WORKTREE:
-        p = root / path
-        return p.read_bytes() if p.is_file() else None
+        p = _worktree_file(root, path)
+        return p.read_bytes() if p else None
     res = subprocess.run(
         [*GIT, "show", "--end-of-options", _blob(rev, path)],
         cwd=root,
@@ -158,8 +174,8 @@ def read_file(root: Path, rev: str | None, path: str) -> bytes | None:
 def file_size(root: Path, rev: str | None, path: str) -> int | None:
     """Size in bytes of ``path`` at ``rev`` without reading it; None if absent."""
     if rev is WORKTREE:
-        p = root / path
-        return p.stat().st_size if p.is_file() else None
+        p = _worktree_file(root, path)
+        return p.stat().st_size if p else None
     res = subprocess.run(
         [*GIT, "cat-file", "-s", "--end-of-options", _blob(rev, path)],
         cwd=root,
@@ -173,8 +189,8 @@ def read_head(root: Path, rev: str | None, path: str, size: int = 128) -> bytes 
     """The first ``size`` bytes of ``path`` at ``rev`` (enough for a shebang),
     without reading the rest; None if absent."""
     if rev is WORKTREE:
-        p = root / path
-        if not p.is_file():
+        p = _worktree_file(root, path)
+        if p is None:
             return None
         with p.open("rb") as f:
             return f.read(size)

@@ -220,6 +220,7 @@ def scan_text(result: ScanResult, opts: ReportOptions) -> str:
         f"files: {counts['healthy']} healthy, {counts['warning']} warning, {counts['alert']} alert",
     ]
     out += _unknown_text(_all_unknown(result.files))
+    out += _not_scored(result.skipped)
     worst = _worst_files(result, opts.top)
     if not worst:
         return "\n".join([*out, "", "no code smells found"])
@@ -242,6 +243,7 @@ def scan_markdown(result: ScanResult, opts: ReportOptions) -> str:
         ),
     ]
     out += _unknown_markdown(_all_unknown(result.files))
+    out += ["", *_not_scored(result.skipped)] if result.skipped else []
     worst = _worst_files(result, opts.top)
     if not worst:
         return "\n".join([*out, "", "No code smells found."])
@@ -467,3 +469,15 @@ def _unknown_markdown(items: list[tuple[str, Suppression]]) -> list[str]:
     names = ", ".join(f"{code(f'{path}:{s.line}')} {code(s.name)}" for path, s in items)
     note = f"⚠ Unknown names in `aihealth: disable=` switch nothing off: {names}"
     return ["", f"{note} ({SUPPRESSION_HELP})."]
+
+
+def _not_scored(skipped: list[tuple[str, str]]) -> list[str]:
+    """`not scored: 3 files (2 generated, 1 symlink outside the project)`;
+    JSON lists each path."""
+    if not skipped:
+        return []
+    reasons: dict[str, int] = {}
+    for _, reason in skipped:
+        reasons[reason] = reasons.get(reason, 0) + 1
+    parts = ", ".join(f"{n} {reason}" for reason, n in reasons.items())
+    return [f"not scored: {len(skipped)} file(s) ({parts}; --format json lists them)"]

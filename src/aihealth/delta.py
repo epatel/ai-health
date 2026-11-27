@@ -29,6 +29,7 @@ from aihealth.scoring import FileScore, suppressions_json
 from aihealth.smells import Finding
 
 EPS = 1e-6
+OUTSIDE = "symlink outside the project"
 DEGRADED, IMPROVED, UNCHANGED = "degraded", "improved", "unchanged"
 
 
@@ -232,6 +233,8 @@ def _has_before(ch: ChangedFile, revs: Revisions) -> bool:
 def _precheck(root: Path, ch: ChangedFile, revs: Revisions, config: Config) -> str | None:
     """Why the file is skipped, decided before reading it in full: from its
     size (either version) and, for an extensionless file, its first bytes."""
+    if revs.head is gitutil.WORKTREE and not gitutil.within_root(root, ch.path):
+        return OUTSIDE
     size = gitutil.file_size(root, revs.head, ch.path)
     if size is None:
         return "unreadable"

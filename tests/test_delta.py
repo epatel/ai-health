@@ -10,6 +10,7 @@ from aihealth import gitutil
 from aihealth.cli import main
 from aihealth.config import Config
 from aihealth.delta import compare, delta_for_contents, run_delta
+from aihealth.engine import scan
 from aihealth.gitutil import Revisions
 
 CLEAN = "def f(x):\n    return x + 1\n"
@@ -296,3 +297,44 @@ def test_files_over_the_limit_are_never_read_in_full(repo, monkeypatch):
     result = run_delta(repo, config)
     assert read == []
     assert sorted(p for p, _ in result.skipped) == ["app.py", "tool"]  # `blob`: silently
+
+
+# --- symlinks out of the project (SECURITY.md) ----------------------------------------
+
+SECRET = "def secret_name():\n    return 1\n"
+
+
+def _outside_link(tmp_path: Path, project: Path, name: str) -> None:
+    """``project/name`` links to a Python file outside ``project``."""
+    outside = tmp_path / "outside"
+    outside.mkdir(exist_ok=True)
+    (outside / "s.py").write_text(SECRET)
+    (project / name).symlink_to(outside / "s.py")
+
+
+@pytest.mark.parametrize("with_git", [True, False])
+def test_scan_never_reads_a_symlink_out_of_the_project(tmp_path, with_git, capsys):
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / "ok.py").write_text(CLEAN)
+    (project / "inside.py").symlink_to(project / "ok.py")  # inside: followed
+    _outside_link(tmp_path, project, "link.py")
+    if with_git:
+        git(project, "init", "-q", "-b", "main")
+    result = scan(project, Config())
+    assert sorted(f.path for f in result.files) == ["inside.py", "ok.py"]
+    assert result.skipped == [("link.py", "symlink outside the project")]
+    assert main(["scan", str(project), "--format", "json", "--functions"]) == 0
+    out = capsys.readouterr().out
+    assert "secret_name" not in out
+    assert main(["scan", str(project)]) == 0
+    assert "not scored: 1 file(s) (1 symlink outside the project" in capsys.readouterr().out
+
+
+def test_delta_never_reads_a_symlink_out_of_the_project(repo, tmp_path_factory):
+    _outside_link(tmp_path_factory.mktemp("elsewhere"), repo, "new.py")
+    result = run_delta(repo, Config())
+    assert result.skipped == [("new.py", "symlink outside the project")]
+    assert "secret_name" not in json.dumps(result.to_dict())
+    assert gitutil.read_file(repo, gitutil.WORKTREE, "new.py") is None
+    assert gitutil.read_head(repo, gitutil.WORKTREE, "new.py") is None

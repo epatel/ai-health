@@ -107,11 +107,27 @@ def too_large(size: int, config: Config) -> str | None:
 def discover(root: Path, config: Config) -> list[str]:
     """Supported source files under root (relative posix paths), honouring
     .gitignore when root is inside a git work tree, plus config excludes."""
+    return _discover(root, config)[0]
+
+
+def _discover(root: Path, config: Config) -> tuple[list[str], list[str]]:
+    """(files to score, supported-looking symlinks pointing out of root):
+    those are never read, only reported."""
+    files = _candidates(root, config)
+    inside = [rel for rel in files if gitutil.within_root(root, rel)]
+    outside = sorted(set(files) - set(inside))
+    wanted = sorted(rel for rel in inside if _wanted(root, rel, config))
+    return wanted, [rel for rel in outside if is_supported(rel)]
+
+
+def _candidates(root: Path, config: Config) -> list[str]:
+    """Every file under root (git's list, or a walk), virtual environments
+    left out with the default excludes."""
     files = _git_files(root)
     if files is None:
         files = _walk_files(root)
     venvs = _venv_dirs(files) if config.section("scan")["use_default_excludes"] else ()
-    return sorted(rel for rel in files if not rel.startswith(venvs) and _wanted(root, rel, config))
+    return [rel for rel in files if not rel.startswith(venvs)]
 
 
 def _wanted(root: Path, rel: str, config: Config) -> bool:
@@ -201,8 +217,9 @@ class ScanResult:
 def scan(root: str | Path, config: Config) -> ScanResult:
     root = Path(root).resolve()
     modules: list[Module] = []
-    skipped: list[tuple[str, str]] = []
-    for rel in discover(root, config):
+    wanted, outside = _discover(root, config)
+    skipped = [(rel, "symlink outside the project") for rel in outside]
+    for rel in wanted:
         try:
             source = (root / rel).read_bytes()
         except OSError as e:

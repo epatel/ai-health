@@ -17,8 +17,10 @@ is released, the advisory is published with credit to you, unless you prefer oth
 
 ## Scope
 
-aihealth reads source code and git history and never runs the code it analyses. Things
-worth reporting include:
+aihealth reads source code and git history and never runs the code it analyses. A scan or
+delta of a project doesn't follow symlinks that point out of it: such files are listed as
+not scored and never read. A file you name yourself (`aihealth scan FILE`, the MCP
+`score_file` tool) is read wherever it is. Things worth reporting include:
 
 - input files or repositories that make it read or write outside the analysed project,
   run commands, or hang (the zsh grammar runs under a time limit for that reason)
