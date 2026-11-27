@@ -35,14 +35,14 @@ Starting thresholds; all overridable in `.aihealth.toml`.
 | Deep Nesting | function | max nesting ≥ 4 | guard clauses, extract inner block |
 | Bumpy Road | function | ≥ 2 separate blocks of nesting ≥ 2 | extract each bump into a function |
 | Brain Method | function | Large + Complex + Deep Nesting together | decompose; highest weight |
-| Excess Arguments | function | > 4 params (Python excludes `self`/`cls`; Dart named params and Swift labelled params count 0.5, `this.x` 0) | introduce parameter object |
+| Excess Arguments | function | > 4 params (Python excludes `self`/`cls`; Dart named params, Swift labelled params and Kotlin params with a default count 0.5, `this.x` 0) | introduce parameter object |
 | Complex Conditional | function | ≥ 2 boolean operators in one expression | extract to named predicate |
 | Primitive Obsession | file | > 60% of *typed* params are primitive, min 10 typed params | introduce domain types |
 | Code Duplication | function | clone ≥ 50 tokens / 6 lines, intra- or inter-file | extract shared function |
 | Large File | file | > 1000 LoC | split by responsibility |
 | Low Cohesion | class | LCOM4 ≥ 3 | split class |
 | Missing .PHONY | Makefile file | ≥ 1 phony-looking target not in `.PHONY` (weight 0.5) | declare it in `.PHONY` |
-| Deep Widget Tree | Dart / Swift function | widget / view constructor nesting > 8 | extract sub-widgets / `View` structs |
+| Deep Widget Tree | Dart / Swift / Kotlin / TSX function | widget / view constructor nesting > 8 | extract sub-widgets / `View` structs |
 
 ## Metric definitions (implemented in M3)
 
@@ -514,6 +514,96 @@ guide aims for complex code: most of their files are small and healthy,
 and their penalties sit in a few big classes. commons-lang is lower than
 a library should be, for real reasons (`StringUtils` alone is 9k lines
 of overloads).
+
+## Kotlin (M23)
+
+Generic thresholds; the Kotlin rules below were measured on the
+calibration corpora and a 36k-line Compose app. Units and grammar notes
+are in the parser card. Decisions on the open questions were taken by
+three independent reviewers (Kotlin/Compose practice, this model's
+conventions, the Sonar / detekt specs), with measurement as the tie-break.
+
+**Compose layout lambdas add no cognitive nesting.** In a `@Composable`
+function, a lambda passed to a capitalised call (`Column { }`, `Card(onClick
+= { })`, `Scaffold(topBar = { })`) gets no role, as SwiftUI view builders,
+and those calls make up the widget tree. Effects that run code
+(`LaunchedEffect`, `DisposableEffect`, `SideEffect`) keep the closure
+penalty, as Swift's `Task`. Lambdas passed to `setContent` and bound to a
+`@Composable` property count as composable code. Unlike Swift, the rule
+needs that context:
+outside composables a capitalised call is a constructor or SAM conversion
+(`Comparator { a, b -> .. }`, `A(B(C(..)))`), not layout. Without the
+exemption, Compose code had 12-23 % more cognitive points and a third to
+three quarters more Cognitive Complexity findings (the app below 23 → 35,
+mihon 71 → 94, compose-samples 9 → 14, tivi 4 → 7); non-UI corpora are
+unaffected. Deep
+Nesting is unaffected either way: closures never deepen it.
+
+**Scope functions keep the closure penalty.** `x?.let { }` is a null check
+and `?.` adds nothing, so exempting `let` would let a branch escape both
+counts; neither SonarKotlin nor detekt exempts lambdas. Measured: lambdas
+of `let run with apply also takeIf takeUnless use` carry 0.7-3.5 % of
+cognitive points and flip 0-8 % of Cognitive Complexity findings, below
+the 5 % agreed beforehand for an exemption, so there is no switch.
+
+**`?.`, `?:`, `!!` add nothing**, like `??` in TypeScript and Swift (Sonar
+ignores null-coalescing). 30 % of `?:` uses in the app were `?: return` /
+`?: throw` early exits, which stay flat like Go's error checks.
+
+**Parameters with a default count half** for Excess Arguments. Unlike
+Swift labels or Dart `{}`, Kotlin names are optional, so "every parameter
+is named" would let long positional lists through; a defaulted parameter is
+skipped or named by callers (Compose: `modifier: Modifier = Modifier`).
+Findings fall 10-30 % against counting all parameters fully (detekt's
+`ignoreDefaultParameters` would drop them entirely).
+
+**`@Composable` keeps the 70-line Large Method limit.** Composable LoC
+p50 / p97 / share over 70: nowinandroid 15 / 89 / 4 %, compose-samples
+17 / 89 / 6 %, tivi 23 / 116 / 8 %, mihon 24 / 126 / 12 %. That is
+SwiftUI's picture (p97 = 91, limit kept), not Flutter's (`build()` p97 =
+120, limit raised). Widget depth p95 is 4-5 and the maximum 8, so Deep
+Widget Tree (> 8) fits unchanged.
+
+**Accessors are not judged for cohesion**, as in Java: property getters
+and setters, and functions that only return or store one property
+(`fun type() = type`, okhttp's `MediaType`). Low Cohesion findings 151 →
+99 on the corpora, project scores within 0.1. Interfaces aren't judged.
+
+**`Boolean` is neutral** for Primitive Obsession, as `bool` everywhere.
+`Int`, `Long`, `String`, `Any`, unsigned types, collections and
+`IntArray`-style arrays are primitive; `T?` counts as `T`, generics by
+their arguments, function types are unknown.
+
+**Calibration** (`scripts/calibrate.py --only kt:`, clones in
+`AIHEALTH_KOTLIN_CORPORA`; tests, test source sets, benchmarks and build
+output left out):
+
+| Corpus | kind | kLoC | project | median file | healthy % | alert LoC % |
+|---|---|---:|---:|---:|---:|---:|
+| kotlinx.serialization | lib | 39.8 | 9.4 | 10 | 90 | 0 |
+| kotlinx.coroutines | lib | 22.9 | 9.0 | 10 | 89 | 7 |
+| okhttp | lib | 40.1 | 8.9 | 10 | 82 | 0 |
+| moshi | lib | 10.1 | 8.6 | 10 | 78 | 0 |
+| Exposed | lib | 44.2 | 8.0 | 10 | 79 | 4 |
+| nowinandroid | app | 14.0 | 9.2 | 10 | 92 | 0 |
+| compose-samples | app | 36.9 | 8.8 | 10 | 85 | 0 |
+| tivi | app | 25.2 | 9.2 | 10 | 92 | 0 |
+| ktor | complex | 116.1 | 9.1 | 10 | 87 | 0 |
+| detekt | complex | 31.8 | 9.6 | 10 | 96 | 0 |
+| mihon | complex | 81.9 | 8.8 | 10 | 83 | 2 |
+
+Duplication is the top penalty in 9 of 11 corpora (34-57 %), as in other
+languages; okhttp and moshi are led by complex methods (their HTTP/2 and
+JSON readers). **Known gap, accepted:** the large codebases (ktor, detekt,
+mihon) score above the 5-7 aimed for complex code, as Spring and Jenkins
+do in Java: Kotlin files are small and most are healthy.
+
+**Plausibility on an app:** a 36k-line Kotlin 2.4 / Compose app (no parse
+errors) scores 6.9 with a strict profile (`decay = 8`, `density_loc =
+100000`, `large_file = 600`). Its worst files are the ones an earlier
+detekt/lizard prototype flagged (large screens, a connection controller),
+without lizard's 77 Compose-nesting findings: Deep Nesting fires once
+(detekt's NestedBlockDepth: 2).
 
 ## TypeScript (M15)
 

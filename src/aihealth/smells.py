@@ -84,11 +84,11 @@ EXPLANATIONS = {
     "top-level statement nesting 2+ deep). Each bump is usually a missing abstraction that "
     "wants to be its own function.",
     "excess_arguments": "Number of parameters (named or labelled parameters count half: Dart "
-    "`{}`, Python keyword-only, Swift labels; Dart `this.x` field initialisers are free). Long parameter lists hide a missing concept and make call "
+    "`{}`, Python keyword-only, Swift labels, Kotlin defaults; Dart `this.x` field initialisers are free). Long parameter lists hide a missing concept and make call "
     "sites error-prone.",
     "complex_conditional": "Boolean expressions with 2+ and/or operators (asserts excluded). "
     "They are easy to get wrong and hard to read; a named predicate documents the intent.",
-    "deep_widget_tree": "Flutter / SwiftUI: nesting depth of widget or view constructor calls "
+    "deep_widget_tree": "Flutter / SwiftUI / Compose / JSX: nesting depth of widget or view constructor calls "
     "in one function. Deep trees in one build method or `body` are hard to read and rebuild "
     "more than needed; small widget / view types fix both.",
     "large_file": "Code lines in the file. Large files accumulate unrelated responsibilities "

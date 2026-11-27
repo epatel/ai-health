@@ -33,6 +33,7 @@ _BUILTIN_TEST_CALLS = {
     "typescript": "aihealth.lang.typescript",
     "javascript": "aihealth.lang.typescript",
     "go": "aihealth.lang.go",
+    "kotlin": "aihealth.lang.kotlin",
 }
 
 _OVERRIDE_EXAMPLE = {

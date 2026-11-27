@@ -251,6 +251,8 @@ def _is_condition(node: Node, adapter: LanguageAdapter) -> bool:
     child, parent = node, node.parent
     while parent is not None and parent.type in adapter.bool_transparent:
         child, parent = parent, parent.parent
+    if parent is not None and parent.type in adapter.condition_types:
+        return True
     if parent is None or adapter.role(parent) not in _CONDITION_OWNERS:
         return False
     named = parent.child_by_field_name("condition")

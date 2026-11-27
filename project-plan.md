@@ -6,7 +6,7 @@ A code-health tool that gives an AI coding agent fast, actionable feedback on
 its changes (delta mode) and gives humans an overview of where an existing
 codebase needs improvement (scan mode). Scores are on a CodeScene-inspired
 1–10 scale, derived from explainable code smells. Languages: **Python**,
-**Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **Go**, **Java**, **TypeScript/TSX**,
+**Dart (Flutter)**, **Swift (SwiftUI)**, **Rust**, **Go**, **Java**, **Kotlin (Compose)**, **TypeScript/TSX**,
 **JavaScript/JSX**, **C**, **C++**, **Objective-C(++)**, **shell scripts** (bash, zsh),
 **Makefiles** and **CMake**
 (more via the adapter layer:
@@ -57,7 +57,8 @@ Status: `todo` / `wip` / `done`.
 | M20 | zsh | done | `.zsh`/`.zsh-theme`, zsh shebangs and `#compdef` functions via the shell adapter: zsh grammar guarded against endless loops and compared with the bash tree per file, 0 crashes on 1,158 files, calibrated on 9 repos |
 | M21 | Go adapter | done | `.go` scored (receiver types as classes, named func values and `t.Run` subtests as units, error propagation exempt), 137,188 of 137,189 bodies on 10.6k files, calibrated on 14 corpora |
 | M22 | Java adapter | done | `.java` scored (records, sealed types, pattern switches, anonymous-class and enum-constant methods as units, accessors left out of cohesion), Java 25 syntax rewritten before parsing, 100 % of 390k bodies on 32k files, calibrated on 12 corpora |
-| M23 | Next language | todo | which one is the user's call: ask first (see handoff) |
+| M23 | Kotlin adapter | done | `.kt` scored (extensions, objects and companions, accessors, named lambdas, Kotest closures as units; Compose layout lambdas add no nesting, capitalised calls feed widget depth; defaulted params count half), 100 % of 62k bodies on 9.1k files, calibrated on 11 corpora |
+| M24 | Next language | todo | which one is the user's call: ask first (see handoff) |
 
 ## Decisions
 
@@ -140,6 +141,16 @@ Status: `todo` / `wip` / `done`.
   statements before `super(..)`) and annotated varargs are rewritten
   before parsing (tree-sitter-java has not released since Dec 2024). See
   the Java sections of both cards.
+- **Kotlin** (M23, contributed): generic thresholds, no source
+  rewrites (the pack's grammar parses Kotlin 2.x). In `@Composable`
+  functions, lambdas passed to a capitalised call add no cognitive
+  nesting, effects excepted;
+  scope functions keep it (0.7-3.5 % of cognitive points, below the 5 %
+  set for an exemption). `?.`/`?:`/`!!` add nothing. Parameters with a
+  default count half (Kotlin names are optional). `@Composable` keeps the
+  70-line limit (p97 89-126, like SwiftUI). Accessors and interfaces are
+  left out of cohesion. `.kts` not scored yet. See the Kotlin sections of
+  both cards.
 - **Dependencies** (after the re-assessment): tree-sitter and the
   grammar pack pinned to the tested minor version, other runtime
   dependencies below their next major, ruff to a minor. CI
@@ -158,27 +169,30 @@ Both are released as 0.4.0.
 **2026-11-25.** Released 0.5.0: per-path `[[overrides]]` of weights and
 thresholds in `.aihealth.toml`, and `aihealth config` / MCP `list_config`
 listing every setting with its default, value and meaning. 0.5.1 adds
-`aihealth config --file` (one file's values and which override set them). 577
-tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
+`aihealth config --file` (one file's values and which override set them).
+
+**2026-11-26.** M23 (Kotlin) is done as a contributed pull request, not
+released yet. 611 tests, ruff clean, this repo scans at 10.00. Per-milestone history is in git and
 `CHANGELOG.md`.
 
 **What exists:** an engine for Python, Dart/Flutter, Swift, Rust,
-Go, Java, TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), shell scripts,
+Go, Java, Kotlin, TypeScript/TSX, JavaScript/JSX, C, C++, Objective-C(++), shell scripts,
 Makefiles and CMake
 (13 generic smells plus Makefile `missing_phony`). Interfaces: CLI `scan`
 (dir or file) / `delta` / `history` / `serve` / `mcp` / `hook`, an MCP
 server (6 tools), SQLite history with migrations, a dashboard, and
-Claude Code hooks. Scoring is calibrated on 116 corpora, plus
+Claude Code hooks. Scoring is calibrated on 127 corpora, plus
 distribution checks on Makefiles and CMake files.
 
-**Next task (M23): ask the user which language.** Candidates: Kotlin
-(Compose maps onto widget depth; labelled args like Swift), C#.
+**Next task (M24): ask the user which language.** Candidates: C#,
+Kotlin `.kts` (Gradle scripts, after a distribution check).
 Follow README "Adding a language". `lang/cfamily.py` shows several
 grammars in one adapter and source preparation; `lang/swift.py` a grammar
 without an `alternative` field; `lang/rust.py` a wrapped else-if, tests in
 the same file, and cohesion idiom exclusions; `lang/go.py` an idiom
 exemption with a config switch; `lang/java.py` source rewrites for syntax
-newer than the grammar, and accessors left out of cohesion. Prove existing languages are unaffected
+newer than the grammar, and accessors left out of cohesion;
+`lang/kotlin.py` layout closures and a wrapped else-if without fields. Prove existing languages are unaffected
 with `scripts/snapshot.py` before and after; the corpora and commands are
 in `cards/calibration-corpora.md`.
 

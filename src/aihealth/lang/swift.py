@@ -22,6 +22,7 @@ from tree_sitter import Node
 from aihealth.lang.base import (
     ExtractionScope,
     LanguageAdapter,
+    call_nesting,
     member_refs_by_method,
     names_in,
     split_top,
@@ -458,16 +459,7 @@ class SwiftAdapter(LanguageAdapter):
 
     def widget_depth(self, body: Node) -> int:
         """Deepest nesting of view-like calls (`VStack { Text(...) }`)."""
-        best = 0
-        stack = [(body, 0)]
-        while stack:
-            node, depth = stack.pop()
-            if node.type == "call_expression" and _is_view_call(node):
-                depth += 1
-                best = max(best, depth)
-            if node is body or self.role(node) is not Role.STOP:
-                stack.extend((c, depth) for c in node.children)
-        return best
+        return call_nesting(body, _is_view_call, self.role)
 
     def hint(self, smell: str) -> str | None:
         if smell == "deep_widget_tree":

@@ -28,6 +28,9 @@ Example `.aihealth.toml`::
     [javascript]                # .js, .mjs, .cjs and .jsx
     test_closure_calls = ["describe", "it", "test"]
 
+    [kotlin]
+    test_closure_calls = ["describe", "it", "test"]   # Kotest / Spek specs
+
     [go]
     count_error_checks = true   # score `if err != nil { return .. }` (default: false)
     test_closure_calls = ["Run"]   # `t.Run("name", func(t *testing.T) {..})`
@@ -150,6 +153,7 @@ DEFAULTS: dict[str, Any] = {
     "rust": {"score_test_modules": False},
     "typescript": {"test_closure_calls": None},  # for .ts and .tsx
     "javascript": {"test_closure_calls": None},
+    "kotlin": {"test_closure_calls": None},
     # error checks that only return: no complexity by default (code-health-model)
     "go": {"count_error_checks": False, "test_closure_calls": None},
 }
@@ -173,6 +177,7 @@ SECTION_DOCS: dict[str, str] = {
     "typescript": "TypeScript adapter (.ts, .mts, .cts, .tsx).",
     "javascript": "JavaScript adapter (.js, .mjs, .cjs, .jsx).",
     "go": "Go adapter.",
+    "kotlin": "Kotlin adapter (.kt).",
 }
 
 KEY_DOCS: dict[str, str] = {
@@ -182,11 +187,11 @@ KEY_DOCS: dict[str, str] = {
     "thresholds.cognitive_complexity": "Cognitive complexity of a function.",
     "thresholds.deep_nesting": "Maximum nesting depth in a function.",
     "thresholds.bumpy_road": "Separate chunks of nested logic in a function.",
-    "thresholds.excess_arguments": "Parameters of a function (Dart named and Swift "
-    "labelled parameters count half).",
+    "thresholds.excess_arguments": "Parameters of a function (Dart named, Swift "
+    "labelled and Kotlin defaulted parameters count half).",
     "thresholds.complex_conditional": "and/or operators in one boolean expression.",
     "thresholds.deep_widget_tree": "Nesting of widget/view/JSX constructors "
-    "(Flutter, SwiftUI, JSX).",
+    "(Flutter, SwiftUI, Compose, JSX).",
     "thresholds.large_file": "Code lines in a file.",
     "thresholds.low_cohesion": "LCOM4: groups of methods and fields that don't use each other.",
     "thresholds.primitive_obsession": "Share (0-1) of a file's typed parameters "
@@ -219,6 +224,8 @@ KEY_DOCS: dict[str, str] = {
     "go.count_error_checks": "Count `if err != nil { return .. }` towards complexity.",
     "go.test_closure_calls": "Methods whose func literal argument is a unit of its own "
     "(t.Run subtests).",
+    "kotlin.test_closure_calls": "Calls whose trailing lambda is scored as a unit "
+    "of its own (Kotest/Spek specs).",
 }
 
 OVERRIDES_DOC = (
@@ -280,7 +287,7 @@ class Config:
         return base + list(scan["exclude"])
 
     def adapter_options(self, language: str) -> dict[str, Any]:
-        if language in ("dart", "swift", "typescript", "tsx", "javascript"):
+        if language in ("dart", "swift", "typescript", "tsx", "javascript", "kotlin"):
             section = "typescript" if language == "tsx" else language
             calls = self.data[section]["test_closure_calls"]
             return {} if calls is None else {"test_calls": frozenset(calls)}

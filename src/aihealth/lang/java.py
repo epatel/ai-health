@@ -401,11 +401,12 @@ class JavaAdapter(LanguageAdapter):
         setters) touch one field by design: neither is judged."""
         if cls.kind == "interface":
             return {}
-        refs = member_refs_by_method(cls, _instance_fields(cls), _member_names_in)
-        for fn in cls.methods:
-            if _is_accessor(self.statements(fn.body)):
-                refs[fn.qualname] = set()
-        return refs
+        return member_refs_by_method(
+            cls,
+            _instance_fields(cls),
+            _member_names_in,
+            lambda fn: _is_accessor(self.statements(fn.body)),
+        )
 
     # --- extraction ---------------------------------------------------------------------
 
